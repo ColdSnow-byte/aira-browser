@@ -13,21 +13,19 @@ export function shouldResumeFeatureIntroSlides(value: string | undefined): boole
 }
 
 /**
- * The feature intro is only for a brand-new install that has not finished the
- * sync welcome. An existing install that already passed that welcome goes
- * straight to the browser, even if this intro version was added later.
+ * The intro is one sequence. It is finished only when the user enters the browser,
+ * by skipping or by leaving the last step. A kill, crash, or shutdown before that
+ * starts again at the first page. An install that already finished the welcome
+ * still opens the browser.
  */
 export function resolveInitialOnboardingDestination(
-  featureIntroCompleted: boolean,
+  _featureIntroCompleted: boolean,
   startupWelcomeCompleted: boolean
 ): InitialOnboardingDestination {
   if (startupWelcomeCompleted) {
     return 'browser';
   }
-  if (!featureIntroCompleted) {
-    return 'feature_intro';
-  }
-  return 'startup_welcome';
+  return 'feature_intro';
 }
 
 export function resolveFeatureIntroExitDestination(

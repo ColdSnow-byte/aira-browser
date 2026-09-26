@@ -80,6 +80,7 @@ import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPoli
 import centeredHomeShortcutLayoutPolicyTest from './CenteredHomeShortcutLayoutPolicy.test';
 import homePageSettingsCapabilityPolicyTest from './HomePageSettingsCapabilityPolicy.test';
 import systemHomepageStyleCatalogTest from './SystemHomepageStyleCatalog.test';
+import browserGestureOnboardingPromptPolicyTest from './BrowserGestureOnboardingPromptPolicy.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
@@ -167,6 +168,7 @@ export default function tests(): void {
   centeredHomeShortcutLayoutPolicyTest();
   homePageSettingsCapabilityPolicyTest();
   systemHomepageStyleCatalogTest();
+  browserGestureOnboardingPromptPolicyTest();
   elementInspectionRuntimeScriptServiceTest();
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();

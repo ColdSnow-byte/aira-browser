@@ -86,11 +86,11 @@ export class HomePagePresentationSettingsRepository {
     left: HomePagePresentationSettings,
     right: HomePagePresentationSettings
   ): boolean {
-    // homePageStyle is device-local and must not mark a Personalization snapshot dirty.
     return left.showFavoritesTitle === right.showFavoritesTitle &&
       left.showShortcutNames === right.showShortcutNames &&
       left.showRecentlyClosedTitle === right.showRecentlyClosedTitle &&
-      left.showSettingsButton === right.showSettingsButton;
+      left.showSettingsButton === right.showSettingsButton &&
+      left.homePageStyle === right.homePageStyle;
   }
 
   private publishSettings(): void {

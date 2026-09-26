@@ -1665,6 +1665,13 @@ export class SyncService implements AiraCloudBookmarkV4BootstrapDomain {
     return this.requireSyncConfigStore().beginHuaweiBookmarkInitialization(changedAt);
   }
 
+  beginBookmarkInitialization(changedAt: number = Date.now()): Promise<AiraSyncSettings> {
+    if (this.getAiraSyncSettings().remoteKind === 'huawei_space') {
+      return this.beginHuaweiBookmarkInitialization(changedAt);
+    }
+    return this.requireSyncConfigStore().beginBookmarkInitialization(changedAt);
+  }
+
   clearBookmarkSyncPending(expectedPendingAt: number): Promise<AiraSyncSettings> {
     return this.requireSyncConfigStore().clearBookmarkSyncPending(expectedPendingAt);
   }

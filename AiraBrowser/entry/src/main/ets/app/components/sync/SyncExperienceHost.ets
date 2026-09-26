@@ -355,21 +355,16 @@ export struct SyncExperienceHost {
       return;
     }
     this.isBusy = true;
-    const firstHuaweiActivation = remoteKind === 'huawei_space' &&
-      !this.state.hasActiveProvider && firstActivationItems !== undefined;
-    if (firstHuaweiActivation) {
-      this.preActiveStatusKind = 'huawei-activating';
-    }
-    const silentHuaweiInitialization = remoteKind === 'huawei_space' && !this.state.hasActiveProvider;
-    if (!silentHuaweiInitialization) {
+    const silentFirstActivation = !this.state.hasActiveProvider;
+    if (!silentFirstActivation) {
       this.syncProgressController.begin(
-        this.state.hasActiveProvider ? '正在更改同步方式' : '正在开启同步',
-        this.state.hasActiveProvider ? '正在读取、合并并保存同步数据' : '正在读取已有同步状态并准备内容'
+        '正在更改同步方式',
+        '正在读取、合并并保存同步数据'
       );
     }
     sharedSyncExperienceCoordinator.requestGoalChange(remoteKind, confirmed, firstActivationItems)
       .then((outcome: SyncExperienceActionOutcome) => {
-        if (silentHuaweiInitialization) {
+        if (silentFirstActivation) {
           if (outcome.type !== 'completed') {
             this.renderOutcome(outcome);
           }
@@ -421,16 +416,12 @@ export struct SyncExperienceHost {
       return;
     }
     this.isBusy = true;
-    const silentHuaweiInitialization = enabled && this.state.huaweiSpaceActive;
-    if (!silentHuaweiInitialization) {
-      this.syncProgressController.begin(
-        enabled ? '正在开启书签同步' : '正在暂停书签同步',
-        enabled ? '正在读取并合并已有书签' : '正在保存当前书签同步状态'
-      );
+    if (!enabled) {
+      this.syncProgressController.begin('正在暂停书签同步', '正在保存当前书签同步状态');
     }
     sharedSyncExperienceCoordinator.setBookmarkSelected(enabled)
       .then((outcome: SyncExperienceActionOutcome) => {
-        if (silentHuaweiInitialization) {
+        if (enabled) {
           if (outcome.type !== 'completed') {
             this.renderOutcome(outcome);
           }
@@ -449,17 +440,9 @@ export struct SyncExperienceHost {
       return;
     }
     this.isBusy = true;
-    if (enabled) {
-      this.syncProgressController.begin(
-        '正在开启历史记录同步',
-        `正在合并本机与${this.state.historyProviderLabel}历史记录`
-      );
-    }
     sharedSyncExperienceCoordinator.setHistorySelected(enabled)
       .then((outcome: SyncExperienceActionOutcome) => {
-        if (enabled) {
-          this.completeProgressOutcome(outcome);
-        } else if (outcome.type !== 'completed') {
+        if (outcome.type !== 'completed') {
           this.renderOutcome(outcome);
         }
       })
@@ -478,15 +461,12 @@ export struct SyncExperienceHost {
       (!enabled && this.state.personalizationSelected && this.state.enabledPersonalizationItemCount === 1)
     );
     this.isBusy = true;
-    if (changesHiddenDomain) {
-      this.syncProgressController.begin(
-        enabled ? '正在开启这项同步' : '正在保存同步内容',
-        enabled ? '正在读取并合并已有主页收藏、小说书架和常用设置' : '正在暂停最后一项同步内容'
-      );
+    if (changesHiddenDomain && !enabled) {
+      this.syncProgressController.begin('正在保存同步内容', '正在暂停最后一项同步内容');
     }
     sharedSyncExperienceCoordinator.setPersonalizationItemSelected(id, enabled)
       .then((outcome: SyncExperienceActionOutcome) => {
-        if (changesHiddenDomain) {
+        if (changesHiddenDomain && !enabled) {
           this.completeProgressOutcome(outcome);
         } else if (outcome.type !== 'completed') {
           this.renderOutcome(outcome);

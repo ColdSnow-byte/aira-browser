@@ -807,19 +807,11 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
           message: '重新开启同步后会自动继续。'
         };
       }
-      const result = await this.automaticRuntime.runHistoryNow();
-      if (!result.ok) {
-        return {
-          type: 'failed',
-          title: '历史记录同步未完成',
-          message: result.message
-        };
-      }
-      this.automaticRuntime.notifyHistoryProviderChanged();
+      this.automaticRuntime.scheduleEnabledHistorySync();
       return {
         type: 'completed',
         title: '历史记录同步已开启',
-        message: result.message
+        message: '历史记录会在后台同步。离开此页面、断网或下次打开应用都会继续。'
       };
     } catch (error) {
       return this.failure('历史记录同步设置失败', this.normalizeError(error));
@@ -1287,10 +1279,9 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
           failures.push(`历史记录：${historyOutcome.message}`);
         }
       }
-      if (selection.bookmarkSelected) {
-        if (!this.isHuaweiBookmarkInitializationPending(this.syncService.getAiraSyncSettings())) {
-          await this.refreshBookmarkRemoteStatus(remoteKind);
-        }
+      if (selection.bookmarkSelected &&
+        !this.isHuaweiBookmarkInitializationPending(this.syncService.getAiraSyncSettings())) {
+        void this.refreshBookmarkRemoteStatus(remoteKind);
       }
       const historySelected = remoteKind !== 'webdav' && selection.historySelected;
       await this.experienceStateStore.setSelections(
@@ -1505,6 +1496,7 @@ export class SyncExperienceCoordinator implements AiraCloudBookmarkV4BootstrapTr
       const result = await this.personalizationDomain.enableDomain();
       if (result.ok) {
         this.automaticRuntime.notifyPersonalizationLocalSettingsChanged();
+        void this.automaticRuntime.notifyAccountChanged();
       }
       return result;
     });

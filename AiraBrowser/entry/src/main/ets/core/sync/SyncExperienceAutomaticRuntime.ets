@@ -721,6 +721,12 @@ export class SyncExperienceAutomaticRuntime {
     this.scheduleHistoryPeriodicSync();
   }
 
+  scheduleEnabledHistorySync(): void {
+    this.startNetworkRecovery();
+    this.scheduleHistoryIfActive('network_recovery', HISTORY_NETWORK_RECOVERY_DELAY_MS);
+    this.scheduleHistoryPeriodicSync();
+  }
+
   notifyMembershipStateChanged(): void {
     const plan = this.membershipFeature.getState().plan;
     const becamePro = plan === 'pro' && this.personalizationLastObservedPlan !== 'pro';
@@ -1543,7 +1549,7 @@ export class SyncExperienceAutomaticRuntime {
 
   private startNetworkRecovery(): void {
     if (this.networkRecoveryStarted ||
-      (!this.personalizationRepositoriesReady && !this.hasPendingHuaweiBookmarkSync() &&
+      (!this.personalizationRepositoriesReady && !this.hasPendingBookmarkSync() &&
         !this.isHistoryAutomaticSyncActive())) {
       return;
     }
@@ -1565,18 +1571,20 @@ export class SyncExperienceAutomaticRuntime {
   }
 
   private scheduleBookmarkNetworkRecovery(): void {
-    const settings = this.syncService.getAiraSyncSettings();
-    if (settings.remoteKind !== 'huawei_space' || !this.isBookmarkAutomaticSyncActive()) {
+    if (!this.isBookmarkAutomaticSyncActive()) {
       return;
     }
     void this.hasBookmarkPendingChanges().then((pending: boolean): void => {
-      if (!pending || this.syncService.getAiraSyncSettings().remoteKind !== 'huawei_space' ||
-        !this.isBookmarkAutomaticSyncActive()) {
+      if (!pending || !this.isBookmarkAutomaticSyncActive()) {
         return;
       }
       this.bookmarkHasPendingChanges = true;
       this.scheduleBookmarkAutomaticRun('network_recovery', BOOKMARK_NETWORK_RECOVERY_DELAY_MS);
     });
+  }
+
+  private hasPendingBookmarkSync(): boolean {
+    return (this.syncService.getAiraSyncSettings().pendingBookmarkSyncAt ?? 0) > 0;
   }
 
   private hasPendingHuaweiBookmarkSync(): boolean {
@@ -1599,9 +1607,9 @@ export class SyncExperienceAutomaticRuntime {
     }
     const personalizationActive = this.personalizationRepositoriesReady &&
       this.isPersonalizationAutomaticSyncActive();
-    const huaweiBookmarkActive = this.hasPendingHuaweiBookmarkSync() &&
+    const bookmarkRecoveryActive = this.hasPendingBookmarkSync() &&
       this.isBookmarkAutomaticSyncActive();
-    if (personalizationActive || huaweiBookmarkActive || this.isHistoryAutomaticSyncActive()) {
+    if (personalizationActive || bookmarkRecoveryActive || this.isHistoryAutomaticSyncActive()) {
       return;
     }
     this.networkAvailabilityService.stop();

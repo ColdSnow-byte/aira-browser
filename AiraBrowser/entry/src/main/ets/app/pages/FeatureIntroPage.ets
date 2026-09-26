@@ -24,10 +24,10 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
 import {
-  BROWSER_SHELL_ROUTE,
   FEATURE_INTRO_SEARCH_ENGINE_ROUTE,
   STARTUP_WELCOME_INTRO_ROUTE
 } from '../router/AppRoutes';
+import { finishOnboardingToBrowser } from '../router/OnboardingNavigation';
 
 const FEATURE_INTRO_ACTION_HEIGHT: number = 40;
 const FEATURE_INTRO_TITLE_TOP_PADDING: number = 28;
@@ -65,6 +65,10 @@ struct FeatureIntroPage {
   private openingSearchEngineSetup: boolean = false;
   private readonly host: FeatureIntroHost = {
     leave: (destination: FeatureIntroExitDestination): void => {
+      if (destination === 'browser') {
+        finishOnboardingToBrowser();
+        return;
+      }
       router.replaceUrl({ url: this.resolveExitRoute(destination) }).catch((_error: Error) => {
         this.coordinator.abandonLeave();
       });
@@ -406,8 +410,8 @@ struct FeatureIntroPage {
     });
   }
 
-  private resolveExitRoute(destination: FeatureIntroExitDestination): string {
-    return destination === 'startup_welcome' ? STARTUP_WELCOME_INTRO_ROUTE : BROWSER_SHELL_ROUTE;
+  private resolveExitRoute(_destination: FeatureIntroExitDestination): string {
+    return STARTUP_WELCOME_INTRO_ROUTE;
   }
 
   private updateWindowSize(area: Area): void {

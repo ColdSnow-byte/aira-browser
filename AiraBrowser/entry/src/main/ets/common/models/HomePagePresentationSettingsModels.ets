@@ -15,7 +15,7 @@ export interface HomePagePresentationSettings {
   showRecentlyClosedTitle: boolean;
   showSettingsButton: boolean;
   /**
-   * Device-local homepage frame. Intentionally excluded from Personalization Sync.
+   * Built-in homepage frame. Synced with the other core preferences.
    */
   homePageStyle: BrowserHomePageStyle;
 }

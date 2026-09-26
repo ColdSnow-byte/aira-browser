@@ -578,7 +578,8 @@ export class PersonalizationSyncSnapshotService {
         siteIconCornerRadiusRatio: preferences.appearance.siteIconCornerRadiusRatio,
         themePaletteId: preferences.appearance.themePaletteId,
         tabsOverviewLayoutStyle: preferences.appearance.tabsOverviewLayoutStyle,
-        tabsOverviewCloseButtonAlwaysVisible: preferences.appearance.tabsOverviewCloseButtonAlwaysVisible
+        tabsOverviewCloseButtonAlwaysVisible: preferences.appearance.tabsOverviewCloseButtonAlwaysVisible,
+        homePageStyle: presentation.homePageStyle
       },
       general: {
         startupRestorePolicy: preferences.general.startupRestorePolicy,
@@ -629,7 +630,8 @@ export class PersonalizationSyncSnapshotService {
         themePaletteId: this.sanitizeThemePaletteId(payload.appearance.themePaletteId),
         tabsOverviewLayoutStyle: this.sanitizeTabsOverviewLayoutStyle(payload.appearance.tabsOverviewLayoutStyle),
         tabsOverviewCloseButtonAlwaysVisible:
-          this.sanitizeBoolean(payload.appearance.tabsOverviewCloseButtonAlwaysVisible)
+          this.sanitizeBoolean(payload.appearance.tabsOverviewCloseButtonAlwaysVisible),
+        homePageStyle: this.sanitizeHomePageStyle(payload.appearance.homePageStyle)
       };
     }
     if (payload?.general !== undefined) {
@@ -695,6 +697,10 @@ export class PersonalizationSyncSnapshotService {
 
   private sanitizeThemePaletteId(value: BrowserThemePaletteId | undefined): BrowserThemePaletteId | undefined {
     return BUILT_IN_THEME_PALETTES.some((palette): boolean => palette.id === value) ? value : undefined;
+  }
+
+  private sanitizeHomePageStyle(value: string | undefined): 'classic' | 'centered' | undefined {
+    return value === 'classic' || value === 'centered' ? value : undefined;
   }
 
   private sanitizeTabsOverviewLayoutStyle(
@@ -1357,6 +1363,11 @@ export class PersonalizationSyncSnapshotService {
       }, 'sync');
     }
     const presentation = this.dependencies.homePagePresentationSettingsRepository.getSettings();
+    const incomingHomePageStyle = incomingAppearance?.homePageStyle;
+    const hasIncomingHomePageStyle = incomingHomePageStyle === 'classic' || incomingHomePageStyle === 'centered';
+    if (hasIncomingHomePageStyle) {
+      presentation.homePageStyle = incomingHomePageStyle;
+    }
     const requestedShowSettingsButton =
       incomingAppearance?.showHomeSettingsButton ?? presentation.showSettingsButton;
     const nextShowSettingsButton = this.homePageRecoveryEntryPolicyService.resolveSettingsButtonVisibility({
@@ -1369,7 +1380,8 @@ export class PersonalizationSyncSnapshotService {
       incomingAppearance?.showHomeShortcutNames !== undefined ||
       incomingAppearance?.showHomeRecentlyClosedTitle !== undefined ||
       incomingAppearance?.showHomeSettingsButton !== undefined ||
-      nextShowSettingsButton !== presentation.showSettingsButton) {
+      nextShowSettingsButton !== presentation.showSettingsButton ||
+      hasIncomingHomePageStyle) {
       presentation.showFavoritesTitle =
         incomingAppearance?.showHomeFavoritesTitle ?? presentation.showFavoritesTitle;
       presentation.showShortcutNames = incomingAppearance?.showHomeShortcutNames ?? presentation.showShortcutNames;

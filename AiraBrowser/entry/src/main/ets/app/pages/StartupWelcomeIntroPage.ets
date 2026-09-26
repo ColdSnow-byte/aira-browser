@@ -1,4 +1,3 @@
-import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { BusinessError } from '@kit.BasicServicesKit';
 import { loginComponentManager } from '@kit.AccountKit';
@@ -16,18 +15,21 @@ import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
+import { SyncFirstActivationItemsCoordinator, SyncFirstActivationItemId, SyncFirstActivationItemsState } from '../../core/sync/SyncFirstActivationItemsCoordinator';
+import { SyncFirstActivationItemsSheet } from '../components/sync/SyncFirstActivationItemsSheet';
 import { HuaweiLoginSheetContent } from '../components/account/HuaweiLoginSheetContent';
 import { SettingsActionButton } from '../components/settings/SettingsRows';
-import { APP_STANDARD_HORIZONTAL_PADDING } from '../components/common/AppLayoutTokens';
+import { FeatureIntroSkipControl } from '../components/onboarding/FeatureIntroSkipControl';
 import { SettingsNavigationCoordinator } from '../router/SettingsNavigationCoordinator';
+import { BrowserStatusBarStyleService } from '../../services/browser/BrowserStatusBarStyleService';
 import { SettingsTopSafeInsetService } from '../../services/settings/SettingsTopSafeInsetService';
-import { BROWSER_SHELL_ROUTE } from '../router/AppRoutes';
+import { finishOnboardingToBrowser, returnToPreviousOnboardingStep } from '../router/OnboardingNavigation';
 
-const STARTUP_WELCOME_TOP_BAR_HEIGHT: number = 56;
 const STARTUP_WELCOME_HORIZONTAL_PADDING: number = 24;
 const STARTUP_WELCOME_BOTTOM_PADDING: number = 24;
 const STARTUP_WELCOME_CONTENT_MAX_WIDTH: number = 430;
@@ -35,7 +37,6 @@ const STARTUP_WELCOME_ICON_SIZE: number = 88;
 const STARTUP_WELCOME_ICON_RADIUS: number = 20;
 const STARTUP_WELCOME_ACTION_HEIGHT: number = 44;
 const STARTUP_WELCOME_ACTION_GAP: number = 10;
-const STARTUP_WELCOME_SKIP_HEIGHT: number = 36;
 
 const STARTUP_WELCOME_EMPTY_BOUNDARY: BrowserBoundaryRouteState = {
   dataScope: '',
@@ -52,10 +53,19 @@ struct StartupWelcomeIntroPage {
   @StorageProp(BROWSER_THEME_STORAGE_PRESSED_BACKGROUND_KEY) private storedPressedBackgroundColor: string = '#DDE4EC';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) @Watch('syncStatusBarContentStyle')
+  private storedResolvedThemeMode: string = 'light';
   @State private busy: boolean = false;
   @State private topInset: number = 0;
+  @State private syncChoicesVisible: boolean = false;
+  @State private syncChoicesHandled: boolean = false;
+  @State private syncChoices: SyncFirstActivationItemsState = new SyncFirstActivationItemsCoordinator()
+    .buildDefaultState('aira_cloud');
+  private readonly syncChoicesCoordinator: SyncFirstActivationItemsCoordinator =
+    new SyncFirstActivationItemsCoordinator();
   private readonly navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
   private readonly topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
+  private readonly statusBarStyleService: BrowserStatusBarStyleService = new BrowserStatusBarStyleService();
   private readonly host: StartupWelcomeIntroHost = {
     setBusy: (busy: boolean): void => {
       this.busy = busy;
@@ -77,10 +87,13 @@ struct StartupWelcomeIntroPage {
     openPrivacyPolicy: (): void => {
       this.navigationCoordinator.openPrivacyStatement(STARTUP_WELCOME_EMPTY_BOUNDARY);
     },
+    presentSyncContentChoices: (): void => {
+      this.syncChoices = this.syncChoicesCoordinator.buildDefaultState('aira_cloud');
+      this.syncChoicesHandled = false;
+      this.syncChoicesVisible = true;
+    },
     leaveIntro: (): void => {
-      router.replaceUrl({ url: BROWSER_SHELL_ROUTE }).catch((_error: Error) => {
-        this.busy = false;
-      });
+      finishOnboardingToBrowser();
     }
   };
   private readonly coordinator: StartupWelcomeIntroCoordinator =
@@ -94,18 +107,35 @@ struct StartupWelcomeIntroPage {
         this.coordinator.handleLoginCredential(this.toCredential(error, response));
       });
 
+  aboutToAppear(): void {
+    this.syncStatusBarContentStyle();
+  }
+
   onBackPress(): boolean {
+    this.returnToPreviousStep();
     return true;
   }
 
   onPageShow(): void {
     this.readTopInset();
+    this.syncStatusBarContentStyle();
     this.coordinator.finishIfConfiguredOnResume();
   }
 
   build() {
     Column() {
-      this.buildTopBar()
+      FeatureIntroSkipControl({
+        label: this.resolveState().skipActionLabel,
+        leadingLabel: this.resolveState().previousActionLabel,
+        topInsetVp: this.topInset,
+        skipEnabled: !this.busy,
+        onConfirm: (): void => {
+          this.coordinator.skipIntro();
+        },
+        onLeading: (): void => {
+          this.returnToPreviousStep();
+        }
+      })
 
       Scroll() {
         Column() {
@@ -146,31 +176,33 @@ struct StartupWelcomeIntroPage {
     .alignItems(HorizontalAlign.Center)
     .backgroundColor(this.storedPageBackgroundColor)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
+    .bindSheet($$this.syncChoicesVisible, this.buildSyncChoicesSheet(), {
+      height: SheetSize.LARGE,
+      dragBar: false,
+      showClose: false,
+      onDisappear: (): void => {
+        this.finishSyncChoices(false);
+      }
+    })
   }
 
   @Builder
-  private buildTopBar() {
-    Row() {
-      Blank()
-
-      Button(this.resolveState().skipActionLabel)
-        .type(ButtonType.Normal)
-        .buttonStyle(ButtonStyleMode.TEXTUAL)
-        .height(STARTUP_WELCOME_SKIP_HEIGHT)
-        .padding({ left: 12, right: 12 })
-        .fontSize(15)
-        .fontColor(this.storedSecondaryTextColor)
-        .enabled(!this.busy)
-        .opacity(this.busy ? 0.58 : 1)
-        .onClick(() => {
-          this.coordinator.completeIntro();
-        })
-    }
-    .width('100%')
-    .height(STARTUP_WELCOME_TOP_BAR_HEIGHT)
-    .padding({ left: STARTUP_WELCOME_HORIZONTAL_PADDING, right: STARTUP_WELCOME_HORIZONTAL_PADDING })
-    .margin({ top: this.topInset })
-    .alignItems(VerticalAlign.Center)
+  private buildSyncChoicesSheet() {
+    SyncFirstActivationItemsSheet({
+      state: $syncChoices,
+      isBusy: this.busy,
+      layoutMode: 'phone',
+      submitLabel: '立即同步',
+      onToggle: (id: SyncFirstActivationItemId, enabled: boolean): void => {
+        this.syncChoices = this.syncChoicesCoordinator.updateItemEnabled(this.syncChoices, id, enabled);
+      },
+      onSubmit: (): void => {
+        this.finishSyncChoices(true);
+      },
+      onClose: (): void => {
+        this.finishSyncChoices(false);
+      }
+    })
   }
 
   @Builder
@@ -223,6 +255,33 @@ struct StartupWelcomeIntroPage {
     })
     .enabled(!this.busy)
     .opacity(this.busy ? 0.58 : 1)
+  }
+
+  private finishSyncChoices(confirm: boolean): void {
+    if (this.syncChoicesHandled) {
+      return;
+    }
+    this.syncChoicesHandled = true;
+    this.syncChoicesVisible = false;
+    if (confirm) {
+      this.coordinator.confirmHuaweiSyncChoices(this.syncChoices);
+      return;
+    }
+    this.coordinator.dismissHuaweiSyncChoices();
+  }
+
+  private returnToPreviousStep(): void {
+    if (this.busy) {
+      return;
+    }
+    returnToPreviousOnboardingStep('account');
+  }
+
+  private syncStatusBarContentStyle(): void {
+    this.statusBarStyleService.applyLightContentStyle(
+      this.getUIContext().getHostContext() as common.UIAbilityContext,
+      this.storedResolvedThemeMode === 'dark'
+    );
   }
 
   private readTopInset(): void {

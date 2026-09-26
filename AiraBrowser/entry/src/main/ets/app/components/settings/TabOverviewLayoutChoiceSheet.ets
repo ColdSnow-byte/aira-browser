@@ -235,7 +235,7 @@ export struct TabOverviewLayoutChoiceSheet {
 }
 
 @Component
-struct TabOverviewLayoutOption {
+export struct TabOverviewLayoutOption {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @Prop option: TabOverviewLayoutOptionState = {
@@ -244,6 +244,8 @@ struct TabOverviewLayoutOption {
     isSelected: false
   };
   @Prop previewResource: Resource = $r('app.media.tab_overview_grid_light');
+  @Prop accentColor: string = '';
+  @Prop primaryTextColor: string = '';
   onSelect: (style: BrowserTabsOverviewLayoutStyle) => void = (_style: BrowserTabsOverviewLayoutStyle) => {};
 
   build() {
@@ -257,7 +259,7 @@ struct TabOverviewLayoutOption {
         .width('100%')
         .fontSize(15)
         .fontWeight(FontWeight.Medium)
-        .fontColor(this.storedPrimaryTextColor)
+        .fontColor(this.resolvePrimaryTextColor())
         .textAlign(TextAlign.Center)
         .maxLines(1)
         .textOverflow({ overflow: TextOverflow.Ellipsis })
@@ -268,7 +270,7 @@ struct TabOverviewLayoutOption {
       })
         .checked(this.option.isSelected)
         .hitTestBehavior(HitTestMode.None)
-        .radioStyle({ checkedBackgroundColor: this.storedAccentColor })
+        .radioStyle({ checkedBackgroundColor: this.resolveAccentColor() })
         .onChange((checked: boolean) => {
           if (checked) {
             this.onSelect(this.option.style);
@@ -280,5 +282,13 @@ struct TabOverviewLayoutOption {
     .onClick(() => {
       this.onSelect(this.option.style);
     })
+  }
+
+  private resolveAccentColor(): string {
+    return this.accentColor.length > 0 ? this.accentColor : this.storedAccentColor;
+  }
+
+  private resolvePrimaryTextColor(): string {
+    return this.primaryTextColor.length > 0 ? this.primaryTextColor : this.storedPrimaryTextColor;
   }
 }

@@ -263,6 +263,39 @@ export class AiraSyncConfigStore {
     return this.setSyncDomainEnabled('bookmarks', enabled);
   }
 
+  async beginBookmarkInitialization(changedAt: number = Date.now()): Promise<AiraSyncSettings> {
+    return this.mutateSettings((settings: AiraSyncSettings): AiraSyncSettings => {
+      if (settings.remoteKind === 'huawei_space') {
+        throw new Error('华为云空间书签初始化请使用专用入口。');
+      }
+      if (settings.remoteKind === 'none' || !this.isRemoteKindConfigured(settings, settings.remoteKind)) {
+        throw new Error('请先选择并配置同步方式。');
+      }
+      const now = Date.now();
+      const pendingAt = this.resolveNextPendingBookmarkSyncAt(
+        settings.pendingBookmarkSyncAt ?? 0,
+        changedAt > 0 ? changedAt : now
+      );
+      return {
+        sourceId: settings.sourceId,
+        remoteKind: settings.remoteKind,
+        additionalBackupRemoteKinds: settings.additionalBackupRemoteKinds,
+        bookmarkSyncEnabled: true,
+        personalizationSyncEnabled: settings.personalizationSyncEnabled,
+        providerStates: settings.providerStates,
+        additionalBackupEnabled: settings.additionalBackupEnabled,
+        additionalBackupIntervalDays: settings.additionalBackupIntervalDays,
+        webdav: settings.webdav,
+        huaweiCloud: settings.huaweiCloud,
+        huaweiSpace: settings.huaweiSpace,
+        selfHosted: settings.selfHosted,
+        updatedAt: now,
+        pendingBookmarkSyncAt: pendingAt,
+        pendingBookmarkProviderSwitchFrom: settings.pendingBookmarkProviderSwitchFrom
+      };
+    });
+  }
+
   async beginHuaweiBookmarkInitialization(changedAt: number = Date.now()): Promise<AiraSyncSettings> {
     return this.mutateSettings((settings: AiraSyncSettings): AiraSyncSettings => {
       if (settings.remoteKind !== 'huawei_space' || settings.huaweiSpace.uid.trim().length <= 0) {

@@ -3,8 +3,10 @@ import {
   StartupWelcomeIntroFacts,
   StartupWelcomeIntroViewModel
 } from '../main/ets/core/onboarding/StartupWelcomeIntroViewModel';
-import { hasStartupWelcomeIntroAccountOrSync } from
-  '../main/ets/core/onboarding/StartupWelcomeIntroCompletionPolicy';
+import {
+  hasStartupWelcomeIntroAccountOrSync,
+  shouldCompleteStartupWelcomeOnResume
+} from '../main/ets/core/onboarding/StartupWelcomeIntroCompletionPolicy';
 import { createDefaultAiraSyncSettings } from '../main/ets/services/sync/AiraSyncConfigStore';
 import { AiraSyncSettings } from '../main/ets/common/models/AiraSyncModels';
 
@@ -17,11 +19,13 @@ export default function startupWelcomeIntroTest(): void {
       };
       const state = new StartupWelcomeIntroViewModel().buildState(facts);
 
+      expect(state.hero.title).assertEqual('登录账号');
       expect(state.showHuaweiLogin).assertTrue();
       expect(state.actions.length).assertEqual(2);
       expect(state.actions[0].id).assertEqual('personal_server');
       expect(state.actions[1].id).assertEqual('webdav');
-      expect(state.skipActionLabel.length > 0).assertTrue();
+      expect(state.previousActionLabel).assertEqual('上一步');
+      expect(state.skipActionLabel).assertEqual('跳过');
     });
 
     it('hides the Huawei button on Community builds but keeps WebDAV and personal server', 0, () => {
@@ -30,6 +34,7 @@ export default function startupWelcomeIntroTest(): void {
         optionalServiceAvailable: true
       });
 
+      expect(state.hero.title).assertEqual('连接服务器');
       expect(state.showHuaweiLogin).assertFalse();
       expect(state.actions.length).assertEqual(2);
       expect(state.actions[0].id).assertEqual('personal_server');
@@ -51,6 +56,14 @@ export default function startupWelcomeIntroTest(): void {
   describe('hasStartupWelcomeIntroAccountOrSync', () => {
     it('treats a fresh install as unconfigured', 0, () => {
       expect(hasStartupWelcomeIntroAccountOrSync(createDefaultAiraSyncSettings())).assertFalse();
+      expect(shouldCompleteStartupWelcomeOnResume(createDefaultAiraSyncSettings())).assertFalse();
+    });
+
+    it('does not skip the content switches after Huawei login alone', 0, () => {
+      const settings: AiraSyncSettings = createDefaultAiraSyncSettings();
+      settings.huaweiCloud.uid = 'huawei-user';
+      expect(hasStartupWelcomeIntroAccountOrSync(settings)).assertTrue();
+      expect(shouldCompleteStartupWelcomeOnResume(settings)).assertFalse();
     });
 
     it('detects an active provider', 0, () => {

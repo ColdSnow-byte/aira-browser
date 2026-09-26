@@ -22,7 +22,8 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
-import { BROWSER_SHELL_ROUTE, FEATURE_INTRO_HOMEPAGE_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
+import { FEATURE_INTRO_HOMEPAGE_ROUTE } from '../router/AppRoutes';
+import { finishOnboardingToBrowser, returnToPreviousOnboardingStep } from '../router/OnboardingNavigation';
 
 const FEATURE_INTRO_SEARCH_HORIZONTAL_PADDING: number = 24;
 const FEATURE_INTRO_SEARCH_CONTENT_MAX_WIDTH: number = 430;
@@ -56,11 +57,9 @@ struct FeatureIntroSearchEnginePage {
       });
     },
     leave: (destination: FeatureIntroExitDestination): void => {
-      router.clear();
-      router.replaceUrl({ url: this.resolveExitRoute(destination) }).catch((_error: Error) => {
-        this.busy = false;
-        this.coordinator.abandonLeave();
-      });
+      finishOnboardingToBrowser();
+      this.busy = false;
+      this.coordinator.abandonLeave();
     }
   };
   private readonly coordinator: FeatureIntroSearchEngineCoordinator =
@@ -80,7 +79,7 @@ struct FeatureIntroSearchEnginePage {
 
   onBackPress(): boolean {
     if (!this.busy) {
-      this.returnToSlides();
+      returnToPreviousOnboardingStep('search');
     }
     return true;
   }
@@ -267,11 +266,10 @@ struct FeatureIntroSearchEnginePage {
   }
 
   private returnToSlides(): void {
-    router.back();
-  }
-
-  private resolveExitRoute(destination: FeatureIntroExitDestination): string {
-    return destination === 'startup_welcome' ? STARTUP_WELCOME_INTRO_ROUTE : BROWSER_SHELL_ROUTE;
+    if (this.busy) {
+      return;
+    }
+    returnToPreviousOnboardingStep('search');
   }
 
   private syncStatusBarContentStyle(): void {

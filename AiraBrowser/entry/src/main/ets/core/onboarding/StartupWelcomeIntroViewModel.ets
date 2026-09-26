@@ -22,17 +22,18 @@ export interface StartupWelcomeIntroViewState {
   /** The real Huawei ID button is rendered inline, not as a plain action row. */
   showHuaweiLogin: boolean;
   actions: StartupWelcomeIntroActionState[];
+  previousActionLabel: string;
   skipActionLabel: string;
 }
 
 const STARTUP_WELCOME_INTRO_HERO_SIGN_IN: StartupWelcomeIntroHeroState = {
-  title: '开启跨设备同步',
-  subtitle: '登录华为账号，或连接你自己的服务器，让书签、历史记录和常用设置在各设备之间保持一致。'
+  title: '登录账号',
+  subtitle: '登录华为账号，或连接你自己的服务器。也可以先跳过，之后在设置里再登录。'
 };
 
 const STARTUP_WELCOME_INTRO_HERO_SELF_HOSTED: StartupWelcomeIntroHeroState = {
-  title: '开启跨设备同步',
-  subtitle: '连接私有化部署或 WebDAV，让书签、历史记录和常用设置在各设备之间保持一致。'
+  title: '连接服务器',
+  subtitle: '连接私有化部署或 WebDAV。也可以先跳过，之后在设置里再连接。'
 };
 
 const STARTUP_WELCOME_INTRO_HERO_BASIC_MODE: StartupWelcomeIntroHeroState = {
@@ -40,7 +41,8 @@ const STARTUP_WELCOME_INTRO_HERO_BASIC_MODE: StartupWelcomeIntroHeroState = {
   subtitle: '当前处于精简模式，账号与同步功能需要切换到全量模式后使用。你可以先直接开始浏览。'
 };
 
-const STARTUP_WELCOME_INTRO_SKIP_ACTION_LABEL: string = '暂时跳过';
+const STARTUP_WELCOME_INTRO_PREVIOUS_ACTION_LABEL: string = '上一步';
+const STARTUP_WELCOME_INTRO_SKIP_ACTION_LABEL: string = '跳过';
 
 export class StartupWelcomeIntroViewModel {
   buildState(facts: StartupWelcomeIntroFacts): StartupWelcomeIntroViewState {
@@ -48,6 +50,7 @@ export class StartupWelcomeIntroViewModel {
       hero: this.resolveHero(facts),
       showHuaweiLogin: facts.optionalServiceAvailable && facts.huaweiAccountAvailable,
       actions: this.buildActions(facts),
+      previousActionLabel: STARTUP_WELCOME_INTRO_PREVIOUS_ACTION_LABEL,
       skipActionLabel: STARTUP_WELCOME_INTRO_SKIP_ACTION_LABEL
     };
   }

@@ -3,6 +3,7 @@
     "app/pages/FeatureIntroPage",
     "app/pages/FeatureIntroSearchEnginePage",
     "app/pages/FeatureIntroHomepagePage",
+    "app/pages/FeatureIntroAppearancePage",
     "app/pages/StartupWelcomeIntroPage",
     "app/pages/BrowserShellPage",
     "app/pages/BookmarkManagerPage",

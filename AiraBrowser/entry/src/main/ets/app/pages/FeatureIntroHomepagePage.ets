@@ -2,12 +2,14 @@ import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
 import { ShortcutRecord } from '../../common/models/BrowserModels';
-import { FeatureIntroHomepageCoordinator } from '../../core/onboarding/FeatureIntroHomepageCoordinator';
+import {
+  FeatureIntroHomepageCoordinator,
+  FeatureIntroHomepageHost
+} from '../../core/onboarding/FeatureIntroHomepageCoordinator';
 import {
   FeatureIntroHomepageViewModel,
   resolveFeatureIntroHomepageStyle
 } from '../../core/onboarding/FeatureIntroHomepageViewModel';
-import { FeatureIntroHost } from '../../core/onboarding/FeatureIntroCoordinator';
 import { FeatureIntroExitDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
 import {
   CustomHomepagePreviewLayoutState,
@@ -28,7 +30,8 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
-import { BROWSER_SHELL_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
+import { FEATURE_INTRO_APPEARANCE_ROUTE } from '../router/AppRoutes';
+import { finishOnboardingToBrowser, returnToPreviousOnboardingStep } from '../router/OnboardingNavigation';
 
 const FEATURE_INTRO_HOMEPAGE_HORIZONTAL_PADDING: number = 24;
 const FEATURE_INTRO_HOMEPAGE_CONTENT_MAX_WIDTH: number = 430;
@@ -67,13 +70,17 @@ struct FeatureIntroHomepagePage {
   private readonly topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
   private readonly statusBarStyleService: BrowserStatusBarStyleService = new BrowserStatusBarStyleService();
   private readonly shortcutLogicService: HomeShortcutLogicService = new HomeShortcutLogicService();
-  private readonly host: FeatureIntroHost = {
-    leave: (destination: FeatureIntroExitDestination): void => {
-      router.clear();
-      router.replaceUrl({ url: this.resolveExitRoute(destination) }).catch((_error: Error) => {
+  private readonly host: FeatureIntroHomepageHost = {
+    openAppearance: (): void => {
+      router.pushUrl({ url: FEATURE_INTRO_APPEARANCE_ROUTE }).catch((_error: Error) => {
         this.busy = false;
         this.coordinator.abandonLeave();
       });
+    },
+    leave: (destination: FeatureIntroExitDestination): void => {
+      finishOnboardingToBrowser();
+      this.busy = false;
+      this.coordinator.abandonLeave();
     }
   };
   private readonly coordinator: FeatureIntroHomepageCoordinator = new FeatureIntroHomepageCoordinator(this.host);
@@ -94,7 +101,7 @@ struct FeatureIntroHomepagePage {
 
   onBackPress(): boolean {
     if (!this.busy) {
-      router.back();
+      returnToPreviousOnboardingStep('homepage');
     }
     return true;
   }
@@ -224,11 +231,7 @@ struct FeatureIntroHomepagePage {
     if (this.busy) {
       return;
     }
-    router.back();
-  }
-
-  private resolveExitRoute(destination: FeatureIntroExitDestination): string {
-    return destination === 'startup_welcome' ? STARTUP_WELCOME_INTRO_ROUTE : BROWSER_SHELL_ROUTE;
+    returnToPreviousOnboardingStep('homepage');
   }
 
   private refreshPreviewLayoutState(): void {

@@ -378,24 +378,13 @@ export class SyncExperienceProviderOperations {
       if (accessOutcome !== undefined) {
         return accessOutcome;
       }
-      if (activeProvider === 'huawei_space') {
-        await this.syncService.beginHuaweiBookmarkInitialization();
-        this.automaticRuntime.schedulePendingBookmarkSync();
-        return this.outcome(
-          'bookmark-domain-enabled',
-          activeProvider,
-          '正在从华为云空间初始化书签，完成后会自动保持同步。'
-        );
-      }
-      const result = await this.syncService.initializeBookmarkSyncDomain();
-      if (result.blocked || result.conflictCount > 0) {
-        return this.outcome('bookmark-domain-blocked', activeProvider, result.summary, result);
-      }
-      if (activeProvider === 'aira_cloud') {
-        await this.membershipFeature.recordUsage(AIRA_FEATURE_CLOUD_SYNC);
-      }
-      this.automaticRuntime.scheduleBookmarkPeriodicSync();
-      return this.outcome('bookmark-domain-enabled', activeProvider, result.summary, result);
+      await this.syncService.beginBookmarkInitialization();
+      this.automaticRuntime.schedulePendingBookmarkSync();
+      return this.outcome(
+        'bookmark-domain-enabled',
+        activeProvider,
+        '书签会在后台同步。离开此页面、断网或下次打开应用都会继续，直到完成。'
+      );
     } catch (error) {
       const normalizedError = error as Error;
       return this.failure(

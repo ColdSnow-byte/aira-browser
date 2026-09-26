@@ -13,6 +13,7 @@ import {
   ShortcutRecord,
   ShortcutScenarioRecord
 } from './BrowserModels';
+import { BrowserHomePageStyle } from './HomePagePresentationSettingsModels';
 import { WallpaperMode } from './WallpaperModels';
 
 export const PERSONALIZATION_SYNC_SCHEMA_VERSION: number = 2;
@@ -127,6 +128,7 @@ export interface PersonalizationCoreAppearancePreferences {
   themePaletteId?: BrowserThemePaletteId;
   tabsOverviewLayoutStyle?: BrowserTabsOverviewLayoutStyle;
   tabsOverviewCloseButtonAlwaysVisible?: boolean;
+  homePageStyle?: BrowserHomePageStyle;
 }
 
 export type PersonalizationSettingsChangeOrigin = 'local' | 'sync' | 'system';

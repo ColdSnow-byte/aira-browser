@@ -824,6 +824,7 @@ import {
 } from '../../core/onboarding/BottomToolbarGuideCoordinator';
 import { CrossDeviceTabsEmptyAction } from '../../core/deviceTabs/CrossDeviceTabsEmptyPresentation';
 import { CROSS_DEVICE_LINK_SETUP_ROUTE, SYNC_DESKTOP_BOOKMARK_GUIDE_ROUTE } from '../router/AppRoutes';
+import { dismissOnboardingStackIfRequested } from '../router/OnboardingNavigation';
 import { FeatureGateOverlay } from '../components/browser/FeatureGateOverlay';
 import { NewUserGiftOverlay } from '../components/browser/NewUserGiftOverlay';
 import { BottomToolbarGuideOverlay } from '../components/onboarding/BottomToolbarGuideOverlay';
@@ -3894,6 +3895,7 @@ struct BrowserShellPage {
       blockingSurfaceVisible: this.browserTransientSurfaceCoordinator.isGestureOnboardingPromptBlocked(
         this.buildTransientPromptBlockingFacts()
       ),
+      homePageStyle: this.storedHomePageStyle === 'centered' ? 'centered' : 'classic',
       topOffsetVp: this.browserTopFloatingPromptCoordinator.resolveBackgroundOpenTopOffsetVp({
         showHomePage: this.showHomePage,
         topInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
@@ -6048,7 +6050,7 @@ struct BrowserShellPage {
     createBrowserRecentlyClosedApplicationSnapshot();
   @State showHomeShortcuts: boolean = true;
   @State homeShortcutLayoutDensity: BrowserHomeShortcutLayoutDensity = 'standard';
-  @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY)
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY) @Watch('syncGestureOnboardingForHomePageStyle')
   private storedHomePageStyle: string = 'classic';
   @State private topSearchOpenRequestVersion: number = 0;
   @State private centeredHomeSearchSessionMounted: boolean = false;
@@ -6511,6 +6513,7 @@ struct BrowserShellPage {
   @State elementInspectionOutlineMenuOpen: boolean = false;
   @State elementInspectionOutlineMenuDismissSerial: number = 0;
   aboutToAppear(): void {
+    dismissOnboardingStackIfRequested();
     this.browserDownloadConfirmOverlayCoordinator.setDownloadLocationPicker(
       (): Promise<boolean> => this.changeDownloadLocationFromPrompt()
     );
@@ -11470,7 +11473,7 @@ struct BrowserShellPage {
     if (state.showHomePage) {
       this.homeShortcutStateCoordinator.refresh();
       this.browserTabHomeCoordinator.schedulePromptEvaluations();
-      this.browserTopFloatingPromptCoordinator.scheduleGestureOnboardingPrompt();
+      this.scheduleGestureOnboardingPromptForHome();
     }
     if (wasShowingHomePage && !state.showHomePage) {
       this.scheduleWebSafeInsetSettleSync('web-surface-enter');
@@ -11562,6 +11565,22 @@ struct BrowserShellPage {
       this.rootBottomAddressPanelDetent = 'low';
       this.syncBottomPanelStatusBarStyle();
     }
+  }
+
+  private scheduleGestureOnboardingPromptForHome(): void {
+    if (this.storedHomePageStyle === 'centered') {
+      this.gestureOnboardingPromptState =
+        this.browserTopFloatingPromptCoordinator.suppressGestureOnboardingForCenteredHome();
+      return;
+    }
+    this.browserTopFloatingPromptCoordinator.scheduleGestureOnboardingPrompt();
+  }
+
+  private syncGestureOnboardingForHomePageStyle(): void {
+    if (!this.showHomePage) {
+      return;
+    }
+    this.scheduleGestureOnboardingPromptForHome();
   }
 
   private buildHomePagePresentationState(): BrowserHomePagePresentationState {

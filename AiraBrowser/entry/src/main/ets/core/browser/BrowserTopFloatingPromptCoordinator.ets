@@ -264,6 +264,13 @@ export class BrowserTopFloatingPromptCoordinator {
     );
   }
 
+  suppressGestureOnboardingForCenteredHome(): BrowserGestureOnboardingTopPromptState {
+    const state = this.actionDependencies.gestureOnboardingPromptCoordinator
+      .suppressGestureOnboardingForCenteredHome();
+    this.actionShell.publishGestureOnboardingState(state);
+    return state;
+  }
+
   scheduleGestureOnboardingPrompt(): void {
     this.actionDependencies.gestureOnboardingPromptCoordinator.scheduleFirstPrompt(
       (): BrowserGestureOnboardingPromptEligibilityInput =>

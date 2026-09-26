@@ -115,9 +115,14 @@ export class SyncPersonalizationDomain {
     if (activeProvider === 'none') {
       throw new Error('当前同步状态还未准备好，请稍后再试。');
     }
-    const result = await this.personalizationSyncService.syncToProvider(activeProvider);
     await this.syncConfigStore.setPersonalizationSyncEnabled(true);
-    return result;
+    return {
+      ok: true,
+      message: '主页收藏、小说书架和常用设置会在后台同步。',
+      appliedRemoteCount: 0,
+      uploaded: false,
+      syncedAt: 0
+    };
   }
 
   private failure(title: string, error: Error): SyncPersonalizationDomainRunOutcome {

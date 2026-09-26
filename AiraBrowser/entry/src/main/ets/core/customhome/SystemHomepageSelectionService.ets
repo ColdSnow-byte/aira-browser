@@ -6,9 +6,9 @@ import { HomePageSettingsCoordinator } from '../settings/HomePageSettingsCoordin
 import { resolveSystemHomepageToolbarChrome } from './SystemHomepageStyleCatalog';
 
 /**
- * Picking a built-in homepage writes two device-local stores: which homepage the new tab
- * renders (custom homepage repository) and how that frame looks (homepage presentation
- * settings). Both stay out of Personalization Sync.
+ * Picking a built-in homepage writes which frame the new tab uses. That frame is part of
+ * Personalization Sync. An imported custom homepage stays on this device, because its files
+ * are not in the snapshot.
  *
  * The recovery-entry guard runs last, so the chosen frame never ends up without a way back
  * to homepage settings: the centered frame pins its settings tile, and the classic frame

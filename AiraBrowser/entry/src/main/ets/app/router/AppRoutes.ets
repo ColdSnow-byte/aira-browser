@@ -3,6 +3,7 @@ export const STARTUP_WELCOME_INTRO_ROUTE: string = 'app/pages/StartupWelcomeIntr
 export const FEATURE_INTRO_ROUTE: string = 'app/pages/FeatureIntroPage';
 export const FEATURE_INTRO_SEARCH_ENGINE_ROUTE: string = 'app/pages/FeatureIntroSearchEnginePage';
 export const FEATURE_INTRO_HOMEPAGE_ROUTE: string = 'app/pages/FeatureIntroHomepagePage';
+export const FEATURE_INTRO_APPEARANCE_ROUTE: string = 'app/pages/FeatureIntroAppearancePage';
 export const BOOKMARK_MANAGER_ROUTE: string = 'app/pages/BookmarkManagerPage';
 export const BOOKMARK_FOLDER_ICON_PREVIEW_ROUTE: string = 'app/pages/BookmarkFolderIconPreviewPage';
 export const HISTORY_MANAGER_ROUTE: string = 'app/pages/HistoryManagerPage';

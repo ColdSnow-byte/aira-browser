@@ -21,6 +21,12 @@ import {
   FeatureIntroHomepageViewModel,
   resolveFeatureIntroHomepageStyle
 } from '../main/ets/core/onboarding/FeatureIntroHomepageViewModel';
+import {
+  FeatureIntroAppearanceViewModel,
+  resolveFeatureIntroAppearancePalette,
+  resolveFeatureIntroAppearanceTabStyle,
+  resolveFeatureIntroAppearanceThemeMode
+} from '../main/ets/core/onboarding/FeatureIntroAppearanceViewModel';
 
 export default function featureIntroTest(): void {
   describe('FeatureIntroViewModel', () => {
@@ -183,10 +189,70 @@ export default function featureIntroTest(): void {
     });
   });
 
+  describe('featureIntroAppearance', () => {
+    it('offers six theme colors and the three tab styles, with the defaults selected', 0, () => {
+      const viewModel = new FeatureIntroAppearanceViewModel();
+      const palettes = viewModel.palettes(viewModel.defaultPaletteId());
+      const tabs = viewModel.tabOptions(viewModel.defaultTabStyle());
+
+      expect(viewModel.title()).assertEqual('选择外观');
+      expect(viewModel.themeSectionTitle()).assertEqual('主题色');
+      expect(viewModel.tabSectionTitle()).assertEqual('标签页样式');
+      expect(viewModel.continueLabel()).assertEqual('下一步');
+      expect(viewModel.previousLabel()).assertEqual('上一步');
+      expect(viewModel.skipLabel()).assertEqual('跳过');
+      expect(viewModel.defaultPaletteId()).assertEqual('default');
+      expect(viewModel.defaultTabStyle()).assertEqual('grid');
+      expect(palettes.length).assertEqual(6);
+      expect(palettes[0].id).assertEqual('default');
+      expect(palettes[0].title).assertEqual('默认');
+      expect(palettes[0].isSelected).assertTrue();
+      expect(palettes[1].id).assertEqual('aurora');
+      expect(palettes[1].title).assertEqual('晨屿');
+      expect(palettes[2].id).assertEqual('cedar');
+      expect(palettes[3].id).assertEqual('indigo');
+      expect(palettes[4].id).assertEqual('amber');
+      expect(palettes[5].id).assertEqual('coral');
+      expect(palettes[5].title).assertEqual('橙潮');
+      expect(palettes[5].isSelected).assertFalse();
+      expect(tabs.length).assertEqual(3);
+      expect(tabs[0].style).assertEqual('grid');
+      expect(tabs[0].title).assertEqual('卡片平铺');
+      expect(tabs[0].isSelected).assertTrue();
+      expect(tabs[1].style).assertEqual('horizontal_cards');
+      expect(tabs[1].title).assertEqual('横向大卡片');
+      expect(tabs[1].isSelected).assertFalse();
+      expect(tabs[2].style).assertEqual('stack');
+      expect(tabs[2].title).assertEqual('堆叠式');
+      expect(viewModel.palettes('coral')[5].isSelected).assertTrue();
+      expect(viewModel.tabOptions('stack')[2].isSelected).assertTrue();
+      expect(resolveFeatureIntroAppearancePalette('indigo')).assertEqual('indigo');
+      expect(resolveFeatureIntroAppearancePalette('sage')).assertEqual('default');
+      expect(resolveFeatureIntroAppearanceTabStyle('horizontal_cards')).assertEqual('horizontal_cards');
+      expect(resolveFeatureIntroAppearanceTabStyle('other')).assertEqual('grid');
+      const themeModes = viewModel.themeModes('system');
+      expect(themeModes.length).assertEqual(3);
+      expect(themeModes[0].mode).assertEqual('dark');
+      expect(themeModes[0].title).assertEqual('深色');
+      expect(themeModes[0].isSelected).assertFalse();
+      expect(themeModes[1].mode).assertEqual('light');
+      expect(themeModes[1].title).assertEqual('浅色');
+      expect(themeModes[2].mode).assertEqual('system');
+      expect(themeModes[2].title).assertEqual('系统');
+      expect(themeModes[2].isSelected).assertTrue();
+      expect(viewModel.themeModes('dark')[0].isSelected).assertTrue();
+      expect(resolveFeatureIntroAppearanceThemeMode('light')).assertEqual('light');
+      expect(resolveFeatureIntroAppearanceThemeMode('other')).assertEqual('system');
+      expect(viewModel.previewTokens('coral', 'light').accent).assertEqual('#D36559');
+      expect(viewModel.previewTokens('coral', 'dark').accent).assertEqual('#F29B91');
+      expect(viewModel.previewTokens('sage', 'light').accent).assertEqual('#0A59F7');
+    });
+  });
+
   describe('resolveInitialOnboardingDestination', () => {
-    it('shows the feature intro only before the sync welcome is finished', 0, () => {
+    it('restarts the intro until the user has entered the browser', 0, () => {
       expect(resolveInitialOnboardingDestination(false, false)).assertEqual('feature_intro');
-      expect(resolveInitialOnboardingDestination(true, false)).assertEqual('startup_welcome');
+      expect(resolveInitialOnboardingDestination(true, false)).assertEqual('feature_intro');
       expect(resolveInitialOnboardingDestination(false, true)).assertEqual('browser');
       expect(resolveInitialOnboardingDestination(true, true)).assertEqual('browser');
     });

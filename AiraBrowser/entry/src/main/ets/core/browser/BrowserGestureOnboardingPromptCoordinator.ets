@@ -1,3 +1,4 @@
+import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
 import { GestureOnboardingPromptRepository } from '../../data/onboarding/GestureOnboardingPromptRepository';
 
 const GESTURE_ONBOARDING_PROMPT_DELAY_MS: number = 1400;
@@ -9,6 +10,23 @@ export interface BrowserGestureOnboardingPromptEligibilityInput {
   privateMode: boolean;
   blockingSurfaceVisible: boolean;
   topOffsetVp: number;
+  homePageStyle: BrowserHomePageStyle;
+}
+
+/**
+ * The bottom swipe hint only matches the classic homepage. The centered frame uses
+ * split chrome and does not have that gesture, so it must not consume the prompt.
+ */
+export function shouldShowBrowserGestureOnboardingPrompt(
+  input: BrowserGestureOnboardingPromptEligibilityInput,
+  completed: boolean
+): boolean {
+  return input.homePageStyle === 'classic' &&
+    input.shellFamily === 'phone' &&
+    !completed &&
+    input.appVisible &&
+    !input.privateMode &&
+    !input.blockingSurfaceVisible;
 }
 
 export interface BrowserGestureOnboardingTopPromptState {
@@ -60,6 +78,10 @@ export class BrowserGestureOnboardingPromptCoordinator {
         return;
       }
       const input = inputProvider();
+      if (input.homePageStyle !== 'classic') {
+        onStateChange(HIDDEN_BROWSER_GESTURE_ONBOARDING_TOP_PROMPT_STATE);
+        return;
+      }
       const nextState = this.showIfEligible(input);
       if (nextState.visible) {
         onStateChange(nextState);
@@ -81,6 +103,12 @@ export class BrowserGestureOnboardingPromptCoordinator {
       title: state.title,
       subtitle: state.subtitle
     };
+  }
+
+  suppressGestureOnboardingForCenteredHome(): BrowserGestureOnboardingTopPromptState {
+    this.cancelScheduleTimer();
+    this.generation += 1;
+    return HIDDEN_BROWSER_GESTURE_ONBOARDING_TOP_PROMPT_STATE;
   }
 
   dismiss(state: BrowserGestureOnboardingTopPromptState): BrowserGestureOnboardingTopPromptState {
@@ -128,11 +156,7 @@ export class BrowserGestureOnboardingPromptCoordinator {
   }
 
   private shouldShow(input: BrowserGestureOnboardingPromptEligibilityInput): boolean {
-    return input.shellFamily === 'phone' &&
-      !this.repository.hasCompleted() &&
-      input.appVisible &&
-      !input.privateMode &&
-      !input.blockingSurfaceVisible;
+    return shouldShowBrowserGestureOnboardingPrompt(input, this.repository.hasCompleted());
   }
 
   private cancelScheduleTimer(): void {

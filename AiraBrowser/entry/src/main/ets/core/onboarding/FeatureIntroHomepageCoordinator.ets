@@ -9,12 +9,18 @@ import { HomePageSettingsCoordinator } from '../settings/HomePageSettingsCoordin
 import { FeatureIntroCoordinator, FeatureIntroHost } from './FeatureIntroCoordinator';
 import { resolveFeatureIntroHomepageStyle } from './FeatureIntroHomepageViewModel';
 
+export interface FeatureIntroHomepageHost extends FeatureIntroHost {
+  openAppearance: () => void;
+}
+
 export class FeatureIntroHomepageCoordinator {
+  private readonly host: FeatureIntroHomepageHost;
   private readonly intro: FeatureIntroCoordinator;
   private readonly selection: SystemHomepageSelectionService;
   private leaving: boolean = false;
 
-  constructor(host: FeatureIntroHost) {
+  constructor(host: FeatureIntroHomepageHost) {
+    this.host = host;
     this.intro = new FeatureIntroCoordinator(host);
     this.selection = new SystemHomepageSelectionService(
       new CustomHomepageSettingsCoordinator(sharedCustomHomepageRepository),
@@ -35,10 +41,10 @@ export class FeatureIntroHomepageCoordinator {
     this.leaving = true;
     this.selection.selectSystemHomepageStyle(resolveFeatureIntroHomepageStyle(style))
       .then((): void => {
-        this.intro.finish();
+        this.host.openAppearance();
       })
       .catch((_error: Error): void => {
-        this.intro.finish();
+        this.host.openAppearance();
       });
   }
 
