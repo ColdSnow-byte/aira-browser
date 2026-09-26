@@ -28,9 +28,13 @@ const FEATURE_INTRO_SLIDES: FeatureIntroSlide[] = [
 ];
 
 const FEATURE_INTRO_NEXT_LABEL: string = '下一步';
-const FEATURE_INTRO_DONE_LABEL: string = '立即体验';
+const FEATURE_INTRO_DONE_LABEL: string = '下一步';
 const FEATURE_INTRO_GATE_LABEL: string = '向右滑动开始使用';
 const FEATURE_INTRO_GATE_SKIP_LABEL: string = '跳过';
+const FEATURE_INTRO_SKIP_CONFIRM_TITLE: string = '跳过介绍';
+const FEATURE_INTRO_SKIP_CONFIRM_MESSAGE: string = '跳过后将直接进入主页，不再显示这些介绍。';
+const FEATURE_INTRO_SKIP_CONFIRM_CANCEL_LABEL: string = '取消';
+const FEATURE_INTRO_SKIP_CONFIRM_ENTER_LABEL: string = '进入主页';
 
 export class FeatureIntroViewModel {
   slides(): FeatureIntroSlide[] {
@@ -47,6 +51,22 @@ export class FeatureIntroViewModel {
 
   gateSkipLabel(): string {
     return FEATURE_INTRO_GATE_SKIP_LABEL;
+  }
+
+  skipConfirmTitle(): string {
+    return FEATURE_INTRO_SKIP_CONFIRM_TITLE;
+  }
+
+  skipConfirmMessage(): string {
+    return FEATURE_INTRO_SKIP_CONFIRM_MESSAGE;
+  }
+
+  skipConfirmCancelLabel(): string {
+    return FEATURE_INTRO_SKIP_CONFIRM_CANCEL_LABEL;
+  }
+
+  skipConfirmEnterLabel(): string {
+    return FEATURE_INTRO_SKIP_CONFIRM_ENTER_LABEL;
   }
 
   isLast(index: number): boolean {

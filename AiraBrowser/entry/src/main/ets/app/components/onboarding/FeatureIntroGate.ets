@@ -1,7 +1,8 @@
-import { showCenteredAlertDialog } from '../common/CenteredDialogSurface';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
+import { FeatureIntroSkipControl } from './FeatureIntroSkipControl';
 import { AiraIcon } from '../common/AiraIcon';
 import { AiraLegalWebDocumentContent } from '../legal/AiraLegalWebDocumentContent';
+import { APP_ICP_FILING_NUMBER } from '../../../common/constants/AppVersionInfo';
 import { resolveAiraLegalDocumentLink } from '../../../services/legal/AiraLegalDocuments';
 import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
@@ -110,28 +111,21 @@ export struct FeatureIntroGate {
       .padding({
         left: 28,
         right: 28,
-        bottom: Math.max(12, this.bottomInsetVp + 8)
+        bottom: Math.max(36, this.bottomInsetVp + 32)
       })
       .opacity(this.sliderOpacity)
       .translate({ y: this.sliderShiftVp })
       .hitTestBehavior(this.sliderReady ? HitTestMode.Default : HitTestMode.None)
 
-      Row() {
-        Text(this.skipLabel)
-          .fontSize(14)
-          .fontWeight(FontWeight.Regular)
-          .fontColor('#3C4046')
-          .padding({ left: 16, right: 20, top: 8, bottom: 8 })
-          .onClick((): void => {
-            this.confirmSkip();
-          })
-      }
-      .width('100%')
-      .justifyContent(FlexAlign.End)
-      .align(Alignment.TopEnd)
-      .margin({ top: this.topInsetVp + 4, right: 8 })
-      .opacity(this.logoOpacity)
-      .hitTestBehavior(this.skipReady ? HitTestMode.Default : HitTestMode.None)
+      FeatureIntroSkipControl({
+        label: this.skipLabel,
+        topInsetVp: this.topInsetVp,
+        skipEnabled: this.skipReady && !this.unlockCompleted,
+        skipOpacity: this.logoOpacity,
+        onConfirm: (): void => {
+          this.onSkip();
+        }
+      })
     }
     .bindSheet($$this.legalSheetVisible, this.buildLegalSheet(), applyDesktopDialogSheetChrome({
       preferType: SheetType.BOTTOM,
@@ -156,40 +150,52 @@ export struct FeatureIntroGate {
 
   @Builder
   private buildLegalConsent() {
-    Flex({
-      direction: FlexDirection.Row,
-      wrap: FlexWrap.Wrap,
-      justifyContent: FlexAlign.Center,
-      alignItems: ItemAlign.Center
-    }) {
-      Text('继续操作即表示您同意')
+    Column() {
+      Flex({
+        direction: FlexDirection.Row,
+        wrap: FlexWrap.Wrap,
+        justifyContent: FlexAlign.Center,
+        alignItems: ItemAlign.Center
+      }) {
+        Text('继续操作即表示您同意')
+          .fontSize(11)
+          .lineHeight(16)
+          .fontColor('#8A8F98')
+        Text('用户服务协议')
+          .fontSize(11)
+          .lineHeight(16)
+          .fontColor('#17191F')
+          .decoration({ type: TextDecorationType.Underline, color: '#17191F' })
+          .padding({ left: 2, right: 2, top: 4, bottom: 4 })
+          .onClick((): void => {
+            this.openLegalDocument('user_service_agreement');
+          })
+        Text('和')
+          .fontSize(11)
+          .lineHeight(16)
+          .fontColor('#8A8F98')
+        Text('隐私政策')
+          .fontSize(11)
+          .lineHeight(16)
+          .fontColor('#17191F')
+          .decoration({ type: TextDecorationType.Underline, color: '#17191F' })
+          .padding({ left: 2, right: 2, top: 4, bottom: 4 })
+          .onClick((): void => {
+            this.openLegalDocument('privacy_statement');
+          })
+      }
+      .width('100%')
+
+      Text(APP_ICP_FILING_NUMBER)
+        .width('100%')
         .fontSize(11)
         .lineHeight(16)
         .fontColor('#8A8F98')
-      Text('用户服务协议')
-        .fontSize(11)
-        .lineHeight(16)
-        .fontColor('#17191F')
-        .decoration({ type: TextDecorationType.Underline, color: '#17191F' })
-        .padding({ left: 2, right: 2, top: 4, bottom: 4 })
-        .onClick((): void => {
-          this.openLegalDocument('user_service_agreement');
-        })
-      Text('和')
-        .fontSize(11)
-        .lineHeight(16)
-        .fontColor('#8A8F98')
-      Text('隐私政策')
-        .fontSize(11)
-        .lineHeight(16)
-        .fontColor('#17191F')
-        .decoration({ type: TextDecorationType.Underline, color: '#17191F' })
-        .padding({ left: 2, right: 2, top: 4, bottom: 4 })
-        .onClick((): void => {
-          this.openLegalDocument('privacy_statement');
-        })
+        .textAlign(TextAlign.Center)
+        .margin({ top: 2 })
     }
     .width('100%')
+    .alignItems(HorizontalAlign.Center)
     .margin({ top: 18 })
   }
 
@@ -275,27 +281,6 @@ export struct FeatureIntroGate {
     this.legalDocumentTitle = link.title;
     this.legalDocumentUrl = link.url;
     this.legalSheetVisible = true;
-  }
-
-  private confirmSkip(): void {
-    if (!this.skipReady || this.unlockCompleted) {
-      return;
-    }
-    showCenteredAlertDialog({
-      title: '跳过介绍',
-      message: '跳过后将直接进入主页，不再显示这些介绍。',
-      autoCancel: true,
-      primaryButton: {
-        value: '取消',
-        action: (): void => undefined
-      },
-      secondaryButton: {
-        value: '进入主页',
-        action: (): void => {
-          this.onSkip();
-        }
-      }
-    });
   }
 
   private playEntrance(): void {

@@ -2,9 +2,14 @@ import router from '@ohos.router';
 import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { FeatureIntroGate } from '../components/onboarding/FeatureIntroGate';
+import { FeatureIntroSkipControl } from '../components/onboarding/FeatureIntroSkipControl';
 import { FeatureIntroSlideVideo } from '../components/onboarding/FeatureIntroSlideVideo';
 import { FeatureIntroCoordinator, FeatureIntroHost } from '../../core/onboarding/FeatureIntroCoordinator';
-import { FeatureIntroExitDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
+import {
+  FeatureIntroExitDestination,
+  FeatureIntroResumeRouteParams,
+  shouldResumeFeatureIntroSlides
+} from '../../core/onboarding/FeatureIntroRoutePolicy';
 import {
   FeatureIntroLayout,
   resolveFeatureIntroLayout
@@ -18,7 +23,11 @@ import {
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
-import { BROWSER_SHELL_ROUTE, STARTUP_WELCOME_INTRO_ROUTE } from '../router/AppRoutes';
+import {
+  BROWSER_SHELL_ROUTE,
+  FEATURE_INTRO_SEARCH_ENGINE_ROUTE,
+  STARTUP_WELCOME_INTRO_ROUTE
+} from '../router/AppRoutes';
 
 const FEATURE_INTRO_ACTION_HEIGHT: number = 40;
 const FEATURE_INTRO_TITLE_TOP_PADDING: number = 28;
@@ -53,6 +62,7 @@ struct FeatureIntroPage {
   @State private syncVideoShown: boolean = false;
   private activeIntroVideoId: string = '';
   private introVideoRevealTimer: number = -1;
+  private openingSearchEngineSetup: boolean = false;
   private readonly host: FeatureIntroHost = {
     leave: (destination: FeatureIntroExitDestination): void => {
       router.replaceUrl({ url: this.resolveExitRoute(destination) }).catch((_error: Error) => {
@@ -62,6 +72,15 @@ struct FeatureIntroPage {
   };
   private readonly coordinator: FeatureIntroCoordinator = new FeatureIntroCoordinator(this.host);
 
+  aboutToAppear(): void {
+    const params = router.getParams() as FeatureIntroResumeRouteParams | undefined;
+    const resumeSlides = params === undefined ? undefined : params.resumeSlides;
+    if (shouldResumeFeatureIntroSlides(resumeSlides)) {
+      this.gateOpen = true;
+      this.pageIndex = Math.max(0, this.viewModel.slides().length - 1);
+    }
+  }
+
   onBackPress(): boolean {
     if (this.pageIndex > 0) {
       this.swiperController.showPrevious();
@@ -70,6 +89,7 @@ struct FeatureIntroPage {
   }
 
   onPageShow(): void {
+    this.openingSearchEngineSetup = false;
     this.readSafeInsets();
   }
 
@@ -94,7 +114,8 @@ struct FeatureIntroPage {
 
   @Builder
   private buildSlides() {
-    Column() {
+    Stack({ alignContent: Alignment.TopStart }) {
+      Column() {
       Swiper(this.swiperController) {
         ForEach(this.viewModel.slides(), (slide: FeatureIntroSlide) => {
           this.buildSlide(slide)
@@ -113,11 +134,22 @@ struct FeatureIntroPage {
       })
 
       this.buildFooter()
+      }
+      .width('100%')
+      .height('100%')
+      .alignItems(HorizontalAlign.Center)
+      .backgroundColor(this.storedPageBackgroundColor)
+
+      FeatureIntroSkipControl({
+        label: this.viewModel.gateSkipLabel(),
+        topInsetVp: this.topInsetVp,
+        onConfirm: (): void => {
+          this.coordinator.skipToBrowser();
+        }
+      })
     }
     .width('100%')
     .height('100%')
-    .alignItems(HorizontalAlign.Center)
-    .backgroundColor(this.storedPageBackgroundColor)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.updateWindowSize(newArea);
@@ -349,10 +381,20 @@ struct FeatureIntroPage {
 
   private handlePrimaryAction(): void {
     if (this.viewModel.isLast(this.pageIndex)) {
-      this.coordinator.finish();
+      this.openSearchEngineSetup();
       return;
     }
     this.swiperController.showNext();
+  }
+
+  private openSearchEngineSetup(): void {
+    if (this.openingSearchEngineSetup) {
+      return;
+    }
+    this.openingSearchEngineSetup = true;
+    router.pushUrl({ url: FEATURE_INTRO_SEARCH_ENGINE_ROUTE }).catch((_error: Error) => {
+      this.openingSearchEngineSetup = false;
+    });
   }
 
   private resolveLayout(): FeatureIntroLayout {

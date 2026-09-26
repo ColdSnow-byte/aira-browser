@@ -597,7 +597,11 @@ export struct SystemHomepageLivePreview {
   }
 
   private buildClassicTiles(): HomepagePreviewTile[] {
-    return this.buildShortcutTiles();
+    const tiles = this.buildShortcutTiles();
+    if (this.showShortcuts) {
+      tiles.push(this.buildChromeTile('add', '添加', 'browser.tabs.add'));
+    }
+    return tiles;
   }
 
   private buildCenteredTiles(): HomepagePreviewTile[] {

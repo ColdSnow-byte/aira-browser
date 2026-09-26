@@ -1,6 +1,8 @@
 {
   "src": [
     "app/pages/FeatureIntroPage",
+    "app/pages/FeatureIntroSearchEnginePage",
+    "app/pages/FeatureIntroHomepagePage",
     "app/pages/StartupWelcomeIntroPage",
     "app/pages/BrowserShellPage",
     "app/pages/BookmarkManagerPage",

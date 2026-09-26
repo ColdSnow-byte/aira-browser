@@ -10,8 +10,17 @@ import {
 } from '../main/ets/core/onboarding/FeatureIntroGatePolicy';
 import {
   resolveFeatureIntroExitDestination,
-  resolveInitialOnboardingDestination
+  resolveInitialOnboardingDestination,
+  shouldResumeFeatureIntroSlides
 } from '../main/ets/core/onboarding/FeatureIntroRoutePolicy';
+import {
+  FeatureIntroSearchEngineViewModel,
+  resolveFeatureIntroSearchEngineChoice
+} from '../main/ets/core/onboarding/FeatureIntroSearchEngineViewModel';
+import {
+  FeatureIntroHomepageViewModel,
+  resolveFeatureIntroHomepageStyle
+} from '../main/ets/core/onboarding/FeatureIntroHomepageViewModel';
 
 export default function featureIntroTest(): void {
   describe('FeatureIntroViewModel', () => {
@@ -29,16 +38,20 @@ export default function featureIntroTest(): void {
       expect(slides[3].title).assertEqual('换一台，接着用');
     });
 
-    it('uses next until the last slide, then enter', 0, () => {
+    it('uses next on every slide, including the last', 0, () => {
       const viewModel = new FeatureIntroViewModel();
 
       expect(viewModel.actionLabel(0)).assertEqual('下一步');
       expect(viewModel.actionLabel(2)).assertEqual('下一步');
       expect(viewModel.isLast(2)).assertFalse();
-      expect(viewModel.actionLabel(3)).assertEqual('立即体验');
+      expect(viewModel.actionLabel(3)).assertEqual('下一步');
       expect(viewModel.isLast(3)).assertTrue();
       expect(viewModel.gateActionLabel()).assertEqual('向右滑动开始使用');
       expect(viewModel.gateSkipLabel()).assertEqual('跳过');
+      expect(viewModel.skipConfirmTitle()).assertEqual('跳过介绍');
+      expect(viewModel.skipConfirmMessage()).assertEqual('跳过后将直接进入主页，不再显示这些介绍。');
+      expect(viewModel.skipConfirmCancelLabel()).assertEqual('取消');
+      expect(viewModel.skipConfirmEnterLabel()).assertEqual('进入主页');
     });
   });
 
@@ -116,6 +129,60 @@ export default function featureIntroTest(): void {
     });
   });
 
+  describe('featureIntroSearchEngine', () => {
+    it('offers six built-in engines, with Bing selected by default', 0, () => {
+      const viewModel = new FeatureIntroSearchEngineViewModel();
+      const choices = viewModel.choices();
+
+      expect(viewModel.title()).assertEqual('选择默认搜索引擎');
+      expect(viewModel.continueLabel()).assertEqual('下一步');
+      expect(viewModel.skipLabel()).assertEqual('跳过');
+      expect(viewModel.defaultChoiceId()).assertEqual('bing');
+      expect(choices.length).assertEqual(6);
+      expect(choices[0].id).assertEqual('bing');
+      expect(choices[0].label).assertEqual('必应');
+      expect(choices[1].id).assertEqual('baidu');
+      expect(choices[1].label).assertEqual('百度');
+      expect(choices[2].id).assertEqual('google');
+      expect(choices[2].label).assertEqual('谷歌');
+      expect(choices[3].id).assertEqual('sogou');
+      expect(choices[3].label).assertEqual('搜狗');
+      expect(choices[4].id).assertEqual('qihoo');
+      expect(choices[4].label).assertEqual('360搜索');
+      expect(choices[5].id).assertEqual('shenma');
+      expect(choices[5].label).assertEqual('神马');
+      expect(resolveFeatureIntroSearchEngineChoice('sogou')).assertEqual('sogou');
+      expect(resolveFeatureIntroSearchEngineChoice('qihoo')).assertEqual('qihoo');
+      expect(resolveFeatureIntroSearchEngineChoice('shenma')).assertEqual('shenma');
+      expect(resolveFeatureIntroSearchEngineChoice('brave')).assertEqual('bing');
+    });
+  });
+
+  describe('featureIntroHomepage', () => {
+    it('offers the two built-in homepage cards, with classic selected by default', 0, () => {
+      const viewModel = new FeatureIntroHomepageViewModel();
+      const choices = viewModel.choices(viewModel.defaultStyle());
+
+      expect(viewModel.title()).assertEqual('选择主页样式');
+      expect(viewModel.continueLabel()).assertEqual('下一步');
+      expect(viewModel.previousLabel()).assertEqual('上一步');
+      expect(viewModel.skipLabel()).assertEqual('跳过');
+      expect(viewModel.defaultStyle()).assertEqual('classic');
+      expect(choices.length).assertEqual(2);
+      expect(choices[0].style).assertEqual('classic');
+      expect(choices[0].title).assertEqual('经典主页');
+      expect(choices[0].isActive).assertTrue();
+      expect(choices[1].style).assertEqual('centered');
+      expect(choices[1].title).assertEqual('简约主页');
+      expect(choices[1].isActive).assertFalse();
+      expect(viewModel.cards('classic').length).assertEqual(2);
+      expect(viewModel.cards('classic')[0].kind).assertEqual('system');
+      expect(viewModel.cards('centered')[1].isCurrent).assertTrue();
+      expect(resolveFeatureIntroHomepageStyle('centered')).assertEqual('centered');
+      expect(resolveFeatureIntroHomepageStyle('other')).assertEqual('classic');
+    });
+  });
+
   describe('resolveInitialOnboardingDestination', () => {
     it('shows the feature intro only before the sync welcome is finished', 0, () => {
       expect(resolveInitialOnboardingDestination(false, false)).assertEqual('feature_intro');
@@ -127,6 +194,12 @@ export default function featureIntroTest(): void {
     it('returns to the sync welcome after the feature intro on a new install', 0, () => {
       expect(resolveFeatureIntroExitDestination(false)).assertEqual('startup_welcome');
       expect(resolveFeatureIntroExitDestination(true)).assertEqual('browser');
+    });
+
+    it('resumes the intro slides only for the search-engine back navigation', 0, () => {
+      expect(shouldResumeFeatureIntroSlides('1')).assertTrue();
+      expect(shouldResumeFeatureIntroSlides(undefined)).assertFalse();
+      expect(shouldResumeFeatureIntroSlides('')).assertFalse();
     });
   });
 }

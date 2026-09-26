@@ -57,6 +57,7 @@ export struct CustomHomepagePicker {
   @Prop focusedIndex: number = 0;
   @Prop @Watch('jumpToFocusedCard') jumpToken: number = 0;
   @Prop busy: boolean = false;
+  @Prop applyVisible: boolean = true;
   @State private appliedJumpToken: number = -1;
   @State private listWidth: number = 0;
   @State private pressedCardKey: string = '';
@@ -126,24 +127,26 @@ export struct CustomHomepagePicker {
         this.updateCardPress(event);
       })
 
-      Row() {
-        Button(this.resolveApplyLabel())
-          .layoutWeight(1)
-          .height(40)
-          .fontSize(15)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.resolveApplyTextColor())
-          .backgroundColor(this.resolveApplyBackgroundColor())
-          .borderRadius(20)
-          .enabled(this.canApply())
-          .opacity(this.busy ? 0.6 : 1)
-          .onClick(() => {
-            this.onApply();
-          })
+      if (this.applyVisible) {
+        Row() {
+          Button(this.resolveApplyLabel())
+            .layoutWeight(1)
+            .height(40)
+            .fontSize(15)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.resolveApplyTextColor())
+            .backgroundColor(this.resolveApplyBackgroundColor())
+            .borderRadius(20)
+            .enabled(this.canApply())
+            .opacity(this.busy ? 0.6 : 1)
+            .onClick(() => {
+              this.onApply();
+            })
+        }
+        .width('100%')
+        .padding({ left: 16, right: 16 })
+        .margin({ top: 16, bottom: 32 })
       }
-      .width('100%')
-      .padding({ left: 16, right: 16 })
-      .margin({ top: 16, bottom: 32 })
     }
     .width('100%')
     .height('100%')

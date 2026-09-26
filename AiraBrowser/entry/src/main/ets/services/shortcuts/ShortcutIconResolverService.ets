@@ -45,6 +45,12 @@ export class ShortcutIconResolverService {
     this.homeIconCacheService = homeIconCacheService ?? new HomeShortcutIconCacheService();
   }
 
+  warmShortcutIcons(shortcuts: ShortcutRecord[]): void {
+    shortcuts.forEach((shortcut: ShortcutRecord): void => {
+      void this.resolveShortcutIcon(shortcut);
+    });
+  }
+
   async resolveShortcutIcon(shortcut: ShortcutRecord): Promise<ResolvedShortcutIcon | undefined> {
     if (isHomeSystemShortcut(shortcut)) {
       return undefined;

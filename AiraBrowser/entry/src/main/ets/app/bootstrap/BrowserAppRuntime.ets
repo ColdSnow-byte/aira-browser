@@ -899,7 +899,10 @@ export function initializeBrowserAppLaunchReadiness(abilityContext: common.UIAbi
           measureStartupStep('custom_homepage_repository', () =>
             sharedCustomHomepageRepository.initialize().then(() => undefined)),
           measureStartupStep('shortcut_repository', () =>
-            sharedShortcutRepository.initialize().then(() => undefined))
+            sharedShortcutRepository.initialize().then(() => {
+              sharedShortcutIconResolverService.warmShortcutIcons(sharedShortcutRepository.listAll());
+              return undefined;
+            }))
         ];
         return Promise.all(repositoryTasks).then((): void => undefined);
       })
