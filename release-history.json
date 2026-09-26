@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.4.2",
+      "versionCode": 1000466,
+      "releasedAt": "2026-09-27",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that finishes the new-user onboarding walkthrough: the intro now runs as one sequence with search engine, homepage style, and appearance steps before the account and sync choices, and it restarts from its first page until the user actually enters the browser. The first bookmark, personalization, and history activation no longer block the screen and continue in the background across leaving the page, losing the network, or reopening the app. The built-in homepage frame joins Personalization Sync with the other core preferences, and the centered homepage no longer shows the classic bottom swipe hint. Built from committed HEAD 9f94c1f plus the 3.4.2 version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.2-1000466-release-signed.app",
+      "sha256": "41eab947ee1ba58be55002a2918e1ade9b845689581e5d807ca645ac3905403f"
+    },
+    {
       "versionName": "3.4.1",
       "versionCode": 1000465,
       "releasedAt": "2026-09-25",
