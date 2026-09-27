@@ -71,6 +71,8 @@ const TAB_CLOSE_ICON_SIZE_VP: number = 12;
 const TAB_AUDIO_ICON_SIZE_VP: number = 14;
 const TAB_SEPARATOR_HEIGHT_VP: number = 18;
 const TAB_ACTIVE_SHAPE_RADIUS_VP: number = 10;
+/** Matches bindContextMenu's long-press threshold so the release does not also activate the tab. */
+const TAB_STRIP_LONG_PRESS_CLICK_SUPPRESS_MS: number = 500;
 const DEFAULT_TAB_STRIP_PRESENTATION: BrowserLargeScreenTabStripPresentation = {
   allTabs: [],
   visibleTabs: [],
@@ -119,6 +121,8 @@ export struct BrowserLargeScreenTabStripSurface {
   private storedVerticalTabsEnabled: boolean = false;
   @State private hoveredTabId: string = '';
   @State private tabIconStates: SiteIconListRenderState[] = [];
+  private pointerMenuTabId: string = '';
+  private tabTouchDownAtMs: number = 0;
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
 
   aboutToAppear(): void {
@@ -149,9 +153,8 @@ export struct BrowserLargeScreenTabStripSurface {
       .height(this.resolveTitleBarHeightVp())
       .alignItems(VerticalAlign.Bottom)
       .clip(true)
-      .bindContextMenu(
-        this.buildTabStripBlankContextMenu(),
-        ResponseType.RightClick,
+      .bindContextMenuWithResponse(
+        this.buildTabStripBlankContextMenuResponse,
         buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
       )
 
@@ -178,9 +181,8 @@ export struct BrowserLargeScreenTabStripSurface {
     })
     .alignItems(VerticalAlign.Bottom)
     .backgroundColor(this.storedPageBackgroundColor)
-    .bindContextMenu(
-      this.buildTabStripBlankContextMenu(),
-      ResponseType.RightClick,
+    .bindContextMenuWithResponse(
+      this.buildTabStripBlankContextMenuResponse,
       buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
     )
   }
@@ -215,9 +217,8 @@ export struct BrowserLargeScreenTabStripSurface {
       .onTouch((event: TouchEvent): void => {
         this.handleWindowMoveTouch(event);
       })
-      .bindContextMenu(
-        this.buildTabStripBlankContextMenu(),
-        ResponseType.RightClick,
+      .bindContextMenuWithResponse(
+        this.buildTabStripBlankContextMenuResponse,
         buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
       )
       .accessibilityText('拖动窗口')
@@ -225,8 +226,15 @@ export struct BrowserLargeScreenTabStripSurface {
 
   /**
    * Empty title-bar space, not a tab chip. Tab chips keep their own menu, so a
-   * right click on a chip never reaches this list.
+   * right click or long press on a chip never reaches this list.
    */
+  @Builder
+  private buildTabStripBlankContextMenuResponse(responseType: ResponseType) {
+    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
+      this.buildTabStripBlankContextMenu()
+    }
+  }
+
   @Builder
   private buildTabStripBlankContextMenu() {
     BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP }) {
@@ -281,8 +289,14 @@ export struct BrowserLargeScreenTabStripSurface {
     .height(TAB_HEIGHT_VP)
     .onHover((hovered: boolean) => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
+      if (hovered) {
+        this.pointerMenuTabId = tab.id;
+      }
     })
-    .bindContextMenu(this.buildTabContextMenu(tab), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
+    .onTouch((event: TouchEvent): void => {
+      this.noteTabPointer(tab.id, event);
+    })
+    .bindContextMenuWithResponse(this.buildTabContextMenuResponse, buildBrowserDesktopMenuOptions())
   }
 
   @Builder
@@ -361,7 +375,13 @@ export struct BrowserLargeScreenTabStripSurface {
       .stateEffect(false)
       .hoverEffect(HoverEffect.None)
       .accessibilityText(`切换到${this.resolveTabTitle(tab)}`)
-      .onClick(() => {
+      .onTouch((event: TouchEvent): void => {
+        this.noteTabPointer(tab.id, event);
+      })
+      .onClick((event: ClickEvent): void => {
+        if (this.isTabLongPressRelease(event)) {
+          return;
+        }
         this.onIntent({ kind: 'select_tab', tabId: tab.id });
       })
 
@@ -382,7 +402,13 @@ export struct BrowserLargeScreenTabStripSurface {
         .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
         .stateEffect(true)
         .accessibilityText(`关闭${this.resolveTabTitle(tab)}`)
-        .onClick(() => {
+        .onTouch((event: TouchEvent): void => {
+          this.noteTabPointer(tab.id, event);
+        })
+        .onClick((event: ClickEvent): void => {
+          if (this.isTabLongPressRelease(event)) {
+            return;
+          }
           this.onIntent({ kind: 'close_tab', tabId: tab.id });
         })
       }
@@ -407,7 +433,13 @@ export struct BrowserLargeScreenTabStripSurface {
     .stateEffect(false)
     .hoverEffect(HoverEffect.None)
     .accessibilityText(`切换到${this.resolveTabTitle(tab)}`)
-    .onClick(() => {
+    .onTouch((event: TouchEvent): void => {
+      this.noteTabPointer(tab.id, event);
+    })
+    .onClick((event: ClickEvent): void => {
+      if (this.isTabLongPressRelease(event)) {
+        return;
+      }
       this.onIntent({ kind: 'select_tab', tabId: tab.id });
     })
   }
@@ -429,6 +461,15 @@ export struct BrowserLargeScreenTabStripSurface {
     .onClick(() => {
       this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
     })
+  }
+
+  @Builder
+  private buildTabContextMenuResponse(responseType: ResponseType) {
+    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
+      if (this.resolvePointerMenuTab() !== undefined) {
+        this.buildTabContextMenu(this.resolvePointerMenuTab() as BrowserLargeScreenTabProjection)
+      }
+    }
   }
 
   @Builder
@@ -594,6 +635,29 @@ export struct BrowserLargeScreenTabStripSurface {
 
   private resolveTitleBarHeightVp(): number {
     return Math.max(BROWSER_LARGE_SCREEN_TITLE_BAR_BASE_HEIGHT_VP, this.presentation.titleBarHeightVp);
+  }
+
+  private noteTabPointer(tabId: string, event: TouchEvent): void {
+    if (event.type !== TouchType.Down) {
+      return;
+    }
+    this.pointerMenuTabId = tabId;
+    if (event.source === SourceType.TouchScreen) {
+      this.tabTouchDownAtMs = Date.now();
+    }
+  }
+
+  private isTabLongPressRelease(event: ClickEvent): boolean {
+    if (event.source !== SourceType.TouchScreen || this.tabTouchDownAtMs <= 0) {
+      return false;
+    }
+    const heldMs = Date.now() - this.tabTouchDownAtMs;
+    return heldMs >= TAB_STRIP_LONG_PRESS_CLICK_SUPPRESS_MS && heldMs < 10000;
+  }
+
+  private resolvePointerMenuTab(): BrowserLargeScreenTabProjection | undefined {
+    const tabId = this.pointerMenuTabId.length > 0 ? this.pointerMenuTabId : this.hoveredTabId;
+    return this.presentation.visibleTabs.find((tab: BrowserLargeScreenTabProjection): boolean => tab.id === tabId);
   }
 
   private handleWindowMoveTouch(event: TouchEvent): void {

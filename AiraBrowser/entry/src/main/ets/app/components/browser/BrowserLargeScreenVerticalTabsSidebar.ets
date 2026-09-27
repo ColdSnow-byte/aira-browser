@@ -125,6 +125,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   private storedVerticalTabsEnabled: boolean = true;
 
   @State private hoveredTabId: string = '';
+  private pointerMenuTabId: string = '';
   @State private sidebarWidthVp: number = BROWSER_LARGE_SCREEN_VERTICAL_TABS_RAIL_WIDTH_VP;
   @State private tabIconStates: SiteIconListRenderState[] = [];
   private siteIconListPresenter: SiteIconListPresenter = new SiteIconListPresenter();
@@ -215,9 +216,8 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         this.notePointerInside();
       }
     })
-    .bindContextMenu(
-      this.buildBlankContextMenu(),
-      ResponseType.RightClick,
+    .bindContextMenuWithResponse(
+      this.buildBlankContextMenuResponse,
       buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
     )
   }
@@ -374,16 +374,23 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .onHover((hovered: boolean): void => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
       if (hovered) {
+        this.pointerMenuTabId = tab.id;
         this.notePointerInside();
       }
     })
     .onMouse((event: MouseEvent): void => {
+      if (event.button === MouseButton.Right) {
+        this.pointerMenuTabId = tab.id;
+      }
       this.activateTabFromPointer(tab.id, 'select_tab', event);
     })
     .onTouch((event: TouchEvent): void => {
+      if (event.type === TouchType.Down) {
+        this.pointerMenuTabId = tab.id;
+      }
       this.activateTabFromTouch(tab.id, 'select_tab', event);
     })
-    .bindContextMenu(this.buildTabContextMenu(tab), ResponseType.RightClick, buildBrowserDesktopMenuOptions())
+    .bindContextMenuWithResponse(this.buildTabContextMenuResponse, buildBrowserDesktopMenuOptions())
   }
 
   @Builder
@@ -667,6 +674,13 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   }
 
   @Builder
+  private buildBlankContextMenuResponse(responseType: ResponseType) {
+    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
+      this.buildBlankContextMenu()
+    }
+  }
+
+  @Builder
   private buildBlankContextMenu() {
     BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP }) {
       ForEach(this.buildBlankMenuModel().groups,
@@ -693,6 +707,15 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         this.dispatchBlankMenuItem(item);
       }
     })
+  }
+
+  @Builder
+  private buildTabContextMenuResponse(responseType: ResponseType) {
+    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
+      if (this.resolvePointerMenuTab() !== undefined) {
+        this.buildTabContextMenu(this.resolvePointerMenuTab() as BrowserLargeScreenTabProjection)
+      }
+    }
   }
 
   @Builder
@@ -747,6 +770,11 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: actionId });
       }
     })
+  }
+
+  private resolvePointerMenuTab(): BrowserLargeScreenTabProjection | undefined {
+    const tabId = this.pointerMenuTabId.length > 0 ? this.pointerMenuTabId : this.hoveredTabId;
+    return this.tabStrip.allTabs.find((tab: BrowserLargeScreenTabProjection): boolean => tab.id === tabId);
   }
 
   private isPrimaryPointerDown(event: MouseEvent): boolean {

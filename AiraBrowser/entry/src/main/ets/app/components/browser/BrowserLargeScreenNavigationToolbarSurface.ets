@@ -449,9 +449,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
                 sharedBrowserLargeScreenWindowChromeService.startMovingLease(this.windowChromeLeaseId);
               }
             })
-            .bindContextMenu(
-              this.buildTitleBarBlankContextMenu(),
-              ResponseType.RightClick,
+            .bindContextMenuWithResponse(
+              this.buildTitleBarBlankContextMenuResponse,
               buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
             )
         }
@@ -468,9 +467,8 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         width: { bottom: 1 },
         color: this.storedDividerColor
       })
-      .bindContextMenu(
-        this.buildTitleBarBlankContextMenu(),
-        ResponseType.RightClick,
+      .bindContextMenuWithResponse(
+        this.buildTitleBarBlankContextMenuResponse,
         buildBrowserDesktopMenuOptions({ preview: MenuPreviewMode.NONE })
       )
 
@@ -478,6 +476,13 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
     .width('100%')
     .height(this.resolveToolbarHeightVp())
     .clip(false)
+  }
+
+  @Builder
+  private buildTitleBarBlankContextMenuResponse(responseType: ResponseType) {
+    if (responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) {
+      this.buildTitleBarBlankContextMenu()
+    }
   }
 
   @Builder
