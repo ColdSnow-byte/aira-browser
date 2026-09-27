@@ -25,6 +25,7 @@ import {
   FeatureIntroAppearanceViewModel,
   resolveFeatureIntroAppearancePalette,
   resolveFeatureIntroAppearanceTabStyle,
+  resolveFeatureIntroDesktopTabPlacement,
   resolveFeatureIntroAppearanceThemeMode
 } from '../main/ets/core/onboarding/FeatureIntroAppearanceViewModel';
 
@@ -96,6 +97,7 @@ export default function featureIntroTest(): void {
       });
 
       expect(layout.videoHeightVp).assertEqual(347);
+      expect(layout.videoWidthVp).assertEqual(0);
       expect(layout.contentMaxWidthVp).assertEqual(430);
       expect(layout.bottomPaddingVp).assertEqual(28);
     });
@@ -109,9 +111,10 @@ export default function featureIntroTest(): void {
       });
 
       expect(layout.videoHeightVp).assertEqual(244);
+      expect(layout.videoWidthVp).assertEqual(0);
     });
 
-    it('caps the slot on a wide window', 0, () => {
+    it('grows a portrait tablet slot to the real 9:8 frame', 0, () => {
       const layout = resolveFeatureIntroLayout({
         windowWidthVp: 800,
         windowHeightVp: 1200,
@@ -119,8 +122,21 @@ export default function featureIntroTest(): void {
         bottomInsetVp: 24
       });
 
-      expect(layout.videoHeightVp).assertEqual(440);
+      expect(layout.videoHeightVp).assertEqual(711);
+      expect(layout.videoWidthVp).assertEqual(0);
       expect(layout.horizontalPaddingVp).assertEqual(24);
+    });
+
+    it('centers a whole frame on a landscape window', 0, () => {
+      const layout = resolveFeatureIntroLayout({
+        windowWidthVp: 1280,
+        windowHeightVp: 800,
+        topInsetVp: 24,
+        bottomInsetVp: 16
+      });
+
+      expect(layout.videoHeightVp).assertEqual(524);
+      expect(layout.videoWidthVp).assertEqual(590);
     });
 
     it('does not invent a slot from empty measurements', 0, () => {
@@ -230,6 +246,18 @@ export default function featureIntroTest(): void {
       expect(resolveFeatureIntroAppearancePalette('sage')).assertEqual('default');
       expect(resolveFeatureIntroAppearanceTabStyle('horizontal_cards')).assertEqual('horizontal_cards');
       expect(resolveFeatureIntroAppearanceTabStyle('other')).assertEqual('grid');
+      const desktopTabs = viewModel.desktopTabOptions(viewModel.defaultDesktopTabPlacement());
+      expect(viewModel.defaultDesktopTabPlacement()).assertEqual('horizontal');
+      expect(desktopTabs.length).assertEqual(2);
+      expect(desktopTabs[0].placement).assertEqual('horizontal');
+      expect(desktopTabs[0].title).assertEqual('水平标签页');
+      expect(desktopTabs[0].isSelected).assertTrue();
+      expect(desktopTabs[1].placement).assertEqual('vertical');
+      expect(desktopTabs[1].title).assertEqual('竖向标签页');
+      expect(desktopTabs[1].isSelected).assertFalse();
+      expect(viewModel.desktopTabOptions('vertical')[1].isSelected).assertTrue();
+      expect(resolveFeatureIntroDesktopTabPlacement('vertical')).assertEqual('vertical');
+      expect(resolveFeatureIntroDesktopTabPlacement('other')).assertEqual('horizontal');
       const themeModes = viewModel.themeModes('system');
       expect(themeModes.length).assertEqual(3);
       expect(themeModes[0].mode).assertEqual('dark');

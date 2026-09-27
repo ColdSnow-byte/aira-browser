@@ -8,8 +8,11 @@ import {
 import {
   FeatureIntroAppearancePaletteChoice,
   FeatureIntroAppearanceThemeModeChoice,
-  FeatureIntroAppearanceViewModel
+  FeatureIntroAppearanceViewModel,
+  FeatureIntroDesktopTabChoice,
+  FeatureIntroDesktopTabPlacement
 } from '../../core/onboarding/FeatureIntroAppearanceViewModel';
+import { CustomHomepageEnvironmentService } from '../../services/customhome/CustomHomepageEnvironmentService';
 import { FeatureIntroExitDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
 import { TabOverviewLayoutOptionState } from '../../core/settings/TabOverviewLayoutSettingsCoordinator';
 import { sharedBrowserThemeModeCoordinator } from '../bootstrap/BrowserAppRuntime';
@@ -40,9 +43,12 @@ struct FeatureIntroAppearancePage {
   @State private selectedThemeMode: string = 'system';
   @State private selectedPaletteId: string = 'default';
   @State private selectedTabStyle: string = 'grid';
+  @State private selectedDesktopTabPlacement: string = 'horizontal';
+  @State private desktopPresentation: boolean = false;
   @State private busy: boolean = false;
   @State private topInset: number = 0;
   private readonly viewModel: FeatureIntroAppearanceViewModel = new FeatureIntroAppearanceViewModel();
+  private readonly environmentService: CustomHomepageEnvironmentService = new CustomHomepageEnvironmentService();
   private readonly topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
   private readonly statusBarStyleService: BrowserStatusBarStyleService = new BrowserStatusBarStyleService();
   private readonly host: FeatureIntroAppearanceHost = {
@@ -71,6 +77,8 @@ struct FeatureIntroAppearancePage {
     this.selectedThemeMode = sharedBrowserThemeModeCoordinator.resolveCurrentMode();
     this.selectedPaletteId = this.viewModel.defaultPaletteId();
     this.selectedTabStyle = this.viewModel.defaultTabStyle();
+    this.selectedDesktopTabPlacement = this.viewModel.defaultDesktopTabPlacement();
+    this.refreshDesktopPresentation();
     this.syncPreviewTheme();
   }
 
@@ -78,6 +86,7 @@ struct FeatureIntroAppearancePage {
     this.busy = false;
     this.coordinator.abandonLeave();
     this.readTopInset();
+    this.refreshDesktopPresentation();
     this.syncPreviewTheme();
   }
 
@@ -251,22 +260,34 @@ struct FeatureIntroAppearancePage {
         .fontSize(13)
         .fontColor(this.previewSecondaryTextColor)
 
-      Row({ space: 8 }) {
-        ForEach(this.viewModel.tabOptions(this.selectedTabStyle), (option: TabOverviewLayoutOptionState) => {
-          TabOverviewLayoutOption({
-            option: option,
-            previewResource: this.resolvePreviewResource(option.style),
-            accentColor: this.previewAccentColor,
-            primaryTextColor: this.previewPrimaryTextColor,
-            onSelect: (style: BrowserTabsOverviewLayoutStyle): void => {
-              this.selectTabStyle(style);
-            }
-          })
-            .layoutWeight(1)
-        }, (option: TabOverviewLayoutOptionState) => `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
+      if (this.desktopPresentation) {
+        Row({ space: 8 }) {
+          ForEach(this.viewModel.desktopTabOptions(this.selectedDesktopTabPlacement),
+            (choice: FeatureIntroDesktopTabChoice) => {
+              this.buildDesktopTabChoice(choice)
+            }, (choice: FeatureIntroDesktopTabChoice) =>
+              `${choice.placement}:${choice.isSelected ? 'selected' : 'idle'}`)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+      } else {
+        Row({ space: 8 }) {
+          ForEach(this.viewModel.tabOptions(this.selectedTabStyle), (option: TabOverviewLayoutOptionState) => {
+            TabOverviewLayoutOption({
+              option: option,
+              previewResource: this.resolvePreviewResource(option.style),
+              accentColor: this.previewAccentColor,
+              primaryTextColor: this.previewPrimaryTextColor,
+              onSelect: (style: BrowserTabsOverviewLayoutStyle): void => {
+                this.selectTabStyle(style);
+              }
+            })
+              .layoutWeight(1)
+          }, (option: TabOverviewLayoutOptionState) => `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
       }
-      .width('100%')
-      .alignItems(VerticalAlign.Top)
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -325,6 +346,108 @@ struct FeatureIntroAppearancePage {
     this.syncPreviewTheme();
   }
 
+  @Builder
+  private buildDesktopTabChoice(choice: FeatureIntroDesktopTabChoice) {
+    Column({ space: 10 }) {
+      this.buildDesktopTabPreview(choice.placement)
+
+      Text(choice.title)
+        .width('100%')
+        .fontSize(15)
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.previewPrimaryTextColor)
+        .textAlign(TextAlign.Center)
+        .maxLines(1)
+
+      Radio({
+        value: choice.placement,
+        group: 'feature-intro-desktop-tab-placement'
+      })
+        .checked(choice.isSelected)
+        .hitTestBehavior(HitTestMode.None)
+        .radioStyle({ checkedBackgroundColor: this.previewAccentColor })
+        .onChange((checked: boolean): void => {
+          if (checked) {
+            this.selectDesktopTabPlacement(choice.placement);
+          }
+        })
+    }
+    .layoutWeight(1)
+    .alignItems(HorizontalAlign.Center)
+    .onClick((): void => {
+      this.selectDesktopTabPlacement(choice.placement);
+    })
+  }
+
+  @Builder
+  private buildDesktopTabPreview(placement: FeatureIntroDesktopTabPlacement) {
+    Column() {
+      if (placement === 'vertical') {
+        Row({ space: 6 }) {
+          Column({ space: 4 }) {
+            this.buildDesktopTabChip(true)
+            this.buildDesktopTabChip(true)
+            this.buildDesktopTabChip(true)
+          }
+          .width(28)
+          .height('100%')
+          .justifyContent(FlexAlign.Start)
+
+          Column()
+            .layoutWeight(1)
+            .height('100%')
+            .borderRadius(8)
+            .backgroundColor(this.previewPageBackgroundColor)
+        }
+        .width('100%')
+        .height('100%')
+      } else {
+        Column({ space: 6 }) {
+          Row({ space: 4 }) {
+            this.buildDesktopTabChip(false)
+            this.buildDesktopTabChip(false)
+            this.buildDesktopTabChip(false)
+          }
+          .width('100%')
+          .height(16)
+
+          Column()
+            .width('100%')
+            .layoutWeight(1)
+            .borderRadius(8)
+            .backgroundColor(this.previewPageBackgroundColor)
+        }
+        .width('100%')
+        .height('100%')
+      }
+    }
+    .width('100%')
+    .height(112)
+    .padding(8)
+    .borderRadius(12)
+    .backgroundColor(this.previewSurfaceBackgroundColor)
+    .alignItems(HorizontalAlign.Start)
+  }
+
+  @Builder
+  private buildDesktopTabChip(stacked: boolean) {
+    if (stacked) {
+      Row()
+        .width('100%')
+        .height(14)
+        .borderRadius(4)
+        .backgroundColor(this.previewSecondaryTextColor)
+        .opacity(0.28)
+    } else {
+      Row()
+        .layoutWeight(1)
+        .height(14)
+        .borderRadius(4)
+        .backgroundColor(this.previewSecondaryTextColor)
+        .opacity(0.28)
+    }
+  }
+
   private selectTabStyle(style: BrowserTabsOverviewLayoutStyle): void {
     if (this.busy) {
       return;
@@ -332,12 +455,23 @@ struct FeatureIntroAppearancePage {
     this.selectedTabStyle = style;
   }
 
+  private selectDesktopTabPlacement(placement: FeatureIntroDesktopTabPlacement): void {
+    if (this.busy) {
+      return;
+    }
+    this.selectedDesktopTabPlacement = placement;
+  }
+
   private continueWithSelection(): void {
     if (this.busy) {
       return;
     }
     this.busy = true;
-    this.coordinator.continueWith(this.selectedPaletteId, this.selectedTabStyle);
+    this.coordinator.continueWith(
+      this.selectedPaletteId,
+      this.selectedTabStyle,
+      this.desktopPresentation ? this.selectedDesktopTabPlacement : ''
+    );
   }
 
   private skipSetup(): void {
@@ -384,6 +518,10 @@ struct FeatureIntroAppearancePage {
       this.getUIContext().getHostContext() as common.UIAbilityContext,
       this.storedResolvedThemeMode === 'dark'
     );
+  }
+
+  private refreshDesktopPresentation(): void {
+    this.desktopPresentation = this.environmentService.resolveNativeState().shellFamily === 'large_screen';
   }
 
   private readTopInset(): void {

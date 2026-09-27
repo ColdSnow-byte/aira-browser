@@ -11,6 +11,15 @@
   "history": [
     {
       "versionName": "3.4.2",
+      "versionCode": 1000468,
+      "releasedAt": "2026-09-27",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package whose PC centered homepage searches in place and grows shortcuts outward from the middle, whose homepage-settings preview matches the desktop homepage, and whose homepage-settings and add-to-home popups hug their content. The PC tab strip opens its menu on a long press, and a claimed member can buy the permanent plan without being told to wait. Built from committed HEAD e678683 plus the 3.4.2 (1000468) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.2-1000468-release-signed.app",
+      "sha256": "e2317e0e26f1e1c710e4fd34865250b6302a64b8e84dc5ef33433f340dcc2ea9"
+    },
+    {
+      "versionName": "3.4.2",
       "versionCode": 1000466,
       "releasedAt": "2026-09-27",
       "source": "formal-package-generated",

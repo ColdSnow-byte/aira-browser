@@ -67,6 +67,7 @@ export type SettingsDetailRowAction =
   'open_theme_palette_settings' |
   'open_tablet_interface_mode_settings' |
   'show_tab_overview_layout_sheet' |
+  'show_desktop_tab_placement_sheet' |
   'open_browser_toolbar_customization' |
   'open_general_startup_settings' |
   'open_general_tab_auto_close_settings' |
@@ -459,7 +460,7 @@ export class SettingsDetailViewModel {
   /**
    * 大屏（鼠标键盘）下隐藏只对触屏有意义的设置项：
    * - 实验室"页面手势"整组（下拉刷新 / 强制网页缩放 / 智感握姿）
-   * - 外观里的"标签页样式"行（大屏标签管理默认平铺，不提供堆叠式切换）
+   * - 触屏"标签页样式"行（大屏改为水平 / 垂直标签页，不提供卡片平铺切换）
    * 若某组去掉该行后变空且无操作按钮，则整组略过，避免空卡片。
    */
   private filterLargeScreenHiddenGroups(groups: SettingsDetailGroupState[]): SettingsDetailGroupState[] {
@@ -1279,16 +1280,27 @@ export class SettingsDetailViewModel {
           id: 'tabs_overview',
           title: '标签页',
           rows: [
-            this.navigationRow(
-              'tab_overview_layout',
-              '标签页样式',
-              this.getTabOverviewLayoutStyleLabel(appearance.tabsOverviewLayoutStyle),
-              '',
-              'show_tab_overview_layout_sheet',
-              canEditDevicePreferences
-            )
+            isLargeScreen ?
+              this.navigationRow(
+                'desktop_tab_placement',
+                '标签页样式',
+                this.getDesktopTabPlacementLabel(appearance.verticalTabsEnabled === true),
+                '',
+                'show_desktop_tab_placement_sheet',
+                canEditDevicePreferences
+              ) :
+              this.navigationRow(
+                'tab_overview_layout',
+                '标签页样式',
+                this.getTabOverviewLayoutStyleLabel(appearance.tabsOverviewLayoutStyle),
+                '',
+                'show_tab_overview_layout_sheet',
+                canEditDevicePreferences
+              )
           ],
-          footerText: '只改变标签管理页的排列方式，不影响网页内容和恢复。'
+          footerText: isLargeScreen ?
+            '水平标签页在窗口顶部，垂直标签页在窗口一侧。' :
+            '只改变标签管理页的排列方式，不影响网页内容和恢复。'
         }
     ];
     if (tabletInterfaceModeVisible) {
@@ -1777,6 +1789,10 @@ export class SettingsDetailViewModel {
       return '横向大卡片';
     }
     return style === 'stack' ? '堆叠式' : '卡片平铺';
+  }
+
+  private getDesktopTabPlacementLabel(verticalTabsEnabled: boolean): string {
+    return verticalTabsEnabled ? '垂直标签页' : '水平标签页';
   }
 
   private resolvePermissionDefaultAction(kind: SitePermissionKind): SettingsDetailRowAction {

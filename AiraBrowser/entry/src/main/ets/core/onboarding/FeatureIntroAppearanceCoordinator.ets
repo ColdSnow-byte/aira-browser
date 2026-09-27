@@ -5,7 +5,8 @@ import { FeatureIntroCoordinator, FeatureIntroHost } from './FeatureIntroCoordin
 import { FeatureIntroExitDestination } from './FeatureIntroRoutePolicy';
 import {
   resolveFeatureIntroAppearancePalette,
-  resolveFeatureIntroAppearanceTabStyle
+  resolveFeatureIntroAppearanceTabStyle,
+  resolveFeatureIntroDesktopTabPlacement
 } from './FeatureIntroAppearanceViewModel';
 
 export interface FeatureIntroAppearanceHost extends FeatureIntroHost {
@@ -25,12 +26,13 @@ export class FeatureIntroAppearanceCoordinator {
     this.appearance = new SettingsDetailInteractionCoordinator(sharedPreferencesRepository);
   }
 
-  continueWith(paletteId: string, tabStyle: string): void {
+  continueWith(paletteId: string, tabStyle: string, desktopTabPlacement: string = ''): void {
     if (this.leaving) {
       return;
     }
     this.leaving = true;
     const current = sharedPreferencesRepository.getPreferences().appearance;
+    const usesDesktopTabs = desktopTabPlacement.length > 0;
     const nextSettings: BrowserAppearanceSettings = {
       bottomToolbarScrollBehavior: current.bottomToolbarScrollBehavior,
       toolbarChromeStyle: current.toolbarChromeStyle,
@@ -45,11 +47,14 @@ export class FeatureIntroAppearanceCoordinator {
       homeShortcutIconSizeRatio: current.homeShortcutIconSizeRatio,
       siteIconCornerRadiusRatio: current.siteIconCornerRadiusRatio,
       themePaletteId: resolveFeatureIntroAppearancePalette(paletteId),
-      tabsOverviewLayoutStyle: resolveFeatureIntroAppearanceTabStyle(tabStyle),
+      tabsOverviewLayoutStyle: usesDesktopTabs ?
+        current.tabsOverviewLayoutStyle : resolveFeatureIntroAppearanceTabStyle(tabStyle),
       tabsOverviewCloseButtonAlwaysVisible: current.tabsOverviewCloseButtonAlwaysVisible,
       showDesktopBookmarkBar: current.showDesktopBookmarkBar,
       desktopBookmarkBarVisibility: current.desktopBookmarkBarVisibility,
-      verticalTabsEnabled: current.verticalTabsEnabled,
+      verticalTabsEnabled: usesDesktopTabs ?
+        resolveFeatureIntroDesktopTabPlacement(desktopTabPlacement) === 'vertical' :
+        current.verticalTabsEnabled,
       verticalTabsCollapsed: current.verticalTabsCollapsed
     };
     this.appearance.commitAppearanceSettings({

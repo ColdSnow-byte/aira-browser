@@ -5497,7 +5497,10 @@ struct BrowserShellPage {
         return {
           shellFamily: this.browserShellPresentationOperations?.snapshot()?.shellFamily ?? 'phone',
           deviceFormFactor: this.resolveGuideDeviceFormFactor(),
-          appVisible: this.isBrowserShellVisible,
+          // A pushed settings page leaves this shell alive but covered. The lesson
+          // waits until the user is looking at it, and never over the homepage.
+          appVisible: this.isBrowserShellVisible && this.browserPageForeground,
+          webPageVisible: this.isWebPageVisible(),
           floatingToolbarChromeActive: this.toolbarChromeStyle !== 'split',
           privacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
           promptBlockingFacts: this.buildTransientPromptBlockingFacts()
@@ -6411,6 +6414,7 @@ struct BrowserShellPage {
       this.noteSplitAddressBarScroll(this.activeTabId, this.browserWebScrollInteractionCoordinator.getLastScrollY(), false);
       this.browserWebTopImmersionSessionCoordinator.syncPolicy('appearance');
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
+      this.noteBottomToolbarGuideBrowsingSurface();
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
       this.webScrollExperimentSettings = settings;
@@ -6588,7 +6592,20 @@ struct BrowserShellPage {
     this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
     this.browserWebBottomSafeAreaCoordinator.setVisible(true);
+    this.noteBottomToolbarGuideBrowsingSurface();
     void this.checkClientUpdatePolicy();
+  }
+
+  /**
+   * Coming back to a Web page that already loaded, or gaining the floating toolbar
+   * while one is showing, is an opportunity. The coordinator decides whether the
+   * lesson is still unspent and whether this frame can actually be swiped away.
+   */
+  private noteBottomToolbarGuideBrowsingSurface(): void {
+    if (!this.browserPageForeground || !this.isWebPageVisible()) {
+      return;
+    }
+    this.bottomToolbarGuideCoordinator.handleBrowsingSurfaceForeground();
   }
 
   onPageHide(): void {
@@ -9257,8 +9274,9 @@ struct BrowserShellPage {
       // decided once at startup and lost forever if anything held the lane at
       // that moment, so re-decide whenever the lane clears.
       this.renewalReminderCoordinator.scheduleEvaluation();
-      // The toolbar lesson waits the same way: it is armed by the first Web page
-      // that loads and must not be dropped by a prompt holding the lane then.
+      // The toolbar lesson waits the same way: a Web page arms it, and a prompt
+      // holding the lane then must not drop it. It still presents only while the
+      // floating toolbar is the frame in front of that page.
       this.bottomToolbarGuideCoordinator.scheduleEvaluation();
     }
     if (update.lane === 'custom_bottom' && update.chromePlan !== undefined) {

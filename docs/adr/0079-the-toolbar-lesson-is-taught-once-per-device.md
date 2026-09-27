@@ -5,9 +5,10 @@ supersedes: none
 
 # The Toolbar Lesson Is Taught Once Per Device
 
-Accepted 2026-09-19. A first-time user who opens their first Web page is told, once, that the phone floating toolbar can
-be swiped down out of the way. The lesson is a bounded presentation of an existing gesture: it grants no capability,
-stores no toolbar state, and never changes how the toolbar behaves.
+Accepted 2026-09-19. A user is told, once per device, that the phone floating toolbar can be swiped down out of the
+way. The lesson waits until that toolbar is actually the frame in front of a Web page, so choosing the centered
+homepage — or any later switch to the split frame — does not spend it. The lesson is a bounded presentation of an
+existing gesture: it grants no capability, stores no toolbar state, and never changes how the toolbar behaves.
 
 ## Decision
 
@@ -18,18 +19,24 @@ The lesson is a device-local onboarding announcement, not a feature gate and not
   `aira_bottom_toolbar_guide`. The record deliberately does not model gesture mechanics — no detent, no swipe distance,
   no toolbar visibility flag — because those belong to the bottom panel owner and duplicating them here would create a
   second, drifting answer to "can the toolbar be hidden".
-- `BottomToolbarGuideCoordinator` owns eligibility and presentation. It is armed by the active phone tab finishing a
-  Web page load, and it presents a centered modal through the shared transient surface id `bottom_toolbar_guide`, exactly
-  like the welcome-gift notice.
+- `BottomToolbarGuideCoordinator` owns eligibility and presentation. A finished Web page load on the active phone tab
+  arms it. Coming back to that already loaded page, or gaining the floating toolbar while it is showing, is the same
+  opportunity. It presents a centered modal through the shared transient surface id `bottom_toolbar_guide`, exactly like
+  the welcome-gift notice.
+- The homepage choice, the toolbar setting, and Personalization Sync matter only because they turn the floating toolbar
+  on or off. The lesson does not read the homepage style. It presents only while the floating toolbar is active, the
+  browser page is the one the user is looking at, and a Web page — not the homepage — is showing. Settings, the
+  homepage, a private session, and a desktop or cockpit defer the lesson and do not spend it.
 - The lesson is spent at reveal, not at arm. A custom bottom surface mounts asynchronously, so a presentation that is
   abandoned before its reveal must not consume the one-time guide. This mirrors the welcome-gift rule: the memory
   records that the user was told, and losing the notice costs only the notice.
 
 Arming and presenting are separate decisions. The lane that automatic prompts share can be held by a release notice, an
-app-review prompt, the welcome-gift notice, a site prompt, or a tabs sheet at the moment the first page finishes
-loading. Deciding once at that instant would silently lose the lesson, so the coordinator keeps a pending lesson armed
-and re-decides whenever a Web page finishes loading or the lane clears, and only a card that reached the user ends the
-question.
+app-review prompt, the welcome-gift notice, a site prompt, or a tabs sheet at the moment the page finishes loading.
+Deciding once at that instant would silently lose the lesson, so the coordinator keeps a pending lesson armed and
+re-decides whenever a Web page finishes loading, the browsing surface comes back to the front, or the lane clears.
+Only a card that reached the user ends the question. A route reset takes an in-flight card down, but it remembers that
+a Web page already loaded, so returning from settings to that page can still teach.
 
 The lesson is phone-only, and phone-only means the device, not the shell it happens to run: Huawei maps tablets and 2in1
 devices into a PC UI and Aira falls back to its phone adapter when the large-screen shell is unavailable, so a desktop

@@ -11,6 +11,9 @@ function featureIntroPoster(slideId: string): Resource {
   return $rawfile('feature_intro_sync_poster.jpg');
 }
 
+/** Phone artwork starts about a quarter of the way in, so the fade stays outside it. */
+const FEATURE_INTRO_CONTAINED_EDGE_FADE: number = 0.2;
+
 function featureIntroVideo(slideId: string): Resource {
   if (slideId === 'ad_block') {
     return $rawfile('feature_intro_ad_block.mp4');
@@ -29,6 +32,8 @@ export struct FeatureIntroSlideVideo {
   slideId: string = '';
   controller: VideoController = new VideoController();
   @Prop shown: boolean = false;
+  /** Keep the whole 9:8 frame visible instead of cropping a short wide slot. */
+  @Prop contain: boolean = false;
   onPrepared: () => void = (): void => undefined;
   onStart: () => void = (): void => undefined;
 
@@ -37,7 +42,7 @@ export struct FeatureIntroSlideVideo {
       Image(featureIntroPoster(this.slideId))
         .width('100%')
         .height('100%')
-        .objectFit(ImageFit.Cover)
+        .objectFit(this.contain ? ImageFit.Contain : ImageFit.Cover)
       Video({
         src: featureIntroVideo(this.slideId),
         controller: this.controller,
@@ -45,7 +50,7 @@ export struct FeatureIntroSlideVideo {
       })
         .width('100%')
         .height('100%')
-        .objectFit(ImageFit.Cover)
+        .objectFit(this.contain ? ImageFit.Contain : ImageFit.Cover)
         .muted(true)
         .controls(false)
         .loop(true)
@@ -57,8 +62,26 @@ export struct FeatureIntroSlideVideo {
         .onStart((): void => {
           this.onStart();
         })
+
+      if (this.contain) {
+        Column()
+          .width('100%')
+          .height('100%')
+          .hitTestBehavior(HitTestMode.None)
+          .linearGradient({
+            direction: GradientDirection.Right,
+            colors: [
+              [Color.Transparent, 0],
+              [Color.Black, FEATURE_INTRO_CONTAINED_EDGE_FADE],
+              [Color.Black, 1 - FEATURE_INTRO_CONTAINED_EDGE_FADE],
+              [Color.Transparent, 1]
+            ]
+          })
+          .blendMode(BlendMode.DST_IN, BlendApplyType.OFFSCREEN)
+      }
     }
     .width('100%')
     .height('100%')
+    .blendMode(this.contain ? BlendMode.SRC_OVER : BlendMode.NONE, BlendApplyType.OFFSCREEN)
   }
 }

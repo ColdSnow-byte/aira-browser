@@ -66,8 +66,14 @@ require_pattern "${COORDINATOR_REL}" "'bottom_toolbar_guide'" \
   "the coordinator must present through the fixed transient surface."
 require_pattern "${COORDINATOR_REL}" "handleWebPageLoadCompleted\\(\\)" \
   "the lesson must be armed by a finished Web page load."
+require_pattern "${COORDINATOR_REL}" "handleBrowsingSurfaceForeground\\(\\)" \
+  "returning to a Web page that already loaded must be able to teach the gesture."
+require_pattern "${COORDINATOR_REL}" "facts\\.webPageVisible" \
+  "the lesson must not present over the homepage."
 require_pattern "${COORDINATOR_REL}" "handleSurfaceRevealed\\(\\)" \
   "the lesson must be spent only once the card actually reveals."
+require_pattern "${COORDINATOR_REL}" "!facts\\.floatingToolbarChromeActive" \
+  "the lesson must stay silent until the floating toolbar is the active frame."
 require_pattern "${COORDINATOR_REL}" "facts\\.shellFamily !== 'phone'" \
   "the lesson explains the phone gesture and must not present on the large-screen shell."
 require_pattern "${COORDINATOR_REL}" "facts\\.deviceFormFactor === 'pc'" \
@@ -111,6 +117,12 @@ require_pattern "${MAIN_BACK_REL}" "bottomToolbarGuideCoordinator" \
   "back must delegate the guide dismissal to its owner."
 require_pattern "${SHELL_PAGE_REL}" "handleWebPageLoadCompleted\\(\\)" \
   "the shell must arm the guide when the active Web page finishes loading."
+require_pattern "${SHELL_PAGE_REL}" "handleBrowsingSurfaceForeground\\(\\)" \
+  "the shell must offer the lesson again when a loaded Web page is back in front."
+require_pattern "${SHELL_PAGE_REL}" "webPageVisible:" \
+  "the shell must tell the lesson whether a Web page, not the homepage, is showing."
+require_pattern "${SHELL_PAGE_REL}" "browserPageForeground" \
+  "the shell must not teach the gesture while a settings page covers it."
 require_pattern "${SHELL_PAGE_REL}" "handleSurfaceRevealed\\(\\)" \
   "the shell must record the guide only when the card reveals."
 require_pattern "${RUNTIME_REL}" "sharedBottomToolbarGuideRepository" \
@@ -119,6 +131,8 @@ require_pattern "${RUNTIME_REL}" "sharedBottomToolbarGuideRepository" \
 # The lesson is unspent until it is seen, so the behaviour is pinned by tests.
 require_pattern "${TEST_REL}" "handleWebPageLoadCompleted" \
   "the test must pin the page-load arming of the lesson."
+require_pattern "${TEST_REL}" "handleBrowsingSurfaceForeground" \
+  "the test must pin that coming back to a loaded Web page can still teach."
 require_pattern "${TEST_REL}" "handleSurfaceRevealed" \
   "the test must pin that only a revealed card spends the lesson."
 

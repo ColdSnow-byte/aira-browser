@@ -35,7 +35,16 @@ export interface BottomToolbarGuideShellFacts {
    * alone cannot tell them apart from a phone.
    */
   deviceFormFactor: BrowserDeviceFormFactor;
+  /**
+   * The browser page is the one the user is looking at. A pushed settings page leaves
+   * this shell alive underneath, and the lesson must not surface there.
+   */
   appVisible: boolean;
+  /**
+   * A Web page is showing, not the homepage. The homepage has nothing to swipe away,
+   * so it must not be taught over.
+   */
+  webPageVisible: boolean;
   /** The phone lesson explains the floating toolbar. The split frame has no such gesture. */
   floatingToolbarChromeActive: boolean;
   privacyMode: string;
@@ -64,11 +73,16 @@ const BOTTOM_TOOLBAR_GUIDE_PRIMARY_ACTION_TITLE: string = '我知道了';
 const BOTTOM_TOOLBAR_GUIDE_SECONDARY_ACTION_TITLE: string = '不再提示';
 
 /**
- * Teaches a first-time user, once, that the phone floating toolbar can be swiped
- * down out of the way. The lesson is armed by the first Web page that finishes
- * loading and is spent only when the card actually reaches the user, so a load
- * that lands while another prompt holds the lane defers the lesson instead of
- * losing it.
+ * Teaches the phone floating toolbar once per device, the first time that toolbar
+ * is actually in front of a Web page. Choosing the centered homepage, or any later
+ * switch to the split frame, has no such gesture, so those sessions stay silent and
+ * do not spend the lesson. A later switch back to the floating toolbar — from toolbar
+ * settings, the homepage choice, or sync — teaches on the next Web page, including
+ * the page already open when the user returns from settings.
+ *
+ * The lesson is spent only when the card actually reaches the user. A load that lands
+ * while another prompt holds the lane, or while the toolbar is still split, defers
+ * the lesson instead of losing it.
  *
  * Phone only: the large-screen shell has its own toolbar that is not swiped away.
  */
@@ -78,6 +92,12 @@ export class BottomToolbarGuideCoordinator {
   private readonly shell: BottomToolbarGuideShell;
   private readonly evaluationDelayMs: number;
   private armed: boolean = false;
+  /**
+   * A Web page has finished loading on this shell. Survives a route reset so coming
+   * back to that same page can still teach, without treating the homepage or a cold
+   * start as a page that already loaded.
+   */
+  private webPageLoaded: boolean = false;
   private evaluateTimer: number = -1;
   private evaluationGeneration: number = 0;
   private presentationGeneration: number = 0;
@@ -100,16 +120,28 @@ export class BottomToolbarGuideCoordinator {
   }
 
   /**
-   * The active phone tab finished loading a Web page. The first such load arms
-   * the guide, and every later load re-decides whether the pending lesson may
+   * The active phone tab finished loading a Web page. That load is remembered for
+   * this shell, and every later load re-decides whether the pending lesson may
    * present now.
    */
   handleWebPageLoadCompleted(): void {
     if (this.repository.hasCompleted()) {
       return;
     }
-    this.armed = true;
-    this.scheduleEvaluation();
+    this.webPageLoaded = true;
+    this.armPendingLesson();
+  }
+
+  /**
+   * The user is looking at a Web page that already finished loading: they came back
+   * from settings, or the floating toolbar just became the active frame. A homepage,
+   * a settings page, and a shell that has never loaded a Web page are not opportunities.
+   */
+  handleBrowsingSurfaceForeground(): void {
+    if (this.repository.hasCompleted() || !this.webPageLoaded) {
+      return;
+    }
+    this.armPendingLesson();
   }
 
   /**
@@ -157,11 +189,16 @@ export class BottomToolbarGuideCoordinator {
 
   handleShellReset(): void {
     this.cancelEvaluation();
-    // A route or window reset drops the lesson back to unarmed; the next Web page
-    // that finishes loading offers it again unless the user already saw it.
+    // A route reset takes the card down, but the loaded page is still there. Coming
+    // back to it is a new opportunity unless the user already saw the lesson.
     this.armed = false;
     this.presentationGeneration += 1;
     this.publishState(createHiddenBottomToolbarGuideSnapshot());
+  }
+
+  private armPendingLesson(): void {
+    this.armed = true;
+    this.scheduleEvaluation();
   }
 
   private cancelEvaluation(): void {
@@ -212,7 +249,7 @@ export class BottomToolbarGuideCoordinator {
       facts.deviceFormFactor === 'car') {
       return false;
     }
-    if (!facts.appVisible || facts.privacyMode === 'private') {
+    if (!facts.appVisible || !facts.webPageVisible || facts.privacyMode === 'private') {
       return false;
     }
     return !this.surface.isReleaseNoticeBlocked(facts.promptBlockingFacts);

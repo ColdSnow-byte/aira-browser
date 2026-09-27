@@ -104,6 +104,7 @@ class FixtureBottomToolbarGuideShell implements BottomToolbarGuideShell {
     shellFamily: 'phone',
     deviceFormFactor: 'phone',
     appVisible: true,
+    webPageVisible: true,
     floatingToolbarChromeActive: true,
     privacyMode: 'normal',
     promptBlockingFacts: buildIdlePromptBlockingFacts()
@@ -252,6 +253,77 @@ export default function bottomToolbarGuideCoordinatorTest(): void {
       expect(fixture.repository.memory.completedAt > 0).assertTrue();
 
       fixture.coordinator.handleWebPageLoadCompleted();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(1);
+    });
+
+    it('stays silent until the floating toolbar is actually in front of a Web page', 0, async () => {
+      const fixture = buildGuideFixture();
+      fixture.shell.facts.floatingToolbarChromeActive = false;
+
+      fixture.coordinator.handleWebPageLoadCompleted();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+      expect(fixture.repository.memory.shownAt).assertEqual(0);
+
+      // Coming back from settings to the page that already loaded, now with the
+      // floating toolbar, is the first time the gesture exists.
+      fixture.shell.facts.floatingToolbarChromeActive = true;
+      fixture.coordinator.handleBrowsingSurfaceForeground();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(1);
+    });
+
+    it('does not teach over the homepage or a covered shell, and does not spend the lesson', 0, async () => {
+      const fixture = buildGuideFixture();
+      fixture.shell.facts.webPageVisible = false;
+
+      fixture.coordinator.handleWebPageLoadCompleted();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+
+      fixture.shell.facts.webPageVisible = true;
+      fixture.shell.facts.appVisible = false;
+      fixture.coordinator.handleBrowsingSurfaceForeground();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+      expect(fixture.repository.memory.shownAt).assertEqual(0);
+
+      fixture.shell.facts.appVisible = true;
+      fixture.coordinator.handleBrowsingSurfaceForeground();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(1);
+    });
+
+    it('does not treat a cold start as a page that already loaded', 0, async () => {
+      const fixture = buildGuideFixture();
+
+      fixture.coordinator.handleBrowsingSurfaceForeground();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+    });
+
+    it('offers the loaded page again after a route reset once the shell is back in front', 0, async () => {
+      const fixture = buildGuideFixture();
+      fixture.shell.facts.floatingToolbarChromeActive = false;
+
+      fixture.coordinator.handleWebPageLoadCompleted();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+
+      fixture.coordinator.handleShellReset();
+      fixture.coordinator.scheduleEvaluation();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(0);
+
+      fixture.shell.facts.floatingToolbarChromeActive = true;
+      fixture.coordinator.handleBrowsingSurfaceForeground();
+      await flushEvaluation();
+      expect(fixture.surface.presentRequests.length).assertEqual(1);
+
+      fixture.coordinator.handleSurfaceRevealed();
+      fixture.coordinator.handleSurfaceDismissed();
+      fixture.coordinator.handleBrowsingSurfaceForeground();
       await flushEvaluation();
       expect(fixture.surface.presentRequests.length).assertEqual(1);
     });

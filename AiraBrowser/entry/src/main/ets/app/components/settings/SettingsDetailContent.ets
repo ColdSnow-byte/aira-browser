@@ -14,7 +14,8 @@ import {
   TabOverviewLayoutSettingsState
 } from '../../../core/settings/TabOverviewLayoutSettingsCoordinator';
 import {
-  sharedPreferencesRepository
+  sharedPreferencesRepository,
+  syncBrowserThemeAppStorage
 } from '../../bootstrap/BrowserAppRuntime';
 import {
   BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
@@ -45,6 +46,7 @@ import {
 } from './SettingsLayout';
 import { ThemeModeOptionCard } from './ThemeModeOptionCard';
 import { TabOverviewLayoutChoiceSheet } from './TabOverviewLayoutChoiceSheet';
+import { DesktopTabPlacementChoiceDialog } from './DesktopTabPlacementChoiceDialog';
 import { BrowserPrivacyProtectionOverview } from './BrowserPrivacyProtectionOverview';
 import { BrowserWebSecuritySettingsContent } from './BrowserWebSecuritySettingsContent';
 import {
@@ -84,6 +86,9 @@ export struct SettingsDetailContent {
   @State private tabOverviewLayoutState: TabOverviewLayoutSettingsState =
     this.tabOverviewLayoutCoordinator.buildInitialState();
   @State private tabOverviewLayoutSheetVisible: boolean = false;
+  @State private desktopTabPlacementSheetVisible: boolean = false;
+  @State private desktopTabPlacementSaving: boolean = false;
+  @State private desktopTabPlacement: string = 'horizontal';
   @State private highlightedTargetId: string = '';
   private actionResolver: SettingsDetailActionResolver = new SettingsDetailActionResolver();
   private revealController: SettingsTargetRevealController = new SettingsTargetRevealController(
@@ -156,6 +161,12 @@ export struct SettingsDetailContent {
       // open. Writing state here only invalidates this host as the sheet is being
       // removed, which is pointless work during the dismiss animation.
     }, 'm', this.isLargeScreen))
+    .bindSheet($$this.desktopTabPlacementSheetVisible, this.buildDesktopTabPlacementDialog(), applyDesktopDialogSheetChrome({
+      preferType: SheetType.CENTER,
+      height: SheetSize.FIT_CONTENT,
+      dragBar: false,
+      showClose: false
+    }, 's', true))
   }
 
   @Builder
@@ -636,13 +647,66 @@ export struct SettingsDetailContent {
     })
   }
 
+  @Builder
+  private buildDesktopTabPlacementDialog() {
+    DesktopTabPlacementChoiceDialog({
+      selectedPlacement: this.desktopTabPlacement,
+      isSaving: this.desktopTabPlacementSaving,
+      onSelect: (placement: string): void => {
+        this.applyDesktopTabPlacement(placement);
+      },
+      onClose: (): void => {
+        this.desktopTabPlacementSheetVisible = false;
+      }
+    })
+  }
+
   private handleNavigationRowAction(row: SettingsDetailRowState): void {
     if (row.action === 'show_tab_overview_layout_sheet') {
       this.tabOverviewLayoutState = this.tabOverviewLayoutCoordinator.refreshDraft();
       this.tabOverviewLayoutSheetVisible = true;
       return;
     }
+    if (row.action === 'show_desktop_tab_placement_sheet') {
+      if (!row.isEnabled || this.desktopTabPlacementSaving) {
+        return;
+      }
+      this.desktopTabPlacement = this.resolveDesktopTabPlacement();
+      this.desktopTabPlacementSheetVisible = true;
+      return;
+    }
     this.onRowAction?.(row);
+  }
+
+  private resolveDesktopTabPlacement(): string {
+    return sharedPreferencesRepository.getPreferences().appearance.verticalTabsEnabled === true ?
+      'vertical' : 'horizontal';
+  }
+
+  private applyDesktopTabPlacement(placement: string): void {
+    if (this.desktopTabPlacementSaving) {
+      return;
+    }
+    const verticalTabsEnabled = placement === 'vertical';
+    if (this.desktopTabPlacement === (verticalTabsEnabled ? 'vertical' : 'horizontal')) {
+      this.desktopTabPlacementSheetVisible = false;
+      return;
+    }
+    const current = sharedPreferencesRepository.getPreferences().appearance;
+    this.desktopTabPlacementSaving = true;
+    this.desktopTabPlacement = verticalTabsEnabled ? 'vertical' : 'horizontal';
+    sharedPreferencesRepository.updateVerticalTabsPresentation(
+      verticalTabsEnabled,
+      current.verticalTabsCollapsed !== false
+    ).then((): void => {
+      syncBrowserThemeAppStorage();
+      this.desktopTabPlacementSaving = false;
+      this.desktopTabPlacementSheetVisible = false;
+      this.onTabOverviewLayoutApplied?.();
+    }).catch((): void => {
+      this.desktopTabPlacement = this.resolveDesktopTabPlacement();
+      this.desktopTabPlacementSaving = false;
+    });
   }
 
   private applyTabOverviewLayoutDraft(): void {

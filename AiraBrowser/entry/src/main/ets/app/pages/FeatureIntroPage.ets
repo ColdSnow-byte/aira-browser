@@ -3,6 +3,7 @@ import { common } from '@kit.AbilityKit';
 import { window } from '@kit.ArkUI';
 import { FeatureIntroGate } from '../components/onboarding/FeatureIntroGate';
 import { FeatureIntroSkipControl } from '../components/onboarding/FeatureIntroSkipControl';
+import { FeatureIntroMeshBackdrop } from '../components/onboarding/FeatureIntroMeshBackdrop';
 import { FeatureIntroSlideVideo } from '../components/onboarding/FeatureIntroSlideVideo';
 import { FeatureIntroCoordinator, FeatureIntroHost } from '../../core/onboarding/FeatureIntroCoordinator';
 import {
@@ -46,6 +47,7 @@ struct FeatureIntroPage {
   @State private windowHeightVp: number = 780;
   @State private topInsetVp: number = 0;
   @State private bottomInsetVp: number = 0;
+  @State private pageVisible: boolean = false;
   private readonly viewModel: FeatureIntroViewModel = new FeatureIntroViewModel();
   private readonly swiperController: SwiperController = new SwiperController();
   private readonly adBlockVideoController: VideoController = new VideoController();
@@ -93,8 +95,13 @@ struct FeatureIntroPage {
   }
 
   onPageShow(): void {
+    this.pageVisible = true;
     this.openingSearchEngineSetup = false;
     this.readSafeInsets();
+  }
+
+  onPageHide(): void {
+    this.pageVisible = false;
   }
 
   build() {
@@ -119,6 +126,14 @@ struct FeatureIntroPage {
   @Builder
   private buildSlides() {
     Stack({ alignContent: Alignment.TopStart }) {
+      if (this.usesContainedVideo()) {
+        FeatureIntroMeshBackdrop({
+          topInsetVp: this.topInsetVp,
+          heightVp: this.resolveLayout().videoHeightVp,
+          playing: this.pageVisible
+        })
+      }
+
       Column() {
       Swiper(this.swiperController) {
         ForEach(this.viewModel.slides(), (slide: FeatureIntroSlide) => {
@@ -132,6 +147,7 @@ struct FeatureIntroPage {
       .cachedCount(1)
       .width('100%')
       .layoutWeight(1)
+      .backgroundColor(Color.Transparent)
       .onChange((index: number) => {
         this.pageIndex = index;
         this.syncIntroVideos(index);
@@ -142,7 +158,7 @@ struct FeatureIntroPage {
       .width('100%')
       .height('100%')
       .alignItems(HorizontalAlign.Center)
-      .backgroundColor(this.storedPageBackgroundColor)
+      .backgroundColor(this.resolveSlideCanvasColor())
 
       FeatureIntroSkipControl({
         label: this.viewModel.gateSkipLabel(),
@@ -154,6 +170,7 @@ struct FeatureIntroPage {
     }
     .width('100%')
     .height('100%')
+    .backgroundColor(this.storedPageBackgroundColor)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.updateWindowSize(newArea);
@@ -163,21 +180,33 @@ struct FeatureIntroPage {
   @Builder
   private buildSlide(slide: FeatureIntroSlide) {
     Column() {
-      FeatureIntroSlideVideo({
-        slideId: slide.id,
-        controller: this.introVideoController(slide.id),
-        shown: this.isIntroVideoShown(slide.id),
-        onPrepared: (): void => {
-          this.markIntroVideoReady(slide.id);
-          this.syncIntroVideos(this.pageIndex);
-        },
-        onStart: (): void => {
-          this.scheduleIntroVideoShown(slide.id);
+      Column() {
+        if (this.resolveLayout().videoWidthVp > 0) {
+          Blank()
+            .width('100%')
+            .height(this.topInsetVp)
         }
-      })
-      .width('100%')
-      .height(this.topInsetVp + this.resolveLayout().videoHeightVp)
-      .backgroundColor(this.storedPageBackgroundColor)
+
+        FeatureIntroSlideVideo({
+          slideId: slide.id,
+          controller: this.introVideoController(slide.id),
+          shown: this.isIntroVideoShown(slide.id),
+          contain: this.resolveLayout().videoWidthVp > 0,
+          onPrepared: (): void => {
+            this.markIntroVideoReady(slide.id);
+            this.syncIntroVideos(this.pageIndex);
+          },
+          onStart: (): void => {
+            this.scheduleIntroVideoShown(slide.id);
+          }
+        })
+        .width('100%')
+        .height(this.resolveVideoFrameHeight())
+        .backgroundColor(this.resolveSlideCanvasColor())
+        .clip(true)
+      }
+      .width(this.resolveLayout().videoWidthVp > 0 ? this.resolveLayout().videoWidthVp : '100%')
+      .alignItems(HorizontalAlign.Center)
       .clip(true)
 
       Column() {
@@ -210,7 +239,20 @@ struct FeatureIntroPage {
     .width('100%')
     .height('100%')
     .alignItems(HorizontalAlign.Center)
-    .backgroundColor(this.storedPageBackgroundColor)
+    .backgroundColor(this.resolveSlideCanvasColor())
+  }
+
+  private usesContainedVideo(): boolean {
+    return this.resolveLayout().videoWidthVp > 0;
+  }
+
+  private resolveSlideCanvasColor(): string {
+    return this.usesContainedVideo() ? '#00000000' : this.storedPageBackgroundColor;
+  }
+
+  private resolveVideoFrameHeight(): number {
+    const layout = this.resolveLayout();
+    return layout.videoWidthVp > 0 ? layout.videoHeightVp : this.topInsetVp + layout.videoHeightVp;
   }
 
   @Builder

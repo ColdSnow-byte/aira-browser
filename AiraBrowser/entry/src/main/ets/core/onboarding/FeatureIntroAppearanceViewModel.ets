@@ -65,6 +65,21 @@ export function resolveFeatureIntroAppearanceTabStyle(value: string): BrowserTab
   return value === 'horizontal_cards' || value === 'stack' ? value : FEATURE_INTRO_APPEARANCE_DEFAULT_TAB_STYLE;
 }
 
+/** PC keeps a top tab strip or a side tab strip. It does not use the phone overview styles. */
+export type FeatureIntroDesktopTabPlacement = 'horizontal' | 'vertical';
+
+export interface FeatureIntroDesktopTabChoice {
+  placement: FeatureIntroDesktopTabPlacement;
+  title: string;
+  isSelected: boolean;
+}
+
+const FEATURE_INTRO_DESKTOP_TAB_PLACEMENT_DEFAULT: FeatureIntroDesktopTabPlacement = 'horizontal';
+
+export function resolveFeatureIntroDesktopTabPlacement(value: string): FeatureIntroDesktopTabPlacement {
+  return value === 'vertical' ? 'vertical' : FEATURE_INTRO_DESKTOP_TAB_PLACEMENT_DEFAULT;
+}
+
 export class FeatureIntroAppearanceViewModel {
   private readonly paletteService: BrowserThemePaletteService = new BrowserThemePaletteService();
 
@@ -102,6 +117,10 @@ export class FeatureIntroAppearanceViewModel {
 
   defaultTabStyle(): BrowserTabsOverviewLayoutStyle {
     return FEATURE_INTRO_APPEARANCE_DEFAULT_TAB_STYLE;
+  }
+
+  defaultDesktopTabPlacement(): FeatureIntroDesktopTabPlacement {
+    return FEATURE_INTRO_DESKTOP_TAB_PLACEMENT_DEFAULT;
   }
 
   previewTokens(paletteId: string, mode: string): FeatureIntroAppearancePreviewTokens {
@@ -149,6 +168,22 @@ export class FeatureIntroAppearanceViewModel {
         isSelected: id === selected
       };
     });
+  }
+
+  desktopTabOptions(selectedPlacement: string): FeatureIntroDesktopTabChoice[] {
+    const selected = resolveFeatureIntroDesktopTabPlacement(selectedPlacement);
+    return [
+      {
+        placement: 'horizontal',
+        title: '水平标签页',
+        isSelected: selected === 'horizontal'
+      },
+      {
+        placement: 'vertical',
+        title: '竖向标签页',
+        isSelected: selected === 'vertical'
+      }
+    ];
   }
 
   tabOptions(selectedStyle: string): TabOverviewLayoutOptionState[] {

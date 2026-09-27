@@ -387,7 +387,8 @@ export default function settingsDestinationNavigationOwnerTest(): void {
       await owner.dispatch(SettingsNavigationIntent.setShell('twoPane'));
 
       expect(owner.search(state, '顶部沉浸').resultCount).assertEqual(0);
-      expect(owner.search(state, '标签页样式').resultCount).assertEqual(0);
+      expect(owner.search(state, '卡片平铺').resultCount).assertEqual(0);
+      expect(owner.search(state, '标签页样式').groups[0].rows[0].id).assertEqual('desktop_tab_placement');
     });
 
     it('rechecks presentation capability when a rendered result is selected', 0, async () => {
