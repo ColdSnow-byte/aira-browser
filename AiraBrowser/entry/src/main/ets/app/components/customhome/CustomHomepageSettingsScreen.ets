@@ -462,13 +462,7 @@ export struct CustomHomepageSettingsScreen {
           primaryTextColor: this.storedPrimaryTextColor,
           iconColor: this.storedSecondaryTextColor,
           buttonBackgroundColor: this.storedPressedBackgroundColor,
-          primaryActionText: '添加网址主页',
-          primaryActionLabel: '添加网址主页',
-          primaryActionEnabled: !this.busy,
-          menuActions: this.buildDesktopHeaderActions(),
-          onPrimaryAction: () => {
-            this.openRemoteHomepageDialog();
-          }
+          menuActions: this.buildDesktopHeaderActions()
         })
       } else {
         Row({ space: 10 }) {
@@ -526,6 +520,9 @@ export struct CustomHomepageSettingsScreen {
       wallpaper: this.previewWallpaper,
       closedItems: this.previewClosedItems,
       showRecentlyClosed: this.previewShowsRecentlyClosed,
+      desktopPresentation: this.desktopPresentation,
+      viewportWidth: this.previewViewportWidth,
+      viewportHeight: this.previewViewportHeight,
       previewRevision: this.previewContentRevision,
       pageBackground: this.resolveSettingsCanvasColor(),
       focusedIndex: this.carouselFocusedIndex,
@@ -1177,6 +1174,13 @@ export struct CustomHomepageSettingsScreen {
 
   private buildDesktopHeaderActions(): SettingsDesktopWorkspaceHeaderAction[] {
     return [{
+      label: '添加网址主页',
+      action: () => {
+        if (!this.busy) {
+          this.openRemoteHomepageDialog();
+        }
+      }
+    }, {
       label: '导入主页',
       action: () => {
         if (!this.busy) {
@@ -1870,7 +1874,7 @@ export struct CustomHomepageSettingsScreen {
   }
 
   private resolveSettingsCanvasColor(): string {
-    if (this.resolveCurrentThemeMode() !== 'light') {
+    if (this.desktopPresentation || this.resolveCurrentThemeMode() !== 'light') {
       return this.storedPageBackgroundColor;
     }
     return this.deepenLightCanvasColor(this.storedPageBackgroundColor);
@@ -1999,7 +2003,7 @@ export struct CustomHomepageSettingsScreen {
 
   private buildPreviewClosedItems(records: BrowserRecentlyClosedTabRecord[]): HomepagePreviewClosedItem[] {
     const siteIconService = new SiteIconService();
-    const visibleRecords = records.slice(0, 2);
+    const visibleRecords = records.slice(0, 8);
     const items: HomepagePreviewClosedItem[] = [];
     visibleRecords.forEach((record: BrowserRecentlyClosedTabRecord) => {
       const url = this.resolveClosedRecordUrl(record);

@@ -1,4 +1,6 @@
+import { display } from '@kit.ArkUI';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
+import { desktopDialogTierSpec } from '../../../core/browser/BrowserDialogPresentationTokens';
 import {
   BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY
@@ -8,30 +10,55 @@ import { WallpaperSettingsCoordinator } from '../../../core/wallpaper/WallpaperS
 import { WallpaperSettingsViewState } from '../../../core/wallpaper/WallpaperSettingsViewModel';
 import { sharedWallpaperRepository } from '../../bootstrap/BrowserAppRuntime';
 import { HomeNativeSettingsContent } from '../settings/HomeNativeSettingsContent';
-import { SettingsScrollBody } from '../settings/SettingsLayout';
 import { WallpaperSettingsContent } from '../wallpaper/WallpaperSettingsScreen';
 import {
   BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
   BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
-  BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP,
-  resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
-  BrowserImmersiveSheetLayout,
-  BrowserSheetIconButton,
-  browserSheetHeaderBlurModifier
+  BrowserSheetIconButton
 } from './BrowserModalBottomSheet';
 import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import { BrowserPhoneSettingsSheetHeader } from './BrowserPhoneSettingsSheetHeader';
-import { CenteredDialogSurface } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 export type HomePageSettingsLayoutMode = 'phone' | 'large_screen';
 type HomePageSettingsSheetPage = 'main' | 'wallpaper';
-const HOME_PAGE_WALLPAPER_DESTINATION: string = 'homePageWallpaperSettings';
 const HOME_PAGE_SHEET_POP_GUARD_MS: number = 450;
+const HOME_SETTINGS_HEADER_ALLOWANCE_VP: number = 72;
+const HOME_SETTINGS_PHONE_CHROME_VP: number = 96;
+const HOME_SETTINGS_DIALOG_EDGE_VP: number = 48;
+const HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP: number = 280;
 
-class HomePageWallpaperParams {
+function readWindowHeightVp(): number {
+  try {
+    const metrics = display.getDefaultDisplaySync();
+    if (!Number.isFinite(metrics.height) || metrics.height <= 0 ||
+      !Number.isFinite(metrics.densityPixels) || metrics.densityPixels <= 0) {
+      return 0;
+    }
+    return metrics.height / metrics.densityPixels;
+  } catch (_error) {
+    return 0;
+  }
+}
+
+/** Scroll cap so a short settings page hugs its rows, while wallpaper can still scroll. */
+export function resolveHomeSettingsScrollMaxHeightVp(layoutMode: HomePageSettingsLayoutMode): number {
+  const windowHeight = readWindowHeightVp();
+  if (layoutMode === 'large_screen') {
+    const dialogCap = desktopDialogTierSpec('m').maxHeightVp;
+    const usable = windowHeight > 0 ?
+      Math.min(dialogCap, windowHeight - HOME_SETTINGS_DIALOG_EDGE_VP) : dialogCap;
+    return Math.max(HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP, usable - HOME_SETTINGS_HEADER_ALLOWANCE_VP);
+  }
+  const usable = windowHeight > 0 ? windowHeight - HOME_SETTINGS_PHONE_CHROME_VP : 640;
+  return Math.max(HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP, usable - HOME_SETTINGS_HEADER_ALLOWANCE_VP);
+}
+
+export function resolveHomeSettingsDialogMaxHeightVp(): number {
+  return resolveHomeSettingsScrollMaxHeightVp('large_screen') + HOME_SETTINGS_HEADER_ALLOWANCE_VP;
 }
 
 /**
@@ -71,7 +98,7 @@ export struct HomePageSettingsSheet {
 
   build() {
     BrowserBottomSheetSurface({
-      fullHeight: true,
+      fullHeight: false,
       horizontalPadding: 0,
       topPadding: 0,
       bottomPadding: 0,
@@ -95,16 +122,17 @@ export struct HomePageSettingsDialog {
   onClose: () => void = () => {};
 
   build() {
-    CenteredDialogSurface({ fillHeight: true }) {
+    Column() {
       HomePageSettingsContent({
         privateModeVisible: this.privateModeVisible,
         layoutMode: 'large_screen',
         onWallpaperChanged: this.onWallpaperChanged,
         onClose: this.onClose
       })
-        .width('100%')
-        .height('100%')
     }
+    .width('100%')
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER)
+    .constraintSize({ maxHeight: resolveHomeSettingsDialogMaxHeightVp() })
   }
 }
 
@@ -119,15 +147,16 @@ export struct HomePageSettingsContent {
   onWallpaperChanged: () => void = () => {};
   onClose: () => void = () => {};
   @State private wallpaperState: WallpaperSettingsViewState = this.wallpaperCoordinator.getCurrentState();
-  @State private mainBlurRadius: number = 0;
-  @State private wallpaperBlurRadius: number = 0;
-  private sheetNavigationStack: NavPathStack = new NavPathStack();
+  @State private sheetPage: HomePageSettingsSheetPage = 'main';
+  @State private contentMaxHeightVp: number = HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP;
+  @State private settingsBodyHeightVp: number = 0;
   private mainSheetScroller: Scroller = new Scroller();
   private wallpaperSheetScroller: Scroller = new Scroller();
   private sheetNavigationPopGuardUntilMs: number = 0;
   private readonly consumeSheetBack: () => boolean = (): boolean => this.popSheetNavigation();
 
   aboutToAppear(): void {
+    this.contentMaxHeightVp = resolveHomeSettingsScrollMaxHeightVp(this.layoutMode);
     this.refreshWallpaperState();
     homePageSettingsSheetNavigation.bind(this.consumeSheetBack);
   }
@@ -139,122 +168,46 @@ export struct HomePageSettingsContent {
 
   build() {
     if (this.layoutMode === 'large_screen') {
-      this.buildLargeScreenLayout()
+      this.buildLargeScreenPage()
     } else {
-      this.buildImmersivePhoneLayout()
+      this.buildPhonePage()
     }
   }
 
   @Builder
-  private buildLargeScreenLayout() {
-    Navigation(this.sheetNavigationStack) {
-      this.buildLargeScreenPage('main')
-    }
-    .width('100%')
-    .height('100%')
-    .mode(NavigationMode.Stack)
-    .hideTitleBar(true)
-    .hideToolBar(true)
-    .hideNavBar(false)
-    .navDestination(this.buildLargeScreenDestination)
-    .backgroundColor(this.resolveSheetNavigationBackground())
-    .clip(true)
-  }
-
-  @Builder
-  private buildLargeScreenDestination(name: string, _param: Object) {
-    if (name === HOME_PAGE_WALLPAPER_DESTINATION) {
-      NavDestination() {
-        this.buildLargeScreenPage('wallpaper')
-      }
-      .width('100%')
-      .height('100%')
-      .hideTitleBar(true)
-      .hideToolBar(true)
-      .backgroundColor(this.resolveSheetNavigationBackground())
-      .onBackPressed(() => {
-        this.popSheetNavigation();
-        return true;
-      })
-    }
-  }
-
-  @Builder
-  private buildLargeScreenPage(page: HomePageSettingsSheetPage) {
+  private buildLargeScreenPage() {
     Column({ space: 0 }) {
       BrowserLargeScreenModalHeader({
-        title: page === 'wallpaper' ? '壁纸设置' : '主页设置',
+        title: this.sheetPage === 'wallpaper' ? '壁纸设置' : '主页设置',
         dialogMode: true,
-        showBackButton: page === 'wallpaper',
+        showBackButton: this.sheetPage === 'wallpaper',
         onBack: (): void => {
           this.popSheetNavigation();
         },
         onClose: this.onClose
       })
 
-      SettingsScrollBody({
-        topPadding: 10,
-        bottomPadding: 32,
-        clipContent: true
-      }) {
-        this.buildSettingsBody(page)
-      }
+      this.buildHuggingScroll(10, 32)
     }
     .width('100%')
-    .height('100%')
+    .backgroundColor(this.resolveSheetNavigationBackground())
+    .clip(true)
   }
 
   @Builder
-  private buildImmersivePhoneLayout() {
+  private buildPhonePage() {
     Stack({ alignContent: Alignment.TopEnd }) {
-      Navigation(this.sheetNavigationStack) {
-        this.buildPhonePage('main')
+      Column({ space: 0 }) {
+        this.buildPhoneHeader()
+        this.buildHuggingScroll(4, BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING)
       }
       .width('100%')
-      .height('100%')
-      .mode(NavigationMode.Stack)
-      .hideTitleBar(true)
-      .hideToolBar(true)
-      .hideNavBar(false)
-      .navDestination(this.buildPhoneDestination)
-      .backgroundColor(this.resolveSheetNavigationBackground())
-      .clip(true)
+      .padding({ top: 8 })
 
       this.buildPhoneCloseButton()
     }
     .width('100%')
-    .height('100%')
-  }
-
-  @Builder
-  private buildPhoneDestination(name: string, _param: Object) {
-    if (name === HOME_PAGE_WALLPAPER_DESTINATION) {
-      NavDestination() {
-        this.buildPhonePage('wallpaper')
-      }
-      .width('100%')
-      .height('100%')
-      .hideTitleBar(true)
-      .hideToolBar(true)
-      .backgroundColor(this.resolveSheetNavigationBackground())
-      .onBackPressed(() => {
-        this.popSheetNavigation();
-        return true;
-      })
-    }
-  }
-
-  @Builder
-  private buildPhonePage(page: HomePageSettingsSheetPage) {
-    BrowserImmersiveSheetLayout({
-      horizontalPadding: 0,
-      scrollContent: (): void => {
-        this.buildPhoneScrollContent(page)
-      },
-      header: (): void => {
-        this.buildPhoneHeader(page)
-      }
-    })
+    .backgroundColor(this.resolveSheetNavigationBackground())
   }
 
   @Builder
@@ -274,40 +227,36 @@ export struct HomePageSettingsContent {
   }
 
   @Builder
-  private buildPhoneScrollContent(page: HomePageSettingsSheetPage) {
-    Scroll(this.resolveSheetScroller(page)) {
+  private buildHuggingScroll(topPadding: number, bottomPadding: number) {
+    Scroll(this.resolveSheetScroller(this.sheetPage)) {
       Column({ space: 16 }) {
-        this.buildSettingsBody(page)
+        this.buildSettingsBody(this.sheetPage)
       }
       .width('100%')
-      .constraintSize({ minHeight: '100%' })
       .padding({
         left: 16,
         right: 16,
-        top: BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
-        bottom: BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING
+        top: topPadding,
+        bottom: bottomPadding
       })
       .alignItems(HorizontalAlign.Start)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updateSettingsBodyHeight(newArea.height);
+      })
     }
     .width('100%')
-    .height('100%')
+    .height(this.resolveHuggingScrollHeight())
+    .constraintSize({ maxHeight: this.contentMaxHeightVp })
     .scrollBar(BarState.Auto)
-    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-    .clip(false)
-    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveSheetBlurRadius(page)))
-    .onAppear(() => {
-      this.updateSheetHeaderBlur(page);
-    })
-    .onDidScroll(() => {
-      this.updateSheetHeaderBlur(page);
-    })
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
+    .clip(this.layoutMode === 'large_screen')
   }
 
   @Builder
-  private buildPhoneHeader(page: HomePageSettingsSheetPage) {
+  private buildPhoneHeader() {
     BrowserPhoneSettingsSheetHeader({
-      title: page === 'wallpaper' ? '壁纸设置' : '主页设置',
-      showBackButton: page === 'wallpaper',
+      title: this.sheetPage === 'wallpaper' ? '壁纸设置' : '主页设置',
+      showBackButton: this.sheetPage === 'wallpaper',
       backAccessibilityText: '返回主页设置',
       onBack: (): void => {
         this.popSheetNavigation();
@@ -344,24 +293,6 @@ export struct HomePageSettingsContent {
     return page === 'wallpaper' ? this.wallpaperSheetScroller : this.mainSheetScroller;
   }
 
-  private resolveSheetBlurRadius(page: HomePageSettingsSheetPage): number {
-    return page === 'wallpaper' ? this.wallpaperBlurRadius : this.mainBlurRadius;
-  }
-
-  private updateSheetHeaderBlur(page: HomePageSettingsSheetPage): void {
-    const offset = Math.max(0, this.resolveSheetScroller(page).currentOffset().yOffset);
-    const radius = resolveBrowserSheetHeaderBlurRadius(offset);
-    if (page === 'wallpaper') {
-      if (radius !== this.wallpaperBlurRadius) {
-        this.wallpaperBlurRadius = radius;
-      }
-      return;
-    }
-    if (radius !== this.mainBlurRadius) {
-      this.mainBlurRadius = radius;
-    }
-  }
-
   private resolveSheetNavigationBackground(): ResourceColor {
     return this.layoutMode === 'large_screen' ?
       this.storedFloatingSurfaceColor : this.storedPageBackgroundColor;
@@ -369,13 +300,11 @@ export struct HomePageSettingsContent {
 
   private openWallpaperSettings(): void {
     this.refreshWallpaperState();
-    if (this.sheetNavigationStack.size() > 0) {
+    if (this.sheetPage === 'wallpaper') {
       return;
     }
-    this.sheetNavigationStack.pushPathByName(
-      HOME_PAGE_WALLPAPER_DESTINATION,
-      new HomePageWallpaperParams()
-    );
+    this.settingsBodyHeightVp = 0;
+    this.sheetPage = 'wallpaper';
   }
 
   private popSheetNavigation(): boolean {
@@ -383,20 +312,37 @@ export struct HomePageSettingsContent {
     if (now < this.sheetNavigationPopGuardUntilMs) {
       return true;
     }
-    if (this.sheetNavigationStack.size() <= 0) {
+    if (this.sheetPage !== 'wallpaper') {
       return false;
     }
     this.sheetNavigationPopGuardUntilMs = now + HOME_PAGE_SHEET_POP_GUARD_MS;
-    this.sheetNavigationStack.pop();
+    this.settingsBodyHeightVp = 0;
+    this.sheetPage = 'main';
     return true;
   }
 
   private resetSheetNavigation(): void {
     this.sheetNavigationPopGuardUntilMs = 0;
-    this.mainBlurRadius = 0;
-    this.wallpaperBlurRadius = 0;
-    while (this.sheetNavigationStack.pop(false) !== undefined) {
+    this.settingsBodyHeightVp = 0;
+    this.sheetPage = 'main';
+  }
+
+  private updateSettingsBodyHeight(height: Length): void {
+    const parsed = Number.parseFloat(`${height}`);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
     }
+    const next = Math.ceil(parsed);
+    if (next !== this.settingsBodyHeightVp) {
+      this.settingsBodyHeightVp = next;
+    }
+  }
+
+  private resolveHuggingScrollHeight(): Length {
+    if (this.settingsBodyHeightVp <= 0) {
+      return '';
+    }
+    return Math.min(this.settingsBodyHeightVp, this.contentMaxHeightVp);
   }
 
   private refreshWallpaperState(): void {

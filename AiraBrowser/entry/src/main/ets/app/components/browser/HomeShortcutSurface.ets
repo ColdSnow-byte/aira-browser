@@ -100,6 +100,8 @@ export struct HomeShortcutSurface {
    */
   @Prop showPinnedSettingsEntry: boolean = false;
   @Prop alignPartialRowsToStart: boolean = false;
+  /** Shifts a short final row to the middle. A single short row is already centered by width. */
+  @Prop centerPartialRows: boolean = false;
   /** Negative means use the stored site-icon radius. The centered homepage passes a circle. */
   @Prop iconCornerRadiusRatio: number = -1;
   @Link contextMenuShortcutId: string;
@@ -138,7 +140,7 @@ export struct HomeShortcutSurface {
     Column() {
       if (this.liveShortcuts.length > 0 || this.showAddEntry || this.showPinnedSettingsEntry) {
         List({ space: this.metrics.rowGap }) {
-          ForEach(this.liveShortcuts, (shortcut: ShortcutRecord) => {
+          ForEach(this.liveShortcuts, (shortcut: ShortcutRecord, index: number) => {
             ListItem() {
               Row() {
                 ForEach([this.resolveShortcutContentRenderKey(shortcut)], (_renderKey: string) => {
@@ -149,8 +151,10 @@ export struct HomeShortcutSurface {
               .height(this.resolveShortcutRowHeight())
               .justifyContent(FlexAlign.Center)
               .alignItems(VerticalAlign.Top)
+              .offset({ x: this.resolvePartialRowCenterShift(index) })
             }
             .height(this.resolveShortcutRowHeight())
+            .clip(false)
             .parallelGesture(
               GestureGroup(
                 GestureMode.Sequence,
@@ -200,8 +204,10 @@ export struct HomeShortcutSurface {
               .height(this.resolveShortcutRowHeight())
               .justifyContent(FlexAlign.Center)
               .alignItems(VerticalAlign.Top)
+              .offset({ x: this.resolvePartialRowCenterShift(this.liveShortcuts.length) })
             }
             .height(this.resolveShortcutRowHeight())
+            .clip(false)
           }
 
           if (this.showAddEntry) {
@@ -213,8 +219,14 @@ export struct HomeShortcutSurface {
               .height(this.resolveShortcutRowHeight())
               .justifyContent(FlexAlign.Center)
               .alignItems(VerticalAlign.Top)
+              .offset({
+                x: this.resolvePartialRowCenterShift(
+                  this.liveShortcuts.length + (this.showPinnedSettingsEntry ? 1 : 0)
+                )
+              })
             }
             .height(this.resolveShortcutRowHeight())
+            .clip(false)
           }
         }
         .width(this.resolveShortcutListWidth())
@@ -646,6 +658,28 @@ export struct HomeShortcutSurface {
 
   private resolveShortcutLaneCount(): number {
     return this.viewModel.resolveOccupiedColumnCount(this.resolvePresentationItemCount(), this.metrics);
+  }
+
+  /**
+   * A full row already spans the centered block. A short final row would otherwise stay on the
+   * leading edge, so it shifts by half of the empty lanes and grows out from the middle.
+   */
+  private resolvePartialRowCenterShift(index: number): number {
+    if (!this.centerPartialRows) {
+      return 0;
+    }
+    const columns = this.resolveShortcutLaneCount();
+    const total = this.resolvePresentationItemCount();
+    if (columns <= 1 || total <= columns) {
+      return 0;
+    }
+    const remainder = total % columns;
+    if (remainder === 0 || index < total - remainder) {
+      return 0;
+    }
+    const gap = this.resolveShortcutColumnGap();
+    const laneWidth = (this.resolveShortcutListWidth() - gap * (columns - 1)) / columns;
+    return ((columns - remainder) / 2) * (laneWidth + gap);
   }
 
   private resolveShortcutListWidth(): number {

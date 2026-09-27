@@ -52,6 +52,9 @@ export struct CustomHomepagePicker {
   @Prop wallpaper: HomeWallpaperPresentationState = DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE;
   @Prop closedItems: HomepagePreviewClosedItem[] = [];
   @Prop showRecentlyClosed: boolean = true;
+  @Prop desktopPresentation: boolean = false;
+  @Prop viewportWidth: number = 0;
+  @Prop viewportHeight: number = 0;
   @Prop previewRevision: number = 0;
   @Prop pageBackground: string = '';
   @Prop focusedIndex: number = 0;
@@ -63,6 +66,7 @@ export struct CustomHomepagePicker {
   @State private pressedCardKey: string = '';
   private listReady: boolean = false;
   private positionedWidth: number = 0;
+  private cardClickOpensSettings: boolean = false;
   onCardFocus: (index: number) => void = (_index: number) => {};
   onApply: () => void = () => {};
   onOpenSettings: (choice: CustomHomepageChoiceViewState) => void = (_choice: CustomHomepageChoiceViewState) => {};
@@ -86,10 +90,10 @@ export struct CustomHomepagePicker {
       .zIndex(2)
 
       List({ space: this.layoutState.cardGap, scroller: this.scroller }) {
-        ForEach(this.cards, (card: CustomHomepageCarouselCard) => {
+        ForEach(this.cards, (card: CustomHomepageCarouselCard, index: number) => {
           ListItem() {
             Column() {
-              this.buildCard(card)
+              this.buildCard(card, index)
             }
             .width('100%')
             .height('100%')
@@ -155,7 +159,7 @@ export struct CustomHomepagePicker {
   }
 
   @Builder
-  private buildCard(card: CustomHomepageCarouselCard) {
+  private buildCard(card: CustomHomepageCarouselCard, index: number) {
     Stack() {
       this.buildCardSurface(card)
     }
@@ -165,6 +169,9 @@ export struct CustomHomepagePicker {
     .scale({
       x: this.resolveCardScale(card),
       y: this.resolveCardScale(card)
+    })
+    .onClick(() => {
+      this.focusCardFromPointer(index);
     })
     .animation({
       duration: this.isCardPressed(card) ? 120 : 260,
@@ -190,7 +197,10 @@ export struct CustomHomepagePicker {
           closedItems: this.closedItems,
           showRecentlyClosed: this.showRecentlyClosed,
           cardWidth: this.layoutState.cardWidth,
-          cardHeight: this.layoutState.cardHeight
+          cardHeight: this.layoutState.cardHeight,
+          desktopPresentation: this.desktopPresentation,
+          viewportWidth: this.viewportWidth,
+          viewportHeight: this.viewportHeight
         })
       } else {
         this.buildCustomCover(card)
@@ -300,6 +310,18 @@ export struct CustomHomepagePicker {
       $r('sys.color.ohos_id_color_background_transparent') : this.storedControlBackgroundColor;
   }
 
+  private focusCardFromPointer(index: number): void {
+    if (!this.desktopPresentation || this.busy || this.cardClickOpensSettings) {
+      this.cardClickOpensSettings = false;
+      return;
+    }
+    if (index < 0 || index >= this.cards.length || index === this.focusedIndex) {
+      return;
+    }
+    this.scroller.scrollToIndex(index, true, ScrollAlign.CENTER);
+    this.onCardFocus(index);
+  }
+
   private jumpToFocusedCard(): void {
     if (!this.listReady || this.listWidth <= 0 || this.cards.length <= 0) {
       return;
@@ -386,6 +408,10 @@ export struct CustomHomepagePicker {
   }
 
   private openCardSettings(card: CustomHomepageCarouselCard): void {
+    this.cardClickOpensSettings = true;
+    setTimeout((): void => {
+      this.cardClickOpensSettings = false;
+    }, 0);
     if (card.kind !== 'custom' || this.busy) {
       return;
     }

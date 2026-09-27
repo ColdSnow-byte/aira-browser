@@ -5,7 +5,7 @@ import {
   HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY
 } from '../../../common/constants/HomePagePresentationStorageKeys';
-import { ShortcutRecord } from '../../../common/models/BrowserModels';
+import { BrowserHomeShortcutLayoutDensity, ShortcutRecord } from '../../../common/models/BrowserModels';
 import {
   DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
   HomeWallpaperPresentationState
@@ -37,6 +37,24 @@ import {
   RECORD_LIST_ROW_TITLE_SIZE
 } from '../common/RecordListTokens';
 import { WebsiteIconView } from '../common/WebsiteIconView';
+import {
+  applyCenteredHomeShortcutLayout,
+  CENTERED_HOME_HEADER_BOTTOM_GAP,
+  CENTERED_HOME_SEARCH_HEIGHT,
+  CENTERED_HOME_WORDMARK_HEIGHT,
+  CENTERED_HOME_WORDMARK_SEARCH_GAP,
+  CENTERED_HOME_WORDMARK_WIDTH,
+  resolveCenteredHomeFrame,
+  resolveCenteredHomeSearchFieldWidth
+} from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
+import {
+  HomeResponsiveLayoutState,
+  HomeResponsiveLayoutViewModel
+} from '../../../features/newtab/HomeResponsiveLayoutViewModel';
+import {
+  HomeShortcutLayoutMetrics,
+  HomeShortcutLogicService
+} from '../../../services/shortcuts/HomeShortcutLogicService';
 
 const CLASSIC_COLUMNS: number = 4;
 const CENTERED_COLUMNS: number = 5;
@@ -60,6 +78,11 @@ const CLASSIC_SHORTCUT_CORNER_RATIO: number = 0.3;
 const CLASSIC_SETTINGS_WIDTH: number = 78;
 const CLASSIC_SETTINGS_HEIGHT: number = 32;
 const CLASSIC_SETTINGS_FONT: number = 13;
+const DESKTOP_PREVIEW_MIN_WIDTH: number = 840;
+const DESKTOP_CONTENT_INSET: number = 10;
+const DESKTOP_CLOSED_ROW_LIMIT: number = 2;
+const DESKTOP_SEARCH_RADIUS: number = 24;
+const DESKTOP_SEARCH_BORDER: number = 2;
 
 export interface HomepagePreviewClosedItem {
   key: string;
@@ -83,10 +106,14 @@ interface HomepagePreviewTile {
  * Classic is the favorites grid plus recently closed and the floating three-block toolbar.
  * Centered pins the wordmark and outlined search near the screen center, then packs
  * circular icons downward. That home hides the split address row, so only the bottom bar shows.
+ * A large-screen card keeps only the homepage content: the shared middle rail, the real
+ * column counts, and no phone bottom bar. The desktop tab strip stays outside the card.
  */
 @Component
 export struct SystemHomepageLivePreview {
   private foregroundViewModel: BrowserForegroundPresentationViewModel = new BrowserForegroundPresentationViewModel();
+  private homeLayoutViewModel: HomeResponsiveLayoutViewModel = new HomeResponsiveLayoutViewModel();
+  private shortcutLogicService: HomeShortcutLogicService = new HomeShortcutLogicService();
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = '#F4F6F8';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
@@ -113,13 +140,299 @@ export struct SystemHomepageLivePreview {
   @Prop showRecentlyClosed: boolean = true;
   @Prop cardWidth: number = 220;
   @Prop cardHeight: number = 460;
+  @Prop desktopPresentation: boolean = false;
+  @Prop viewportWidth: number = 0;
+  @Prop viewportHeight: number = 0;
 
   build() {
-    if (this.style === 'centered') {
+    if (this.usesDesktopPreview()) {
+      if (this.style === 'centered') {
+        this.buildDesktopCenteredFrame()
+      } else {
+        this.buildDesktopClassicFrame()
+      }
+    } else if (this.style === 'centered') {
       this.buildCenteredFrame()
     } else {
       this.buildClassicFrame()
     }
+  }
+
+  @Builder
+  private buildDesktopClassicFrame() {
+    Stack() {
+      this.buildWallpaperLayer()
+      Column() {
+        Column({ space: this.desktopUnit(this.desktopLayout().sectionVerticalGap) }) {
+          Column() {
+            if (this.storedShowFavoritesTitle) {
+              this.buildDesktopSectionTitle('收藏')
+            }
+            this.buildDesktopShortcutGrid(this.buildClassicTiles(), false)
+          }
+          .width('100%')
+          .alignItems(HorizontalAlign.Start)
+
+          if (this.showRecentlyClosed) {
+            Column() {
+              if (this.storedShowRecentlyClosedTitle) {
+                this.buildDesktopSectionTitle('最近关闭')
+              }
+              this.buildDesktopClosedGrid()
+            }
+            .width('100%')
+            .alignItems(HorizontalAlign.Start)
+          }
+          if (this.storedShowSettingsButton) {
+            this.buildDesktopSettingsPill()
+          }
+        }
+        .width(this.desktopRailWidth())
+        .alignItems(HorizontalAlign.Start)
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(this.resolveContentBackground())
+      .justifyContent(FlexAlign.Center)
+      .alignItems(HorizontalAlign.Center)
+      .clip(true)
+    }
+    .width('100%')
+    .height('100%')
+    .clip(true)
+  }
+
+  @Builder
+  private buildDesktopCenteredFrame() {
+    Stack() {
+      this.buildWallpaperLayer()
+      Column() {
+        Column()
+          .width('100%')
+          .height(this.desktopCenteredHeaderTop())
+        Image($rawfile('home_centered_wordmark.svg'))
+          .width(this.desktopUnit(CENTERED_HOME_WORDMARK_WIDTH))
+          .height(this.desktopUnit(CENTERED_HOME_WORDMARK_HEIGHT))
+          .objectFit(ImageFit.Contain)
+          .fillColor(this.resolvePrimaryText())
+        this.buildDesktopSearch()
+        Column() {
+          this.buildDesktopShortcutGrid(this.buildCenteredTiles(), true)
+        }
+        .width(this.desktopRailWidth())
+        .layoutWeight(1)
+        .margin({ top: this.desktopUnit(CENTERED_HOME_HEADER_BOTTOM_GAP) })
+        .alignItems(HorizontalAlign.Center)
+        .clip(true)
+      }
+      .width('100%')
+      .height('100%')
+      .backgroundColor(this.resolveContentBackground())
+      .alignItems(HorizontalAlign.Center)
+      .clip(true)
+    }
+    .width('100%')
+    .height('100%')
+    .clip(true)
+  }
+
+  @Builder
+  private buildDesktopSectionTitle(title: string) {
+    Row({ space: this.desktopUnit(8) }) {
+      Text(title)
+        .layoutWeight(1)
+        .fontSize(this.desktopUnit(CLASSIC_SECTION_TITLE_SIZE))
+        .fontWeight(FontWeight.Bold)
+        .fontColor(this.resolvePrimaryText())
+        .maxLines(1)
+        .textOverflow({ overflow: TextOverflow.Ellipsis })
+        .textAlign(TextAlign.Start)
+      SymbolGlyph($r('sys.symbol.chevron_down'))
+        .fontSize(this.desktopUnit(CLASSIC_SECTION_TITLE_SIZE))
+        .fontWeight(FontWeight.Bold)
+        .fontColor([this.resolveSecondaryText()])
+    }
+    .width('100%')
+    .padding({
+      left: this.desktopUnit(DESKTOP_CONTENT_INSET),
+      right: this.desktopUnit(DESKTOP_CONTENT_INSET),
+      top: this.desktopUnit(8),
+      bottom: this.desktopUnit(12)
+    })
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  private buildDesktopShortcutGrid(tiles: HomepagePreviewTile[], centered: boolean) {
+    Column({ space: this.desktopUnit(this.desktopMetrics().rowGap) }) {
+      ForEach(this.buildRows(tiles, this.desktopMetrics().columns), (row: HomepagePreviewTile[]) => {
+        Row({ space: this.desktopColumnGap() }) {
+          ForEach(row, (tile: HomepagePreviewTile) => {
+            this.buildDesktopTile(tile, centered)
+          }, (tile: HomepagePreviewTile) => tile.key)
+        }
+        .width('100%')
+        .justifyContent(centered && row.length < this.desktopMetrics().columns ?
+          FlexAlign.Center : FlexAlign.Start)
+      }, (row: HomepagePreviewTile[]) => row.length > 0 ? row[0].key : 'empty-row')
+    }
+    .width('100%')
+    .padding({
+      left: this.desktopUnit(DESKTOP_CONTENT_INSET),
+      right: this.desktopUnit(DESKTOP_CONTENT_INSET)
+    })
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private buildDesktopTile(tile: HomepagePreviewTile, centered: boolean) {
+    Column({ space: this.storedShowShortcutNames ? this.desktopUnit(this.desktopMetrics().titleTopGap) : 0 }) {
+      if (tile.isChrome) {
+        Stack() {
+          AiraIcon({
+            airaIconId: tile.chromeIcon,
+            iconSize: Math.max(1, Math.round(this.desktopTileSize() * 0.42)),
+            iconColor: this.storedPrimaryTextColor
+          })
+        }
+        .width(this.desktopTileSize())
+        .height(this.desktopTileSize())
+        .borderRadius(this.desktopTileSize() * (centered ? 0.5 : this.resolveClassicIconCornerRatio()))
+        .backgroundColor(this.storedControlBackgroundColor)
+      } else {
+        WebsiteIconView({
+          iconUri: tile.iconUri,
+          fallbackLabel: tile.fallbackLabel,
+          variant: 'compact',
+          iconSize: this.desktopTileSize(),
+          cornerRadiusRatio: centered ? 0.5 : this.resolveClassicIconCornerRatio(),
+          contentRatio: this.resolveShortcutIconContentRatio(),
+          fallbackFontSize: Math.max(1, Math.round(this.desktopTileSize() * 0.32)),
+          containerBackgroundColor: this.storedControlBackgroundColor,
+          textColor: this.storedPrimaryTextColor,
+          hitTestMode: HitTestMode.None
+        })
+      }
+      if (this.storedShowShortcutNames) {
+        Text(tile.title)
+          .fontSize(this.desktopTitleSize())
+          .fontColor(centered ? this.resolveSecondaryText() : this.resolvePrimaryText())
+          .height(this.desktopUnit(this.desktopMetrics().titleBlockHeight))
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+          .textAlign(TextAlign.Center)
+          .width(this.desktopTileSize())
+      }
+    }
+    .width(this.desktopTileSize())
+    .alignItems(HorizontalAlign.Center)
+  }
+
+  @Builder
+  private buildDesktopClosedGrid() {
+    if (this.desktopClosedItems().length <= 0) {
+      Text('暂无最近关闭')
+        .width('100%')
+        .fontSize(this.desktopUnit(RECORD_LIST_ROW_TITLE_SIZE))
+        .fontColor(this.resolveSecondaryText())
+        .maxLines(1)
+        .textAlign(TextAlign.Center)
+    } else {
+      Column({ space: this.desktopUnit(this.desktopLayout().recentlyClosedRowGap) }) {
+        ForEach(this.buildClosedRows(this.desktopClosedItems(), this.desktopLayout().recentlyClosedColumns),
+          (row: HomepagePreviewClosedItem[]) => {
+            Row({ space: this.desktopUnit(this.desktopLayout().recentlyClosedColumnGap) }) {
+              ForEach(row, (item: HomepagePreviewClosedItem) => {
+                this.buildDesktopClosedCell(item)
+              }, (item: HomepagePreviewClosedItem) => `${item.key}:${item.iconUri}`)
+            }
+            .width('100%')
+            .justifyContent(FlexAlign.Start)
+          }, (row: HomepagePreviewClosedItem[]) => row.length > 0 ? row[0].key : 'empty-closed-row')
+      }
+      .width('100%')
+      .padding({
+        left: this.desktopUnit(DESKTOP_CONTENT_INSET),
+        right: this.desktopUnit(DESKTOP_CONTENT_INSET)
+      })
+    }
+  }
+
+  @Builder
+  private buildDesktopClosedCell(item: HomepagePreviewClosedItem) {
+    Row({ space: this.desktopUnit(8) }) {
+      WebsiteIconView({
+        iconUri: item.iconUri,
+        fallbackLabel: resolveSiteIconFallbackLabel(item.title, item.subtitle),
+        variant: 'compact',
+        iconSize: this.desktopUnit(RECORD_LIST_ROW_FAVICON_SIZE),
+        cornerRadiusRatio: this.resolveClassicIconCornerRatio(),
+        contentRatio: 1,
+        fallbackFontSize: this.desktopUnit(RECORD_LIST_ROW_FALLBACK_FONT_SIZE),
+        containerBackgroundColor: this.storedControlBackgroundColor,
+        textColor: this.storedPrimaryTextColor,
+        hitTestMode: HitTestMode.None
+      })
+      Column({ space: this.desktopUnit(2) }) {
+        Text(item.title)
+          .fontSize(this.desktopUnit(RECORD_LIST_ROW_TITLE_SIZE))
+          .fontWeight(FontWeight.Medium)
+          .fontColor(this.resolvePrimaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+        Text(item.subtitle)
+          .fontSize(this.desktopUnit(RECORD_LIST_ROW_SUBTITLE_SIZE))
+          .fontColor(this.resolveSecondaryText())
+          .maxLines(1)
+          .textOverflow({ overflow: TextOverflow.Ellipsis })
+      }
+      .alignItems(HorizontalAlign.Start)
+      .layoutWeight(1)
+    }
+    .width(this.desktopClosedCellWidth())
+    .height(this.desktopUnit(RECORD_LIST_ROW_HEIGHT))
+    .alignItems(VerticalAlign.Center)
+  }
+
+  @Builder
+  private buildDesktopSettingsPill() {
+    Row() {
+      Text('设置')
+        .fontSize(this.desktopUnit(CLASSIC_SETTINGS_FONT))
+        .fontWeight(FontWeight.Medium)
+        .fontColor(this.storedPrimaryTextColor)
+    }
+    .width(this.desktopUnit(CLASSIC_SETTINGS_WIDTH))
+    .height(this.desktopUnit(CLASSIC_SETTINGS_HEIGHT))
+    .borderRadius(this.desktopUnit(CLASSIC_SETTINGS_HEIGHT) / 2)
+    .backgroundColor(this.storedControlBackgroundColor)
+    .justifyContent(FlexAlign.Center)
+    .alignSelf(ItemAlign.Center)
+    .margin({ top: this.desktopUnit(2) })
+  }
+
+  @Builder
+  private buildDesktopSearch() {
+    Row() {
+      Text('搜索或输入网址')
+        .fontSize(this.desktopUnit(16))
+        .fontColor(this.resolveSecondaryText())
+        .maxLines(1)
+        .layoutWeight(1)
+      AiraIcon({
+        airaIconId: 'browser.toolbar.scanQr',
+        iconSize: this.desktopUnit(20),
+        iconColor: this.resolvePrimaryText()
+      })
+    }
+    .width(this.desktopSearchWidth())
+    .height(this.desktopUnit(CENTERED_HOME_SEARCH_HEIGHT))
+    .margin({ top: this.desktopUnit(CENTERED_HOME_WORDMARK_SEARCH_GAP) })
+    .padding({ left: this.desktopUnit(18), right: this.desktopUnit(8) })
+    .border({ width: Math.max(1, this.desktopUnit(DESKTOP_SEARCH_BORDER)), color: this.resolvePrimaryText() })
+    .borderRadius(this.desktopUnit(DESKTOP_SEARCH_RADIUS))
+    .backgroundColor(Color.Transparent)
+    .alignItems(VerticalAlign.Center)
   }
 
   @Builder
@@ -750,5 +1063,107 @@ export struct SystemHomepageLivePreview {
 
   private unit(size: number): number {
     return Math.max(1, Math.round(size * this.cardWidth / REFERENCE_PHONE_WIDTH));
+  }
+
+  private usesDesktopPreview(): boolean {
+    return this.desktopPresentation &&
+      this.viewportWidth >= DESKTOP_PREVIEW_MIN_WIDTH &&
+      this.viewportHeight > 0;
+  }
+
+  private desktopLayout(): HomeResponsiveLayoutState {
+    const state = this.homeLayoutViewModel.buildState({
+      shellFamily: 'large_screen',
+      viewportWidth: this.viewportWidth,
+      viewportHeight: this.viewportHeight
+    }, this.desktopShortcutDensity());
+    return this.style === 'centered' ? applyCenteredHomeShortcutLayout(state) : state;
+  }
+
+  private desktopShortcutDensity(): BrowserHomeShortcutLayoutDensity {
+    return this.style === 'centered' || this.classicUsesCompactLayout() ? 'compact' : 'standard';
+  }
+
+  private desktopMetrics(): HomeShortcutLayoutMetrics {
+    return this.desktopLayout().shortcutMetrics;
+  }
+
+  private desktopScale(): number {
+    return this.cardWidth / Math.max(1, this.viewportWidth);
+  }
+
+  private desktopUnit(size: number): number {
+    if (size <= 0) {
+      return 0;
+    }
+    return Math.max(1, Math.round(size * this.desktopScale()));
+  }
+
+  private desktopRailWidth(): number {
+    return Math.min(this.cardWidth, Math.max(1, this.desktopUnit(this.desktopLayout().shortcutGridWidth)));
+  }
+
+  private desktopGridWidthVp(): number {
+    return Math.max(1, this.desktopLayout().shortcutGridWidth - DESKTOP_CONTENT_INSET * 2);
+  }
+
+  private desktopTileSize(): number {
+    return Math.max(8, this.desktopUnit(
+      this.shortcutLogicService.getTileSize(this.desktopGridWidthVp(), this.desktopMetrics())
+    ));
+  }
+
+  private desktopColumnGap(): number {
+    return this.desktopUnit(
+      this.shortcutLogicService.getAlignedGridColumnGap(this.desktopGridWidthVp(), this.desktopMetrics())
+    );
+  }
+
+  private desktopTitleSize(): number {
+    return Math.max(1, this.desktopUnit(
+      this.shortcutLogicService.getTitleFontSize(this.desktopGridWidthVp(), this.desktopMetrics())
+    ));
+  }
+
+  private desktopContentWidth(): number {
+    return Math.max(1, this.desktopRailWidth() - this.desktopUnit(DESKTOP_CONTENT_INSET) * 2);
+  }
+
+  private desktopClosedItems(): HomepagePreviewClosedItem[] {
+    const columns = Math.max(1, this.desktopLayout().recentlyClosedColumns);
+    return this.closedItems.slice(0, columns * DESKTOP_CLOSED_ROW_LIMIT);
+  }
+
+  private desktopClosedCellWidth(): number {
+    const columns = Math.max(1, this.desktopLayout().recentlyClosedColumns);
+    const gap = this.desktopUnit(this.desktopLayout().recentlyClosedColumnGap);
+    const available = this.desktopContentWidth() - gap * Math.max(0, columns - 1);
+    return Math.max(1, Math.floor(available / columns));
+  }
+
+  private desktopCenteredHeaderTop(): number {
+    const frame = resolveCenteredHomeFrame({
+      viewportHeight: this.viewportHeight,
+      topSafeInset: 0,
+      bottomChromeReserve: 0
+    });
+    return this.desktopUnit(frame.headerTop);
+  }
+
+  private desktopSearchWidth(): number {
+    const fieldWidth = resolveCenteredHomeSearchFieldWidth(true, this.desktopLayout().shortcutGridWidth);
+    return Math.min(this.desktopRailWidth(), Math.max(1, this.desktopUnit(fieldWidth)));
+  }
+
+  private buildClosedRows(
+    items: HomepagePreviewClosedItem[],
+    columns: number
+  ): HomepagePreviewClosedItem[][] {
+    const rows: HomepagePreviewClosedItem[][] = [];
+    const width = Math.max(1, columns);
+    for (let index = 0; index < items.length; index += width) {
+      rows.push(items.slice(index, index + width));
+    }
+    return rows;
   }
 }

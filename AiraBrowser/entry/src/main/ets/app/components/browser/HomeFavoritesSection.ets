@@ -17,10 +17,12 @@ export struct HomeFavoritesSection {
   @Prop minimumWidth: number = 0;
   /**
    * Aligns the grid to the leading edge instead of centering it. A partial row (or a block
-   * of favorites narrower than the rail) would otherwise float in the middle of the page.
-   * The centered homepage always sets this: its icons flow from the top-left downwards.
+   * of favorites narrower than the rail) would otherwise sit in the middle of the page.
+   * The centered homepage leaves this off so its icons grow outward from the middle.
    */
   @Prop alignPartialRowsToStart: boolean = false;
+  /** Centers a wrapped last row instead of packing it against the leading edge. */
+  @Prop centerPartialRows: boolean = false;
   @Prop iconCornerRadiusRatio: number = -1;
   /** The centered frame pins an undeletable settings tile into this grid. */
   @Prop showPinnedSettingsEntry: boolean = false;
@@ -100,6 +102,7 @@ export struct HomeFavoritesSection {
         showAddEntry: this.shortcuts.showAddEntry,
         showPinnedSettingsEntry: this.showPinnedSettingsEntry,
         alignPartialRowsToStart: this.alignPartialRowsToStart,
+        centerPartialRows: this.centerPartialRows,
         iconCornerRadiusRatio: this.iconCornerRadiusRatio,
         contextMenuShortcutId: $contextMenuShortcutId,
         shortcutDragActive: $shortcutDragActive,

@@ -4,7 +4,33 @@ import {
 } from '../../../core/shortcuts/HomeShortcutSelectionCoordinator';
 import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import { HomeShortcutSelectionContent } from './HomeShortcutSelectionSheet';
-import { CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
+import { desktopDialogTierSpec } from '../../../core/browser/BrowserDialogPresentationTokens';
+import { display } from '@kit.ArkUI';
+
+const HOME_SHORTCUT_DIALOG_EDGE_VP: number = 48;
+
+function readHomeShortcutDialogWindowHeightVp(): number {
+  try {
+    const metrics = display.getDefaultDisplaySync();
+    if (!Number.isFinite(metrics.height) || metrics.height <= 0 ||
+      !Number.isFinite(metrics.densityPixels) || metrics.densityPixels <= 0) {
+      return 0;
+    }
+    return metrics.height / metrics.densityPixels;
+  } catch (_error) {
+    return 0;
+  }
+}
+
+function resolveHomeShortcutSelectionDialogMaxHeightVp(): number {
+  const cap = desktopDialogTierSpec('m').maxHeightVp;
+  const windowHeight = readHomeShortcutDialogWindowHeightVp();
+  if (windowHeight <= 0) {
+    return cap;
+  }
+  return Math.min(cap, Math.max(360, windowHeight - HOME_SHORTCUT_DIALOG_EDGE_VP));
+}
 
 @CustomDialog
 export struct HomeShortcutSelectionDialog {
@@ -27,11 +53,11 @@ export struct HomeShortcutSelectionDialog {
         layoutMode: 'large_screen',
         onAction: this.onAction
       })
-        .layoutWeight(1)
         .width('100%')
         .padding({ left: 20, right: 20, top: 18, bottom: 20 })
     }
-    .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_SURFACE_MODIFIER)
+    .attributeModifier(CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER)
+    .constraintSize({ maxHeight: resolveHomeShortcutSelectionDialogMaxHeightVp() })
     .keyboardShortcut(FunctionKey.ESC, [], () => {
       this.onBack();
     })

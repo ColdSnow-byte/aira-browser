@@ -1,4 +1,6 @@
+import { display } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
+import { desktopDialogTierSpec } from '../../../core/browser/BrowserDialogPresentationTokens';
 import {
   HomeSystemShortcutTarget
 } from '../../../common/models/BrowserModels';
@@ -37,13 +39,12 @@ import { resolveHomeSystemShortcutDefinition } from '../../../services/shortcuts
 import { SettingsGroupCard, SettingsGroupDivider } from '../settings/SettingsLayout';
 import { SettingsNavigationRow } from '../settings/SettingsRows';
 import {
-  BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
-  resolveBrowserSheetHeaderBlurRadius,
+  BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+  BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+  BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
-  BrowserImmersiveSheetLayout,
-  BrowserSheetIconButton,
-  browserSheetHeaderBlurModifier
+  BrowserSheetIconButton
 } from './BrowserModalBottomSheet';
 import { BrowserFloatingGlassMaterialSurface } from './BrowserFloatingGlassMaterialSurface';
 import { resolveBrowserFloatingGlassMaterialTintForMode } from './BrowserFloatingGlassMaterialTokens';
@@ -59,7 +60,12 @@ const HOME_SHORTCUT_SELECTION_ICON_SIZE: number = 42;
 const HOME_SHORTCUT_SELECTION_ACTION_SIZE: number = 40;
 const HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT: number = 12;
 const HOME_SHORTCUT_BOOKMARK_DESTINATION_NAME: string = 'homeShortcutBookmarkDestination';
-const HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING: number = 124;
+const HOME_SHORTCUT_SELECTION_FOLDER_ROW_HEIGHT: number = 72;
+const HOME_SHORTCUT_SELECTION_FOLDER_HEADER_HEIGHT: number = 56;
+const HOME_SHORTCUT_SELECTION_GROUP_CHROME_VP: number = 8;
+const HOME_SHORTCUT_SELECTION_EMPTY_HEIGHT: number = 200;
+const HOME_SHORTCUT_SELECTION_LOADING_HEIGHT: number = 140;
+const HOME_SHORTCUT_SELECTION_LIST_MIN_HEIGHT: number = 240;
 
 export type HomeShortcutSelectionLayoutMode = 'phone' | 'large_screen';
 
@@ -126,7 +132,7 @@ export struct HomeShortcutSelectionSheet {
 
   build() {
     BrowserBottomSheetSurface({
-      fullHeight: true,
+      fullHeight: false,
       horizontalPadding: 0,
       topPadding: 0,
       bottomPadding: 0,
@@ -179,32 +185,10 @@ export struct HomeShortcutSelectionContent {
 
   onAction: (action: HomeShortcutSelectionAction) => void = (_action: HomeShortcutSelectionAction) => {};
   onClose: () => void = () => {};
-  @State private sheetHeaderBlurRadius: number = 0;
-  @State private sheetScrollOffset: number = 0;
 
   aboutToAppear(): void {
     this.bindSiteIconUpdates();
     this.syncBookmarkRows();
-  }
-
-  private sheetBlurScroller0: Scroller = new Scroller();
-  private sheetBlurScroller1: Scroller = new Scroller();
-
-  private noteSheetScrollOffset(offset: number): void {
-    if (!Number.isFinite(offset)) {
-      return;
-    }
-    const next = Math.max(0, offset);
-    if (next === this.sheetScrollOffset) {
-      return;
-    }
-    this.sheetScrollOffset = next;
-    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
-  }
-
-  private resetSheetHeaderBlur(): void {
-    this.sheetScrollOffset = 0;
-    this.sheetHeaderBlurRadius = 0;
   }
 
   aboutToReuse(_params: Record<string, Object>): void {
@@ -228,19 +212,29 @@ export struct HomeShortcutSelectionContent {
 
   @Builder
   private buildPhoneLayout() {
-    BrowserImmersiveSheetLayout({
-            closeVisible: true,
-      closeAccessibilityLabel: '关闭添加至首页',
-      onClose: (): void => {
-        this.onClose();
-      },
-      scrollContent: () => {
-        this.buildActiveSelectionList()
-      },
-      header: () => {
+    Stack({ alignContent: Alignment.TopEnd }) {
+      Column({ space: 14 }) {
         this.buildPhoneHeader()
+        this.buildActiveSelectionList()
       }
-    })
+      .width('100%')
+      .padding({ top: 8, bottom: 16 })
+      .alignItems(HorizontalAlign.Start)
+
+      BrowserSheetIconButton({
+        icon: $r('sys.symbol.xmark'),
+        iconSize: BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+        buttonSize: BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
+        accessibilityLabel: '关闭添加至首页',
+        immersiveMaterialEnabled: true,
+        onAction: (): void => {
+          this.onClose();
+        }
+      })
+        .margin({ top: BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP, right: 16 })
+    }
+    .width('100%')
+    .backgroundColor(this.storedPageBackgroundColor)
   }
 
   @Builder
@@ -253,6 +247,7 @@ export struct HomeShortcutSelectionContent {
       this.buildSelectionTabs()
     }
     .width('100%')
+    .padding({ left: 16, right: 16 })
   }
 
   @Builder
@@ -287,16 +282,9 @@ export struct HomeShortcutSelectionContent {
   private buildLargeScreenLayout() {
     Column({ space: 16 }) {
       this.buildSelectionTabs()
-
-      Column() {
-        this.buildActiveSelectionList()
-      }
-      .layoutWeight(1)
-      .width('100%')
-      .alignItems(HorizontalAlign.Start)
+      this.buildActiveSelectionList()
     }
     .width('100%')
-    .height('100%')
     .alignItems(HorizontalAlign.Start)
   }
 
@@ -313,7 +301,7 @@ export struct HomeShortcutSelectionContent {
   private buildSystemList() {
     Column() {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
-        List({ scroller: this.sheetBlurScroller0, space: 0 }) {
+        List({ space: 0 }) {
           ForEach(this.state.systemRows, (row: HomeShortcutSystemSelectionRow, index: number) => {
             ListItem() {
               this.buildSystemRow(row, index)
@@ -323,26 +311,14 @@ export struct HomeShortcutSelectionContent {
             `${row.target}:${row.added ? 'added' : 'available'}:${this.isBusy(row.busyKey) ? 'busy' : 'idle'}`)
         }
         .width('100%')
-        .height('100%')
-        .padding({
-          top: this.layoutMode === 'phone' ? HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING : 0,
-          bottom: this.layoutMode === 'phone' ? BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING : 0
-        })
+        .height(this.resolveSystemListHeight())
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT)
         .scrollBar(BarState.Auto)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .clip(this.layoutMode !== 'phone')
-        .attributeModifier(browserSheetHeaderBlurModifier(this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0))
-        .onAppear(() => {
-          this.resetSheetHeaderBlur();
-        })
-        .onDidScroll((scrollOffset: number) => {
-          this.noteSheetScrollOffset(this.sheetBlurScroller0.currentOffset().yOffset);
-        })
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
+        .clip(true)
       }
     }
     .width('100%')
-    .layoutWeight(1)
     .clip(true)
   }
 
@@ -373,7 +349,7 @@ export struct HomeShortcutSelectionContent {
       this.buildBookmarkPage('')
     }
     .width('100%')
-    .layoutWeight(1)
+    .height(this.resolveBookmarkAreaHeight())
     .mode(NavigationMode.Stack)
     .hideTitleBar(true)
     .hideNavBar(false)
@@ -409,9 +385,8 @@ export struct HomeShortcutSelectionContent {
             .fontSize(13)
             .fontColor(this.storedSecondaryTextColor)
         }
-        .layoutWeight(1)
         .width('100%')
-        .padding({ top: this.layoutMode === 'phone' ? HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING : 0 })
+        .height(HOME_SHORTCUT_SELECTION_LOADING_HEIGHT)
         .justifyContent(FlexAlign.Center)
       } else if (this.resolveBookmarkRows(folderId).length > 0) {
         this.buildBookmarkList(folderId)
@@ -420,17 +395,14 @@ export struct HomeShortcutSelectionContent {
           airaIconId: 'browser.shortcut.bookmarks',
           title: '这里还没有书签',
           message: '',
-          topPadding: this.layoutMode === 'phone' ? HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING : 48,
-          bottomPadding: 80,
+          topPadding: 32,
+          bottomPadding: 32,
           primaryTextColor: this.storedPrimaryTextColor,
           secondaryTextColor: this.storedSecondaryTextColor
         })
-        .layoutWeight(1)
       }
     }
     .width('100%')
-    .height('100%')
-    .layoutWeight(1)
     .alignItems(HorizontalAlign.Start)
     .backgroundColor(this.resolveSelectionWorkspaceBackground())
   }
@@ -439,7 +411,7 @@ export struct HomeShortcutSelectionContent {
   private buildBookmarkList(folderId: string) {
     Column() {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
-        List({ scroller: this.sheetBlurScroller1, space: 0 }) {
+        List({ space: 0 }) {
           if (folderId.length > 0) {
             ListItem() {
               this.buildBookmarkFolderHeader(folderId)
@@ -458,26 +430,14 @@ export struct HomeShortcutSelectionContent {
             `${row.id}:${row.kind}:${row.added ? 'added' : 'available'}:${this.isBusy(row.busyKey) ? 'busy' : 'idle'}`)
         }
         .width('100%')
-        .height('100%')
-        .padding({
-          top: this.layoutMode === 'phone' ? HOME_SHORTCUT_SELECTION_CONTENT_TOP_PADDING : 0,
-          bottom: this.layoutMode === 'phone' ? BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING : 0
-        })
+        .height(this.resolveBookmarkListHeight())
         .cachedCount(HOME_SHORTCUT_SELECTION_LIST_CACHE_COUNT, true)
         .scrollBar(BarState.Auto)
-        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-        .clip(this.layoutMode !== 'phone')
-        .attributeModifier(browserSheetHeaderBlurModifier(this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0))
-        .onAppear(() => {
-          this.resetSheetHeaderBlur();
-        })
-        .onDidScroll((scrollOffset: number) => {
-          this.noteSheetScrollOffset(this.sheetBlurScroller1.currentOffset().yOffset);
-        })
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
+        .clip(true)
       }
     }
     .width('100%')
-    .layoutWeight(1)
     .clip(true)
   }
 
@@ -836,6 +796,67 @@ export struct HomeShortcutSelectionContent {
 
   private isBusy(key: string): boolean {
     return this.state.busyKeys.indexOf(key) >= 0;
+  }
+
+  private resolveSystemListHeight(): number {
+    const contentHeight = this.state.systemRows.length * HOME_SHORTCUT_SELECTION_ROW_HEIGHT;
+    if (contentHeight <= 0) {
+      return Math.min(HOME_SHORTCUT_SELECTION_EMPTY_HEIGHT, this.resolveListMaxHeight());
+    }
+    return Math.min(contentHeight, this.resolveListMaxHeight());
+  }
+
+  private resolveBookmarkAreaHeight(): number {
+    if (this.state.currentFolderId.length <= 0 && this.state.bookmarksLoading) {
+      return Math.min(HOME_SHORTCUT_SELECTION_LOADING_HEIGHT, this.resolveListMaxHeight());
+    }
+    if (this.state.bookmarkRows.length <= 0) {
+      return Math.min(HOME_SHORTCUT_SELECTION_EMPTY_HEIGHT, this.resolveListMaxHeight());
+    }
+    return Math.min(
+      this.resolveBookmarkContentHeight() + HOME_SHORTCUT_SELECTION_GROUP_CHROME_VP,
+      this.resolveListMaxHeight()
+    );
+  }
+
+  private resolveBookmarkListHeight(): number {
+    return Math.max(
+      HOME_SHORTCUT_SELECTION_ROW_HEIGHT,
+      this.resolveBookmarkAreaHeight() - HOME_SHORTCUT_SELECTION_GROUP_CHROME_VP
+    );
+  }
+
+  private resolveBookmarkContentHeight(): number {
+    let height = this.state.currentFolderId.length > 0 ? HOME_SHORTCUT_SELECTION_FOLDER_HEADER_HEIGHT : 0;
+    this.state.bookmarkRows.forEach((row: HomeShortcutBookmarkSelectionRow) => {
+      height += row.kind === 'folder' ?
+        HOME_SHORTCUT_SELECTION_FOLDER_ROW_HEIGHT + 1 : HOME_SHORTCUT_SELECTION_ROW_HEIGHT;
+    });
+    return height;
+  }
+
+  private resolveListMaxHeight(): number {
+    const windowHeight = this.readWindowHeightVp();
+    if (this.layoutMode === 'large_screen') {
+      const dialogCap = desktopDialogTierSpec('m').maxHeightVp;
+      const usable = windowHeight > 0 ? Math.min(dialogCap, windowHeight - 48) : dialogCap;
+      return Math.max(HOME_SHORTCUT_SELECTION_LIST_MIN_HEIGHT, usable - 160);
+    }
+    const usable = windowHeight > 0 ? windowHeight - 120 : 640;
+    return Math.max(HOME_SHORTCUT_SELECTION_LIST_MIN_HEIGHT, usable - 120);
+  }
+
+  private readWindowHeightVp(): number {
+    try {
+      const metrics = display.getDefaultDisplaySync();
+      if (!Number.isFinite(metrics.height) || metrics.height <= 0 ||
+        !Number.isFinite(metrics.densityPixels) || metrics.densityPixels <= 0) {
+        return 0;
+      }
+      return metrics.height / metrics.densityPixels;
+    } catch (_error) {
+      return 0;
+    }
   }
 
 }

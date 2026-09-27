@@ -53,6 +53,7 @@ struct FeatureIntroHomepagePage {
   @State private topInset: number = 0;
   @State private previewViewportWidth: number = 390;
   @State private previewViewportHeight: number = 844;
+  @State private desktopPresentation: boolean = false;
   @State private previewAvailableWidth: number = 0;
   @State private pickerBodyHeight: number = 0;
   @State private previewShortcuts: ShortcutRecord[] = [];
@@ -87,6 +88,7 @@ struct FeatureIntroHomepagePage {
 
   aboutToAppear(): void {
     this.selectedStyle = this.viewModel.defaultStyle();
+    this.refreshDesktopPresentation();
     this.syncStatusBarContentStyle();
     this.loadPreviewShortcuts();
   }
@@ -95,6 +97,7 @@ struct FeatureIntroHomepagePage {
     this.busy = false;
     this.coordinator.abandonLeave();
     this.readTopInset();
+    this.refreshDesktopPresentation();
     this.refreshPreviewWindowViewport();
     this.syncStatusBarContentStyle();
   }
@@ -148,6 +151,9 @@ struct FeatureIntroHomepagePage {
         layoutState: this.previewLayoutState,
         shortcuts: this.previewShortcuts,
         showShortcuts: true,
+        desktopPresentation: this.desktopPresentation,
+        viewportWidth: this.previewViewportWidth,
+        viewportHeight: this.previewViewportHeight,
         previewRevision: this.previewRevision,
         pageBackground: this.storedPageBackgroundColor,
         focusedIndex: this.focusedIndex,
@@ -244,6 +250,10 @@ struct FeatureIntroHomepagePage {
       availableWidth: this.previewAvailableWidth > 0 ? this.previewAvailableWidth : this.previewViewportWidth,
       availableHeight: availableHeight
     });
+  }
+
+  private refreshDesktopPresentation(): void {
+    this.desktopPresentation = this.environmentService.resolveNativeState().shellFamily === 'large_screen';
   }
 
   private refreshPreviewWindowViewport(): void {
