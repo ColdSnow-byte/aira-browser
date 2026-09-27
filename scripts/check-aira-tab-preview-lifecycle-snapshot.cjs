@@ -172,6 +172,25 @@ const visibleRequest = previewCoordinator.buildCaptureRequest({
 });
 assert.equal(visibleRequest.keepExistingSnapshot, false);
 assert.equal(visibleRequest.preferVisibleSnapshot, true);
+assert.equal(visibleRequest.componentSnapshotOnly, true, 'a visible tab copies the painted component');
+assert.equal(visibleRequest.captureVisibleTabSurface, true);
+
+const hiddenRequest = previewCoordinator.buildCaptureRequest({
+  tab,
+  controller: {},
+  activeTabId: 'other-tab',
+  showTabsSheet: false,
+  showHomePage: false,
+  suspendHostedWebSurface: false,
+  hostedControllerAttached: true,
+  activeControllerAttached: false,
+  backgroundHot: true,
+  shouldCaptureNativeErrorSurface: false,
+  hasLiveController: true,
+  force: true
+});
+assert.equal(hiddenRequest.hasRenderableSurface, false, 'an off-screen tab is not recaptured');
+assert.equal(hiddenRequest.componentSnapshotOnly, false);
 
 async function main() {
   let captureCalls = 0;
@@ -237,6 +256,22 @@ async function main() {
   assert.match(overlay, /snapshotImageUri: this\.resolveCardSnapshotImageUri\(item\)/);
   assert.match(overlay, /this\.entryMorphImageUri = liveUri/);
   assert.match(morphOverlay, /if \(this\.resolveRenderableImageUri\(\)\.length > 0\) \{\s*this\.buildUriImage\(\)/);
+  assert.match(morphOverlay, /resolveCachedMorphPixelMap\(\) !== undefined\) \{\s*this\.buildPixelMapImage\(\)/);
+  assert.match(morphOverlay, /@Prop imagePixelMap: image\.PixelMap \| undefined = undefined;/);
+  assert.match(morphOverlay, /height\(this\.imageClipHeight\(\)\)/);
+  assert.match(morphOverlay, /imageFrame\.width/);
+  assert.match(morphOverlay, /objectFit\(ImageFit\.Fill\)/);
+  assert.doesNotMatch(morphOverlay, /objectFit\(ImageFit\.Cover\)/);
+  assert.doesNotMatch(morphOverlay, /ENTRY_SNAPSHOT_PERSIST_WAIT/);
+  const pipeline = fs.readFileSync(path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/core/browser/tabsOverview/BrowserTabsOverviewSnapshotPipelineCoordinator.ets'), 'utf8');
+  assert.match(pipeline, /void this\.persistEntrySnapshotForGallery\(/);
+  assert.doesNotMatch(pipeline, /await this\.persistEntrySnapshotForGallery|ENTRY_SNAPSHOT_PERSIST_WAIT_MS|waitForTask/);
+  const background = fs.readFileSync(path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/core/browser/BrowserBackgroundTabPreviewRuntimeCoordinator.ets'), 'utf8');
+  const schedule = background.slice(background.indexOf('scheduleCandidate('),
+    background.indexOf('startIfNeeded('));
+  assert.doesNotMatch(schedule, /enqueueCandidate/);
   console.log('Tab preview lifecycle snapshot checks passed.');
 }
 

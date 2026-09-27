@@ -98,6 +98,7 @@ test('the swipe cover uses ArkWeb page pixels only, in memory, and never the bla
   assert.equal(call.options.webComponentSnapshotId, 'web-component:tab/a');
   assert.equal(call.options.componentSnapshotOnly, false);
   assert.equal(call.options.preferVisibleSnapshot, false);
+  assert.equal(call.options.allowWebPageSnapshot, true, 'only the swipe cover may re-lay the page');
   assert.equal(call.options.allowWindowSnapshot, false);
   assert.equal(call.options.allowSurfaceSnapshot, false);
   assert.equal(call.options.persistSharedSnapshot, false, 'the swipe cover must never reach the disk cache');

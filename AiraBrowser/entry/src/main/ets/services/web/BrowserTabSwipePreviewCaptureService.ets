@@ -47,6 +47,7 @@ export class BrowserTabSwipePreviewCaptureService {
         // and the fallbacks would only offer chrome-bearing images.
         componentSnapshotOnly: false,
         preferVisibleSnapshot: false,
+        allowWebPageSnapshot: true,
         allowWindowSnapshot: false,
         allowSurfaceSnapshot: false,
         // Keep the image in memory and out of the shared overview cache.

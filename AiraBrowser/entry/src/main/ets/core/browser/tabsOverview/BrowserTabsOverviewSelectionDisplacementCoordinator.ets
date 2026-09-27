@@ -15,6 +15,27 @@ export interface BrowserTabsOverviewSelectionDisplacement {
 }
 
 export class BrowserTabsOverviewSelectionDisplacementCoordinator {
+  /**
+   * Neighbor cards step aside only in the grid.
+   *
+   * The strip and the deck already place every card. Feeding them this row-and-column math treats a
+   * horizontal row as a single column, so the card on the left slides up and the card on the right
+   * slides down while the current card shrinks.
+   */
+  appliesNeighborDisplacement(layoutStyle: string): boolean {
+    return layoutStyle === 'grid';
+  }
+
+  resolveForLayout(
+    layoutStyle: string,
+    input: BrowserTabsOverviewSelectionDisplacementInput
+  ): BrowserTabsOverviewSelectionDisplacement {
+    if (!this.appliesNeighborDisplacement(layoutStyle)) {
+      return this.buildZeroDisplacement();
+    }
+    return this.resolveDisplacement(input);
+  }
+
   resolveDisplacement(input: BrowserTabsOverviewSelectionDisplacementInput): BrowserTabsOverviewSelectionDisplacement {
     const selectedTabId = input.selectedTabId.trim();
     if (selectedTabId.length <= 0 || input.tabId === selectedTabId || input.selectedIndex < 0) {

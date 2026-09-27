@@ -351,6 +351,7 @@ import {
   BrowserTabsOverviewSceneRenderState
 } from '../../core/browser/tabsOverview/BrowserTabsOverviewSceneDriver';
 import { BrowserTabsOverlayRect } from '../../core/browser/BrowserTabsOverlayViewModel';
+import { BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS } from '../../core/browser/BrowserTabsOverviewVisualTokens';
 import { BrowserTabsSharedSnapshotTransitionState } from
   '../../core/browser/BrowserTabsSharedSnapshotTransitionCoordinator';
 import {
@@ -5930,6 +5931,8 @@ struct BrowserShellPage {
   @State hostedWebLayerHeight: number = 0;
   @State hostedWebLayerMeasured: boolean = false;
   private restoredWebLayerGeometry?: BrowserWebLayerGeometrySnapshot;
+  private livePageFrameReleased: boolean = false;
+  private liveMorphCoverDiagKey: string = '';
   @State tabPreviewRenderVersion: number = 0;
   // Cached gallery preview states. Refreshed only when previews change
   // (`notifyTabPreviewChanged`), the sheet is (re)opened, the tabs change, or the
@@ -6674,6 +6677,7 @@ struct BrowserShellPage {
         !this.tabsOverviewSessionCoordinator.shouldRenderSharedSnapshotEntryOverlay(this.tabsSharedSnapshotState)) {
         BrowserTabsSharedSnapshotOverlay({
           state: this.tabsSharedSnapshotState,
+          imagePixelMap: this.tabsSharedSnapshotState.imagePixelMap,
           snapshotBackgroundColor: this.getWebViewportTopSafeAreaBackgroundColor(),
           viewportLeft: this.rootViewportLeft,
           viewportTop: this.rootViewportTop,
@@ -7003,7 +7007,7 @@ struct BrowserShellPage {
         presentationSnapshot: this.resolveBrowserShellPresentationSnapshot(
           this.browserShellPresentationRevision
         ),
-        tabsOverviewSceneRenderState: this.buildTabsOverviewSceneRenderState(),
+        tabsOverviewSceneRenderState: this.resolvePrimarySurfaceSceneRenderState(),
         showHomePage: this.showHomePage,
         largeScreenOmniboxPresentation: this.browserLargeScreenOmniboxPresentation,
         searchSuggestionSnapshot: this.browserSearchSuggestionSnapshot,
@@ -7065,6 +7069,7 @@ struct BrowserShellPage {
     }
     .width('100%')
     .height('100%')
+    .zIndex(this.shouldShowLivePageDuringCardMorph() ? TABS_OVERVIEW_OVERLAY_Z_INDEX + 30 : 0)
   }
 
   private reconcileShellTabPresentation(): void {
@@ -7285,6 +7290,18 @@ struct BrowserShellPage {
         this.buildSwipeHostedWebModeShell()
       }
     })
+      .borderRadius(this.resolveLivePageCardMorphCornerRadius())
+      .clip(this.shouldShowLivePageDuringCardMorph())
+      .scale({
+        x: this.resolveLivePageCardMorphScale(),
+        y: this.resolveLivePageCardMorphScale(),
+        centerX: '50%',
+        centerY: '50%'
+      })
+      .translate({
+        x: this.resolveLivePageCardMorphTranslateX(),
+        y: this.resolveLivePageCardMorphTranslateY()
+      })
   }
 
   @Builder
@@ -7296,7 +7313,8 @@ struct BrowserShellPage {
       surfaceColor: this.getWebViewportBackdropColor(),
       safeAreaColor: this.getWebViewportTopSafeAreaBackgroundColor(),
       safeAreaColorTransitionDurationMs: WEB_TOP_SAFE_AREA_COLOR_TRANSITION_MS,
-      surfaceOpacity: this.buildHostedWebLayerPresentationState().webSurfaceOpacity,
+      surfaceOpacity: this.shouldShowLivePageDuringCardMorph() ? 1 :
+        this.buildHostedWebLayerPresentationState().webSurfaceOpacity,
       surfaceScale: this.resolveWebSurfaceScale(),
       blurRadius: this.resolveWebSurfaceBlurRadius(),
       interactive: this.buildTabsOverviewSceneRenderState().webLayerInteractive,
@@ -7463,7 +7481,119 @@ struct BrowserShellPage {
     if (this.shouldHideHostedWebLayerForErrorDocumentRetry()) {
       return 0;
     }
+    if (this.shouldShowLivePageDuringCardMorph()) {
+      return 1;
+    }
     return this.buildHostedWebLayerPresentationState().hostedWebLayerOpacity;
+  }
+
+  private resolvePrimarySurfaceSceneRenderState(): BrowserTabsOverviewSceneRenderState {
+    const state = this.buildTabsOverviewSceneRenderState();
+    if (!this.shouldShowLivePageDuringCardMorph()) {
+      return state;
+    }
+    // The tab cards stay behind this page. Home must not show through the margins
+    // while the page shrinks into its card.
+    return {
+      homeLayerMounted: false,
+      homeLiveContentMounted: false,
+      homeBackdropLayerMounted: false,
+      homeLayerInteractive: false,
+      webLayerMounted: state.webLayerMounted,
+      webLayerInteractive: state.webLayerInteractive,
+      cardsLayerMounted: state.cardsLayerMounted,
+      cardsLayerOpacity: state.cardsLayerOpacity,
+      cardsLayerInteractive: state.cardsLayerInteractive,
+      rootBottomPanelHostRetained: true
+    };
+  }
+
+  private shouldShowLivePageDuringCardMorph(): boolean {
+    const state = this.tabsSharedSnapshotState;
+    const released = this.livePageFrameReleased;
+    // Expand is only the saved picture growing. The live page stays underneath and
+    // is revealed after the animation, so a blank web surface cannot cover the image.
+    const expanding = state.direction === 'exit' ||
+      state.phase === 'exitPreparing' || state.phase === 'exitAnimating';
+    const showLive = !expanding && !released && state.tabId.length > 0 &&
+      state.tabId === this.activeTabId && !this.showHomePage &&
+      (state.phase === 'enterPreparing' || state.phase === 'enterAnimating');
+    const diagKey = `${state.tabId}:${state.phase}:${state.direction}:${released}:${showLive}`;
+    if (this.liveMorphCoverDiagKey !== diagKey &&
+      (state.phase === 'enterPreparing' || state.phase === 'enterAnimating' ||
+        state.phase === 'exitPreparing' || state.phase === 'exitAnimating')) {
+      this.liveMorphCoverDiagKey = diagKey;
+      hilog.info(0xB00A, 'TAB-BLANK',
+        'live-cover tab=%{public}s phase=%{public}s dir=%{public}s released=%{public}s showLive=%{public}s',
+        state.tabId, state.phase, state.direction, `${released}`, `${showLive}`);
+    }
+    return showLive;
+  }
+
+  private resolveLivePageCardMorphScale(): number {
+    const frame = this.resolveLivePageCardMorphFrame();
+    if (frame === undefined || this.rootViewportWidth <= 1) {
+      return 1;
+    }
+    return frame.width / this.rootViewportWidth;
+  }
+
+  private resolveLivePageCardMorphTranslateX(): number {
+    return this.resolveLivePageCardMorphTranslate(true);
+  }
+
+  private resolveLivePageCardMorphTranslateY(): number {
+    return this.resolveLivePageCardMorphTranslate(false);
+  }
+
+  private resolveLivePageCardMorphTranslate(horizontal: boolean): number {
+    const frame = this.resolveLivePageCardMorphFrame();
+    if (frame === undefined) {
+      return 0;
+    }
+    const pageSpan = horizontal ? this.rootViewportWidth : this.rootViewportHeight;
+    const frameStart = horizontal ? frame.left : frame.top;
+    const scale = this.resolveLivePageCardMorphScale();
+    return frameStart - (pageSpan * (1 - scale) / 2);
+  }
+
+  private resolveLivePageCardMorphCornerRadius(): number {
+    if (!this.shouldShowLivePageDuringCardMorph()) {
+      return 0;
+    }
+    const scale = this.resolveLivePageCardMorphScale();
+    if (scale <= 0.01) {
+      return 0;
+    }
+    return BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS / scale;
+  }
+
+  private resolveLivePageCardMorphFrame(): BrowserTabsOverlayRect | undefined {
+    if (!this.shouldShowLivePageDuringCardMorph()) {
+      return undefined;
+    }
+    const state = this.tabsSharedSnapshotState;
+    const card = state.targetRect;
+    if (card.width < 1 || card.height < 1) {
+      return undefined;
+    }
+    const pageWidth = Math.max(1, this.rootViewportWidth);
+    const pageHeight = Math.max(1, this.rootViewportHeight);
+    const progress = Math.max(0, Math.min(1, state.progress));
+    const startLeft = state.direction === 'exit' ? card.left : 0;
+    const startTop = state.direction === 'exit' ? card.top : 0;
+    const startWidth = state.direction === 'exit' ? card.width : pageWidth;
+    const startHeight = state.direction === 'exit' ? card.height : pageHeight;
+    const endLeft = state.direction === 'exit' ? 0 : card.left;
+    const endTop = state.direction === 'exit' ? 0 : card.top;
+    const endWidth = state.direction === 'exit' ? pageWidth : card.width;
+    const endHeight = state.direction === 'exit' ? pageHeight : card.height;
+    return {
+      left: startLeft + (endLeft - startLeft) * progress,
+      top: startTop + (endTop - startTop) * progress,
+      width: Math.max(1, startWidth + (endWidth - startWidth) * progress),
+      height: Math.max(1, startHeight + (endHeight - startHeight) * progress)
+    };
   }
 
   private shouldHideHostedWebLayerForErrorDocumentRetry(): boolean {
@@ -8843,7 +8973,20 @@ struct BrowserShellPage {
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.Transparent)
-    .zIndex(this.buildBottomPanelHostState().zIndex)
+    .borderRadius(this.resolveLivePageCardMorphCornerRadius())
+    .clip(this.shouldShowLivePageDuringCardMorph())
+    .scale({
+      x: this.resolveLivePageCardMorphScale(),
+      y: this.resolveLivePageCardMorphScale(),
+      centerX: '50%',
+      centerY: '50%'
+    })
+    .translate({
+      x: this.resolveLivePageCardMorphTranslateX(),
+      y: this.resolveLivePageCardMorphTranslateY()
+    })
+    .zIndex(this.shouldShowLivePageDuringCardMorph() ?
+      TABS_OVERVIEW_OVERLAY_Z_INDEX + 31 : this.buildBottomPanelHostState().zIndex)
   }
 
   @Builder
@@ -10197,6 +10340,7 @@ struct BrowserShellPage {
     if (this.activeTabId !== tab.id || this.showHomePage) {
       return false;
     }
+    this.livePageFrameReleased = false;
     const input: BrowserTabsOverviewSnapshotPipelineEntryCaptureInput = {
       tab: tab,
       generation: generation,
@@ -10217,6 +10361,10 @@ struct BrowserShellPage {
   }
 
   private captureCurrentTabPreviewForLifecycleExit(source: string): void {
+    // The web surface loses its pixels in the background. Growing that blank page
+    // hides the card picture, so the expand uses the saved image until a new
+    // on-screen capture replaces it.
+    this.livePageFrameReleased = true;
     this.browserTabPreviewActionCoordinator.captureLifecycleExit(
       this.buildTabPreviewActionPort(),
       {
@@ -10346,6 +10494,7 @@ struct BrowserShellPage {
     }
     this.browserAddressBarTabSwipeCoordinator.cancel();
     this.browserTabSwipePreviewCoordinator.suspend();
+    this.livePageFrameReleased = true;
     this.captureCurrentTabPreviewForLifecycleExit('ability-background');
   }
 

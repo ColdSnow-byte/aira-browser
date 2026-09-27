@@ -74,6 +74,9 @@ export interface BrowserTabPreviewCaptureOptions {
   allowWindowSnapshot?: boolean;
   allowSurfaceSnapshot?: boolean;
   preferVisibleSnapshot?: boolean;
+  // Tab thumbnails copy the painted component. Only the swipe cover opts in:
+  // webPageSnapshot re-lays the document and is what paints a white card.
+  allowWebPageSnapshot?: boolean;
   rejectLowDetailSnapshot?: boolean;
   requireSharedSnapshot?: boolean;
   persistSharedSnapshot?: boolean;
@@ -171,16 +174,18 @@ export class BrowserTabPreviewCaptureService {
       failures.push(visibleResult.failureReason);
     }
 
-    const webResult = await this.captureCandidate('web', 'web-content',
-      () => this.captureWebPageSnapshot(controller, tabId, options), tabId, options);
-    if (webResult.snapshot !== undefined) {
-      if (await this.acceptCaptureCandidate(webResult, options, tabId)) {
-        this.recordCaptureMetric(tabId, webResult, startedAt);
-        return webResult;
+    if (options.allowWebPageSnapshot === true) {
+      const webResult = await this.captureCandidate('web', 'web-content',
+        () => this.captureWebPageSnapshot(controller, tabId, options), tabId, options);
+      if (webResult.snapshot !== undefined) {
+        if (await this.acceptCaptureCandidate(webResult, options, tabId)) {
+          this.recordCaptureMetric(tabId, webResult, startedAt);
+          return webResult;
+        }
+        failures.push(`${webResult.source}-missing-shared`);
+      } else {
+        failures.push(webResult.failureReason);
       }
-      failures.push(`${webResult.source}-missing-shared`);
-    } else {
-      failures.push(webResult.failureReason);
     }
 
     if (options.allowWindowSnapshot === true) {
@@ -904,9 +909,11 @@ export class BrowserTabPreviewCaptureService {
       await sample.readPixelsToBuffer(buffer);
       return this.isBlankRgbaBuffer(buffer, tabId, source, options);
     } catch (error) {
+      // A check that could not run did not prove the frame is usable. Accepting it stored
+      // white cards. Reject the candidate and keep the previous thumbnail.
       hilog.warn(LOG_DOMAIN, LOG_TAG, 'blank snapshot check failed tab=%{public}s source=%{public}s error=%{public}s',
         tabId, source, JSON.stringify(error));
-      return false;
+      return true;
     } finally {
       if (sample !== undefined && sample !== pixelMap) {
         await sample.release().catch((_error: Error) => {});

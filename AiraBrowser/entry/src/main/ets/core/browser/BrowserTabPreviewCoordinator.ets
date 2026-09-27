@@ -242,20 +242,24 @@ export class BrowserTabPreviewCoordinator {
       return undefined;
     }
     const isActiveTab = tab.id === input.activeTabId;
-    const backgroundHotPreviewTab = input.backgroundHot && input.hostedControllerAttached;
-    const hasRenderableSurface = input.shouldCaptureNativeErrorSurface || (isActiveTab &&
-      (input.hostedControllerAttached || input.activeControllerAttached)) ||
-      backgroundHotPreviewTab;
-    const shouldUseVisibleCaptureFallbacks = isActiveTab && !input.showTabsSheet;
+    // A thumbnail is a copy of the frame on screen. A hidden web is not that frame, so a
+    // background-hot controller must not qualify a tab for capture.
+    const onScreen = isActiveTab && !input.showHomePage && !input.showTabsSheet &&
+      !input.suspendHostedWebSurface;
+    const hasRenderableSurface = input.shouldCaptureNativeErrorSurface || (onScreen &&
+      (input.hostedControllerAttached || input.activeControllerAttached));
+    const shouldUseVisibleCaptureFallbacks = onScreen;
+    const captureVisibleTabSurface = input.captureVisibleTabSurface === true || onScreen;
     const force = input.force === true;
     return {
       tab: tab,
       controller: input.controller,
       uiContext: input.uiContext,
-      componentSnapshotId: this.resolveCaptureComponentSnapshotId(tab.id, input),
+      componentSnapshotId: this.resolveCaptureComponentSnapshotId(tab.id, input, captureVisibleTabSurface),
       webComponentSnapshotId: buildBrowserTabWebComponentSnapshotId(tab.id),
-      componentSnapshotOnly: input.componentSnapshotOnly === true,
-      captureVisibleTabSurface: input.captureVisibleTabSurface === true,
+      componentSnapshotOnly: input.componentSnapshotOnly === true || onScreen ||
+        input.shouldCaptureNativeErrorSurface,
+      captureVisibleTabSurface: captureVisibleTabSurface,
       hasLiveController: input.hasLiveController,
       hasRenderableSurface: hasRenderableSurface,
       allowWindowSnapshot: shouldUseVisibleCaptureFallbacks,
@@ -273,7 +277,8 @@ export class BrowserTabPreviewCoordinator {
 
   private resolveCaptureComponentSnapshotId(
     tabId: string,
-    input: BrowserTabPreviewCaptureRequestBuildInput
+    input: BrowserTabPreviewCaptureRequestBuildInput,
+    captureVisibleTabSurface: boolean
   ): string {
     if (input.shouldCaptureNativeErrorSurface) {
       return buildBrowserTabPreviewVisibleSnapshotId(tabId);
@@ -282,7 +287,7 @@ export class BrowserTabPreviewCoordinator {
     // the thumbnail matches the open-overview capture. Only valid while this
     // tab is still the active, visible one — that node id is bound to the
     // active tab; otherwise fall back to the bare page component.
-    if (input.captureVisibleTabSurface === true && tabId === input.activeTabId &&
+    if (captureVisibleTabSurface && tabId === input.activeTabId &&
       !input.showHomePage && !input.showTabsSheet) {
       return buildBrowserTabPreviewVisibleSurfaceSnapshotId(tabId);
     }
@@ -641,7 +646,6 @@ export class BrowserTabPreviewCoordinator {
     const imageSize = this.resolvePixelMapSize(pixelMap);
     const previousPixelMap = existing?.sharedSnapshotPixelMap;
     if (previousPixelMap !== undefined && previousPixelMap !== pixelMap) {
-      // The URI below replaces the entry, so the old in-memory image would otherwise be orphaned.
       void this.releaseCachedPixelMap(previousPixelMap, tab.id, existing?.captureSource ?? 'shared-persist');
     }
     this.previewEntries[tab.id] = {
@@ -649,7 +653,9 @@ export class BrowserTabPreviewCoordinator {
       sharedSnapshotImageUri: sharedUri,
       sharedSnapshotImageWidth: imageSize.width,
       sharedSnapshotImageHeight: imageSize.height,
-      sharedSnapshotPixelMap: undefined,
+      // The card draws this frame. The file is only the cold-start copy, so writing it
+      // must not drop the pixels that are already on screen.
+      sharedSnapshotPixelMap: pixelMap,
       transitionReady: true,
       transitionCapturedAt: now,
       transitionSource: normalizedTransitionSource,
@@ -1499,9 +1505,8 @@ export class BrowserTabPreviewCoordinator {
     if (request.hasRenderableSurface === true) {
       return { ready: true, reason: '' };
     }
-    if (request.hasLiveController === true && request.preferVisibleSnapshot !== true) {
-      return { ready: true, reason: '' };
-    }
+    // A live controller that is not on screen used to fall through to webPageSnapshot.
+    // That re-lays a detached page and stores a white thumbnail. Keep the last on-screen frame.
     return { ready: false, reason: 'web-not-attached' };
   }
 

@@ -11,7 +11,6 @@ import {
   BrowserTabsOverlayViewModel
 } from '../../../core/browser/BrowserTabsOverlayViewModel';
 import {
-  BrowserTabsOverviewHorizontalCardFrame,
   BrowserTabsOverviewLayoutState,
   BrowserTabsOverviewLayoutViewModel,
   isSameTabsOverviewLayoutState
@@ -30,6 +29,8 @@ import {
   BrowserTabsOverviewShadowViewModel
 } from '../../../core/browser/BrowserTabsOverviewShadowViewModel';
 import { BrowserTabsOverviewSection, BrowserTabsOverviewSectionPolicy } from '../../../core/browser/tabsOverview/BrowserTabsOverviewSectionPolicy';
+import { BrowserTabSnapshotPixelMapCache } from '../../../core/browser/tabsOverview/BrowserTabSnapshotPixelMapCache';
+import { sharedBrowserTabsOverviewThumbnailStore } from '../../../core/browser/tabsOverview/BrowserTabsOverviewThumbnailStore';
 import { BrowserTabOverviewCardSelectRect } from './BrowserTabOverviewCard';
 import { BrowserTabOverviewItem } from './BrowserTabOverviewItem';
 import { BrowserTabsSharedSnapshotOverlay } from './BrowserTabsSharedSnapshotOverlay';
@@ -387,9 +388,6 @@ export struct BrowserTabsFloatingOverlay {
     this.commitPendingDeckDismiss();
     this.stopDeckMotion();
     this.deckPositionSeeded = false;
-    // A new open re-derives the strip's boxes: the snapshot published for a tab can have been
-    // recaptured since the last open, and a frozen box from that open would stop fitting it.
-    this.clearStripCardFrames();
     this.selectedSection = this.activeSection;
     this.entryReturnTabId = this.activeTabId.trim();
     // A close-all leaves this latched true. It used to be cleared by the remount;
@@ -585,6 +583,7 @@ export struct BrowserTabsFloatingOverlay {
   private buildSharedSnapshotOverlay(inDeck: boolean = false) {
     BrowserTabsSharedSnapshotOverlay({
       state: this.entrySharedSnapshotState,
+      imagePixelMap: this.entrySharedSnapshotState.imagePixelMap,
       snapshotBackgroundColor: this.entrySharedSnapshotBackgroundColor,
       // Inside the deck the slot wrapper already owns stacking. Passing the overlay-root
       // 20/25 here would let the morph compete with every card if ArkUI flattens z-index.
@@ -712,8 +711,9 @@ export struct BrowserTabsFloatingOverlay {
    * The large centred card strip.
    *
    * One card per page in a horizontal `List` that snaps to the centre, so a sideways swipe moves to
-   * the next page instead of to the next row of a grid. Every card is sized to its own screenshot,
-   * which is the point of the strip: a whole page stays visible at the largest size that fits it.
+   * the next page instead of to the next row of a grid. Every card uses the one box the layout state
+   * derived from the viewport. A screenshot's pixel size is a capture artifact and must not resize
+   * that box, or the page just opened sits lower than its neighbours.
    */
   @Builder
   private buildHorizontalCardsLayer() {
@@ -734,7 +734,7 @@ export struct BrowserTabsFloatingOverlay {
           })
           .clip(false)
         }
-        .width(this.resolveCardWidthForItem(item))
+        .width(this.layoutState.cardWidth)
         .height(this.resolveRootHeight())
         .clip(false)
       }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
@@ -897,16 +897,18 @@ export struct BrowserTabsFloatingOverlay {
     if (latchedUri.length > 0) {
       return latchedUri;
     }
-    return item.presentation.preview.sharedSnapshotImageUri;
+    const previewUri = item.presentation.preview.sharedSnapshotImageUri.trim();
+    if (previewUri.length > 0) {
+      return previewUri;
+    }
+    return sharedBrowserTabsOverviewThumbnailStore.getThumbnail(item.tab.id)?.imageUri?.trim() ?? '';
   }
 
   private resolveCardSnapshotPixelMap(item: BrowserTabsFloatingItem): image.PixelMap | undefined {
-    // A held PixelMap makes the card ignore a newer URI. The morph image is a file,
-    // so drop the PixelMap and let that file stay on screen after the overlay unmounts.
-    if (this.resolveLatchedEntryImageUri(item.tab.id).length > 0) {
+    if (this.resolveCardSnapshotImageUri(item).length > 0) {
       return undefined;
     }
-    return item.presentation.preview.sharedSnapshotPixelMap;
+    return BrowserTabSnapshotPixelMapCache.get(item.tab.id);
   }
 
   @Builder
@@ -916,11 +918,11 @@ export struct BrowserTabsFloatingOverlay {
       presentation: item.presentation,
       snapshotImageUri: this.resolveCardSnapshotImageUri(item),
       snapshotPixelMap: this.resolveCardSnapshotPixelMap(item),
-      snapshotAspectFitEnabled: this.usesItemSizedCardFrame(),
-      snapshotCoverEnabled: this.isStackLayout(),
+      snapshotAspectFitEnabled: false,
+      snapshotCoverEnabled: this.isStackLayout() || this.isHorizontalCardsLayout(),
       deckShadeOpacity: this.isStackLayout() ? this.resolveDeckMetrics(item).shadeOpacity : 0,
-      previewHeight: this.resolveCardPreviewHeightForItem(item),
-      cardWidth: this.resolveCardWidthForItem(item),
+      previewHeight: this.layoutState.previewHeight,
+      cardWidth: this.layoutState.cardWidth,
       identityHeaderHeight: this.layoutState.identityHeaderHeight,
       identityPreviewGap: this.layoutState.identityPreviewGap,
       tabTranslateX: this.resolveCardTranslateX(item),
@@ -978,74 +980,8 @@ export struct BrowserTabsFloatingOverlay {
         this.handlePreviewRectChange(tabId, left, top, width, height);
       }
     })
-    .width(this.resolveCardWidthForItem(item))
-    .height(this.resolveCardItemHeightForItem(item))
-  }
-
-  /**
-   * The card surface's own width.
-   *
-   * The strip sizes every card to its screenshot, so a card's box is resolved per item; the grid and
-   * the deck share the one width their layout state carries.
-   */
-  private resolveCardWidthForItem(item: BrowserTabsFloatingItem): number {
-    return this.isHorizontalCardsLayout() ? this.resolveHorizontalCardFrame(item).width :
-      this.layoutState.cardWidth;
-  }
-
-  private resolveCardPreviewHeightForItem(item: BrowserTabsFloatingItem): number {
-    return this.isHorizontalCardsLayout() ? this.resolveHorizontalCardFrame(item).height :
-      this.layoutState.previewHeight;
-  }
-
-  private resolveCardItemHeightForItem(item: BrowserTabsFloatingItem): number {
-    return this.resolveCardPreviewHeightForItem(item) + this.layoutState.identityHeaderHeight +
-      this.layoutState.identityPreviewGap;
-  }
-
-  /**
-   * The strip's card box, per item, frozen on the first snapshot size seen for that tab.
-   *
-   * The strip is the only style whose card is sized to its own screenshot, which makes the box a
-   * function of published snapshot state rather than of the layout state. That state changes under
-   * the card while it is on screen: an overview open installs the entry capture (real capture size)
-   * and hands it over to the persisted thumbnail (normalised size) as the entry finishes, and a
-   * preview refresh can replace the thumbnail again. Re-deriving the box at those moments resizes and
-   * re-places the card, which reads as the card vanishing and reappearing at the end of the entry.
-   *
-   * Freezing on first sight keeps the box stable for as long as the overview is open. The card's own
-   * snapshot renderer keeps fitting the current image inside the box, so a later image with another
-   * aspect ratio letterboxes or crops instead of moving the box.
-   */
-  private stripCardFrameByTabId: Record<string, BrowserTabsOverviewHorizontalCardFrame> = {};
-
-  private resolveHorizontalCardFrame(item: BrowserTabsFloatingItem): BrowserTabsOverviewHorizontalCardFrame {
-    const frozen = this.stripCardFrameByTabId[item.tab.id];
-    if (frozen !== undefined) {
-      return frozen;
-    }
-    const frame = this.layoutViewModel.resolveHorizontalCardFrame({
-      maxWidth: this.layoutState.cardWidth,
-      maxHeight: this.layoutState.previewHeight,
-      snapshotWidth: item.presentation.preview.sharedSnapshotImageWidth,
-      snapshotHeight: item.presentation.preview.sharedSnapshotImageHeight
-    });
-    this.stripCardFrameByTabId[item.tab.id] = frame;
-    return frame;
-  }
-
-  /**
-   * Drop the frozen boxes and re-derive them from the new layout state.
-   */
-  private clearStripCardFrames(): void {
-    this.stripCardFrameByTabId = {};
-  }
-
-  /**
-   * Whether the style sizes each card to its own screenshot instead of to one shared box.
-   */
-  private usesItemSizedCardFrame(): boolean {
-    return this.isHorizontalCardsLayout();
+    .width(this.layoutState.cardWidth)
+    .height(this.layoutState.itemHeight)
   }
 
   /**
@@ -1590,14 +1526,9 @@ export struct BrowserTabsFloatingOverlay {
       if (visibleTabIds.indexOf(targetTabId) < 0) {
         return undefined;
       }
-      const targetItem = this.resolveVisibleItems().find(
-        (item: BrowserTabsFloatingItem): boolean => item.tab.id === targetTabId);
-      const targetWidth = targetItem === undefined ? this.layoutState.cardWidth :
-        this.resolveCardWidthForItem(targetItem);
-      const targetHeight = targetItem === undefined ? this.layoutState.previewHeight :
-        this.resolveCardPreviewHeightForItem(targetItem);
-      const targetItemHeight = targetItem === undefined ? this.layoutState.itemHeight :
-        this.resolveCardItemHeightForItem(targetItem);
+      const targetWidth = this.layoutState.cardWidth;
+      const targetHeight = this.layoutState.previewHeight;
+      const targetItemHeight = this.layoutState.itemHeight;
       const contentPadding = this.resolveHorizontalContentPadding();
       const availableHeight = Math.max(1,
         this.resolveRootHeight() - contentPadding.top - contentPadding.bottom);
@@ -1672,9 +1603,6 @@ export struct BrowserTabsFloatingOverlay {
       return;
     }
     this.layoutState = nextState;
-    // The strip's frozen boxes were derived from the previous card box, so a real geometry change
-    // has to re-derive them; a rotation or a window resize otherwise keeps the old card size.
-    this.clearStripCardFrames();
     if (this.isStackLayout()) {
       // The deck needs its own item list and a starting card as soon as the style is known.
       this.ensureDeckPositionForCurrentSection();
@@ -1708,9 +1636,6 @@ export struct BrowserTabsFloatingOverlay {
     if (previousStyle === this.layoutState.layoutStyle) {
       return;
     }
-    // Switching styles swaps which box the strip derived its frames from, so the frozen boxes of the
-    // style being left must not be reused if the user comes back to it.
-    this.clearStripCardFrames();
     this.stopDeckMotion();
     this.refreshDeckPresentation();
     this.positionCardsForCurrentSection();
@@ -1778,7 +1703,9 @@ export struct BrowserTabsFloatingOverlay {
       return 1;
     }
     if (this.isSelectionDisplacementActive()) {
-      return 0.98;
+      // The 0.98 shrink is the grid making room. The strip and the deck keep their own card size.
+      return this.selectionDisplacementCoordinator.appliesNeighborDisplacement(this.layoutState.layoutStyle) ?
+        0.98 : 1;
     }
     if (this.isSelectionMorphWaitingForDisplacement()) {
       return 1;
@@ -2132,14 +2059,14 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   private resolveSelectionDisplacement(item: BrowserTabsFloatingItem): BrowserTabsOverviewSelectionDisplacement {
-    return this.selectionDisplacementCoordinator.resolveDisplacement({
+    return this.selectionDisplacementCoordinator.resolveForLayout(this.layoutState.layoutStyle, {
       tabId: item.tab.id,
       itemIndex: item.index,
       selectedTabId: this.selectionDisplacementTabId,
       selectedIndex: this.resolveSelectionDisplacementIndex(),
       columnCount: this.resolveDisplacementColumnCount(),
-      cardWidth: this.resolveCardWidthForItem(item),
-      itemHeight: this.resolveCardItemHeightForItem(item),
+      cardWidth: this.layoutState.cardWidth,
+      itemHeight: this.layoutState.itemHeight,
       gridGap: this.layoutState.gridGap
     });
   }
@@ -2149,22 +2076,22 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   private resolveEntryDisplacement(item: BrowserTabsFloatingItem): BrowserTabsOverviewSelectionDisplacement {
-    return this.selectionDisplacementCoordinator.resolveDisplacement({
+    return this.selectionDisplacementCoordinator.resolveForLayout(this.layoutState.layoutStyle, {
       tabId: item.tab.id,
       itemIndex: item.index,
       selectedTabId: this.entryDisplacementTabId,
       selectedIndex: this.resolveEntryDisplacementIndex(),
       columnCount: this.resolveDisplacementColumnCount(),
-      cardWidth: this.resolveCardWidthForItem(item),
-      itemHeight: this.resolveCardItemHeightForItem(item),
+      cardWidth: this.layoutState.cardWidth,
+      itemHeight: this.layoutState.itemHeight,
       gridGap: this.layoutState.gridGap
     });
   }
 
+  /**
+   * Grid columns only. The strip and the deck do not use this: their neighbor offset is zero.
+   */
   private resolveDisplacementColumnCount(): number {
-    if (this.layoutState.layoutStyle === 'horizontal_cards' || this.layoutState.layoutStyle === 'stack') {
-      return Math.max(1, this.deckItems.length);
-    }
     return Math.max(1, this.layoutState.columnCount);
   }
 
@@ -2200,14 +2127,10 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   /**
-   * The one width and height a card shares with its neighbours.
+   * The one width and height every card of a style shares.
    *
-   * The flat strip sized every card to its own screenshot so a whole page stayed visible at the
-   * largest size that fit it. A deck cannot do that: a card of a different width sits a different
-   * distance from the focused card and overlaps its neighbours by a different amount, so the whole
-   * deck geometry stops matching. Every deck screenshot therefore fills the one shared card with
-   * `ImageFit.Cover`; the grid and the flat strip keep their own sizing. Callers that need the strip's
-   * per-item box ask `resolveCardWidthForItem` / `resolveCardItemHeightForItem` instead.
+   * The strip, the grid and the deck all take this from the layout state. A screenshot is drawn
+   * inside that box; its pixel size never becomes the box.
    */
   private resolveCardWidth(): number {
     return this.layoutState.cardWidth;
@@ -2246,20 +2169,11 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   /**
-   * The inset that centres one strip card in the viewport.
-   *
-   * The strip centres the first and the last card too, so both edges get their own inset instead of
-   * a single shared one: cards differ in width, and a shared inset would leave the narrowest card
-   * off centre at one of the ends.
+   * The inset that centres one strip card in the viewport. Every card has the same width, so the
+   * first and the last card use the same inset the layout state already computed.
    */
-  private resolveHorizontalEdgeInset(first: boolean): number {
-    const items = this.resolveVisibleItems();
-    if (items.length <= 0) {
-      return this.layoutState.horizontalContentInset;
-    }
-    const edgeItem = first ? items[0] : items[items.length - 1];
-    const usableWidth = Math.max(1, this.resolveRootWidth() - FLOATING_TABS_HORIZONTAL_PADDING * 2);
-    return Math.max(0, (usableWidth - this.resolveCardWidthForItem(edgeItem)) / 2);
+  private resolveHorizontalEdgeInset(_first: boolean): number {
+    return this.layoutState.horizontalContentInset;
   }
 
   private resolveDeckItems(): BrowserTabsFloatingItem[] {

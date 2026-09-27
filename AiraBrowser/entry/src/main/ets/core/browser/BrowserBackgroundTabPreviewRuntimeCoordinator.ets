@@ -106,25 +106,10 @@ export class BrowserBackgroundTabPreviewRuntimeCoordinator {
     tabId: string,
     source: string
   ): void {
-    const host = this.resolveHost();
-    const options = this.resolveOptions();
-    if (host === undefined || options === undefined) {
-      return;
-    }
-    const tab = host.resolveTab(tabId);
-    if (tab === undefined) {
-      return;
-    }
-    const request = this.previewCoordinator.enqueueCandidate({
-      tab: tab,
-      activeTabId: host.getActiveTabId(),
-      hasPreview: host.hasUsablePreview(tabId)
-    });
-    if (request === undefined || request.tabId !== tabId) {
-      return;
-    }
-    host.recordRuntimeEvent('background_tab_preview_queued', `source=${source} url=${request.url}`, tabId);
-    this.startIfNeeded();
+    // Off-screen tabs keep the snapshot taken while they were visible. Attaching a hidden
+    // web just to snapshot it re-lays the page and is what paints a white card.
+    void tabId;
+    void source;
   }
 
   startIfNeeded(): void {

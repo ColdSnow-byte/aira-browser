@@ -380,10 +380,16 @@ export class BrowserTabsOverviewSceneDriver {
     input: BrowserTabsOverviewSceneRenderInput,
     tabsSceneVisible: boolean
   ): boolean {
-    if (!tabsSceneVisible || input.showHomePage || input.sharedSnapshotOverlayVisible === true) {
+    if (!tabsSceneVisible || input.showHomePage) {
       return false;
     }
-    return state.phase === 'openingPreparingSnapshot' || state.phase === 'openingWaitingForActiveCard';
+    if (state.phase === 'openingPreparingSnapshot' ||
+      state.phase === 'openingWaitingForActiveCard' ||
+      state.phase === 'openingMorphingActiveTab' ||
+      state.phase === 'selectingActiveTab') {
+      return true;
+    }
+    return input.sharedSnapshotOverlayVisible !== true;
   }
 
   private resolveCardsLayerOpacity(state: BrowserTabsOverviewSceneState): number {

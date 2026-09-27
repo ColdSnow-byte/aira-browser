@@ -1,3 +1,4 @@
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { UIContext } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import {
@@ -17,6 +18,7 @@ import {
 } from '../../../services/web/BrowserTabPreviewTypes';
 import { BrowserWebLayerGeometrySnapshot } from '../BrowserWebLayerGeometryCache';
 import { BrowserTabsOverviewThumbnailCoordinator } from './BrowserTabsOverviewThumbnailCoordinator';
+import { BrowserTabSnapshotPixelMapCache } from './BrowserTabSnapshotPixelMapCache';
 
 export interface BrowserTabsOverviewSnapshotPipelineState {
   session: BrowserTabsOverviewEntrySnapshotSessionState;
@@ -117,8 +119,6 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
   private thumbnailCoordinator: BrowserTabsOverviewThumbnailCoordinator = new BrowserTabsOverviewThumbnailCoordinator();
   private persistLeases: BrowserTabsOverviewSnapshotPersistLease[] = [];
   private persistLeaseId: number = 0;
-
-  private static readonly ENTRY_SNAPSHOT_PERSIST_WAIT_MS: number = 120;
 
   constructor(dependencies: BrowserTabsOverviewSnapshotPipelineDependencies) {
     this.dependencies = dependencies;
@@ -424,35 +424,37 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
     };
   }
 
-  private async waitForTask<T>(task: Promise<T>, timeoutMs: number): Promise<void> {
-    const trackedTask = task
-      .then(() => {})
-      .catch((_error: Error) => {});
-    await Promise.race([
-      trackedTask,
-      this.delay(timeoutMs)
-    ]);
-  }
-
   async captureEntryPixelMapBeforeOpen(
     input: BrowserTabsOverviewSnapshotPipelineEntryCaptureInput
   ): Promise<boolean> {
     const tabId = input.tab.id;
     if (tabId.trim().length <= 0 || !input.shouldKeepPixelMap()) {
+      hilog.info(0xB00A, 'TAB-BLANK',
+        'entry-capture skip tab=%{public}s keep=%{public}s id=%{public}s',
+        tabId, `${input.shouldKeepPixelMap()}`, input.componentSnapshotId);
       return false;
     }
     try {
+      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture start tab=%{public}s id=%{public}s scale=%{public}s',
+        tabId, input.componentSnapshotId, `${input.componentSnapshotScale}`);
       const pixelMap = await input.uiContext.getComponentSnapshot().get(input.componentSnapshotId, {
         scale: input.componentSnapshotScale,
         waitUntilRenderFinished: false
       });
+      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture got tab=%{public}s size=%{public}s',
+        tabId, this.describePixelMap(pixelMap));
       if (!input.shouldKeepPixelMap()) {
+        hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture dropped tab=%{public}s reason=keep-false', tabId);
         this.dependencies.releasePixelMap(pixelMap);
         return false;
       }
       await this.handleCapturedEntryPixelMap(input, pixelMap, input.transitionSource);
-      return this.hasEntryPixelMap(this.dependencies.readState(), tabId);
+      const kept = this.hasEntryPixelMap(this.dependencies.readState(), tabId);
+      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture installed tab=%{public}s kept=%{public}s', tabId, `${kept}`);
+      return kept;
     } catch (error) {
+      hilog.error(0xB00A, 'TAB-BLANK', 'entry-capture failed tab=%{public}s id=%{public}s error=%{public}s',
+        tabId, input.componentSnapshotId, JSON.stringify(error));
       this.dependencies.recordFailure('tabs_entry_snapshot_capture_failed', error as Error, tabId);
       return false;
     }
@@ -549,19 +551,54 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
       fallbackHeight: input.fallbackHeight,
       transitionSource: transitionSource
     });
-    const persistTask = this.persistEntrySnapshotForGalleryBeforeEntry(
-      input,
-      pixelMap,
-      transitionSource
-    );
-    await this.waitForTask(
-      persistTask,
-      BrowserTabsOverviewSnapshotPipelineCoordinator.ENTRY_SNAPSHOT_PERSIST_WAIT_MS
-    );
+    // The page on screen is what shrinks. The card draws a cache copy of this frame, the same
+    // split as PixelMapCache: the raw component snapshot is not the image the card paints.
+    void this.publishDrawableSnapshotCopy(tabId, pixelMap);
+    void this.persistEntrySnapshotForGallery(input, pixelMap, transitionSource);
     this.dependencies.onCapturedEntryReady(tabId, input.generation);
   }
 
-  private async persistEntrySnapshotForGalleryBeforeEntry(
+  private async publishDrawableSnapshotCopy(tabId: string, pixelMap: image.PixelMap): Promise<void> {
+    try {
+      const copy = await this.copyDrawablePixelMap(pixelMap);
+      BrowserTabSnapshotPixelMapCache.put(tabId, copy);
+      const state = this.dependencies.readState();
+      if (state.session.tabId === tabId) {
+        this.dependencies.updateState({
+          session: {
+            tabId: state.session.tabId,
+            pixelMap: copy,
+            width: state.session.width,
+            height: state.session.height,
+            capturedAt: state.session.capturedAt,
+            transitionSource: state.session.transitionSource
+          },
+          measuredEntryFrame: state.measuredEntryFrame
+        });
+        this.dependencies.notifyChanged();
+      }
+      hilog.info(0xB00A, 'TAB-BLANK', 'entry-cache tab=%{public}s size=%{public}s',
+        tabId, this.describePixelMap(copy));
+    } catch (error) {
+      hilog.error(0xB00A, 'TAB-BLANK', 'entry-cache failed tab=%{public}s error=%{public}s',
+        tabId, JSON.stringify(error));
+    }
+  }
+
+  private async copyDrawablePixelMap(pixelMap: image.PixelMap): Promise<image.PixelMap> {
+    const info = pixelMap.getImageInfoSync();
+    const width = Math.max(1, Math.floor(info.size.width));
+    const height = Math.max(1, Math.floor(info.size.height));
+    const buffer = new ArrayBuffer(pixelMap.getPixelBytesNumber());
+    await pixelMap.readPixelsToBuffer(buffer);
+    return image.createPixelMap(buffer, {
+      size: { width: width, height: height },
+      srcPixelFormat: info.pixelFormat,
+      pixelFormat: image.PixelMapFormat.RGBA_8888
+    });
+  }
+
+  private async persistEntrySnapshotForGallery(
     input: BrowserTabsOverviewSnapshotPipelineEntryCaptureInput,
     pixelMap: image.PixelMap,
     transitionSource: BrowserTabPreviewTransitionSource
@@ -574,13 +611,29 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
         transitionSource
       );
       const previewState = this.dependencies.previewCoordinator.getPreviewState(input.tab.id);
+      hilog.info(0xB00A, 'TAB-BLANK',
+        'entry-persist tab=%{public}s ok=%{public}s uri=%{public}s pm=%{public}s size=%{public}s',
+        input.tab.id, `${persisted}`, `${(previewState?.sharedSnapshotImageUri?.trim().length ?? 0) > 0}`,
+        `${previewState?.sharedSnapshotPixelMap !== undefined}`,
+        `${previewState?.sharedSnapshotImageWidth ?? 0}x${previewState?.sharedSnapshotImageHeight ?? 0}`);
       if (persisted && this.rememberPersistedPreviewState(previewState)) {
         this.dependencies.notifyChanged();
       }
     } catch (error) {
+      hilog.error(0xB00A, 'TAB-BLANK', 'entry-persist failed tab=%{public}s error=%{public}s',
+        input.tab.id, JSON.stringify(error));
       this.dependencies.recordFailure('tabs_entry_snapshot_persist_failed', error as Error, input.tab.id);
     } finally {
       this.finishPersistLease(lease);
+    }
+  }
+
+  private describePixelMap(pixelMap: image.PixelMap): string {
+    try {
+      const info = pixelMap.getImageInfoSync();
+      return `${Math.floor(info.size.width)}x${Math.floor(info.size.height)}`;
+    } catch (_error) {
+      return 'unreadable';
     }
   }
 
@@ -687,11 +740,4 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
     };
   }
 
-  private delay(timeoutMs: number): Promise<void> {
-    return new Promise<void>((resolve: () => void) => {
-      setTimeout(() => {
-        resolve();
-      }, Math.max(0, Math.floor(timeoutMs)));
-    });
-  }
 }

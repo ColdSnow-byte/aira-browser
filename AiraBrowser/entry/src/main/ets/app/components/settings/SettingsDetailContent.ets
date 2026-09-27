@@ -85,8 +85,8 @@ export struct SettingsDetailContent {
   @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
   @State private tabOverviewLayoutState: TabOverviewLayoutSettingsState =
     this.tabOverviewLayoutCoordinator.buildInitialState();
-  @State private tabOverviewLayoutSheetVisible: boolean = false;
-  @State private desktopTabPlacementSheetVisible: boolean = false;
+  @State private tabStyleSheetVisible: boolean = false;
+  @State private tabStyleSheetKind: string = 'overview';
   @State private desktopTabPlacementSaving: boolean = false;
   @State private desktopTabPlacement: string = 'horizontal';
   @State private highlightedTargetId: string = '';
@@ -112,6 +112,17 @@ export struct SettingsDetailContent {
   }
 
   build() {
+    // Sheet host is not the component root. The large-screen detail panel also
+    // bindSheet()s this component, and a second bindSheet on the same node
+    // replaces the first, so the tab-style sheet never opened.
+    Column() {
+      this.buildDetailBody()
+    }
+    .width('100%')
+  }
+
+  @Builder
+  private buildDetailBody() {
     Column({ space: 16 }) {
       if (this.state.id === 'privacy_security') {
         BrowserPrivacyProtectionOverview({
@@ -149,24 +160,36 @@ export struct SettingsDetailContent {
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.revealController.rememberContentArea(newArea);
     })
-    .bindSheet($$this.tabOverviewLayoutSheetVisible, this.buildTabOverviewLayoutChoiceSheet(), applyDesktopDialogSheetChrome({
-      // Large screen presents this choice centered, not as a phone bottom sheet.
+    .bindSheet($$this.tabStyleSheetVisible, this.buildTabStyleSheet(), this.resolveTabStyleSheetOptions())
+  }
+
+  private resolveTabStyleSheetOptions(): SheetOptions {
+    if (this.tabStyleSheetKind === 'desktop') {
+      return applyDesktopDialogSheetChrome({
+        preferType: SheetType.CENTER,
+        height: SheetSize.FIT_CONTENT,
+        dragBar: false,
+        showClose: false
+      }, 's', true);
+    }
+    // Large screen presents this choice centered, not as a phone bottom sheet.
+    // No onDisappear state work: every dismiss path already clears the visibility
+    // flag, and the draft is reset by refreshDraft on the next open.
+    return applyDesktopDialogSheetChrome({
       preferType: this.isLargeScreen ? SheetType.CENTER : SheetType.BOTTOM,
       height: TAB_OVERVIEW_LAYOUT_SHEET_HEIGHT,
       dragBar: !this.isLargeScreen,
       showClose: false
-      // Deliberately no onDisappear state work: every dismiss path already clears
-      // the visibility flag (the action buttons directly, interactive dismissals
-      // through the $$ binding) and the draft is reset by refreshDraft on the next
-      // open. Writing state here only invalidates this host as the sheet is being
-      // removed, which is pointless work during the dismiss animation.
-    }, 'm', this.isLargeScreen))
-    .bindSheet($$this.desktopTabPlacementSheetVisible, this.buildDesktopTabPlacementDialog(), applyDesktopDialogSheetChrome({
-      preferType: SheetType.CENTER,
-      height: SheetSize.FIT_CONTENT,
-      dragBar: false,
-      showClose: false
-    }, 's', true))
+    }, 'm', this.isLargeScreen);
+  }
+
+  @Builder
+  private buildTabStyleSheet() {
+    if (this.tabStyleSheetKind === 'desktop') {
+      this.buildDesktopTabPlacementDialog()
+    } else {
+      this.buildTabOverviewLayoutChoiceSheet()
+    }
   }
 
   @Builder
@@ -639,7 +662,7 @@ export struct SettingsDetailContent {
         }
         this.tabOverviewLayoutState =
           this.tabOverviewLayoutCoordinator.cancelDraft(this.tabOverviewLayoutState);
-        this.tabOverviewLayoutSheetVisible = false;
+        this.tabStyleSheetVisible = false;
       },
       onApply: () => {
         this.applyTabOverviewLayoutDraft();
@@ -656,7 +679,7 @@ export struct SettingsDetailContent {
         this.applyDesktopTabPlacement(placement);
       },
       onClose: (): void => {
-        this.desktopTabPlacementSheetVisible = false;
+        this.tabStyleSheetVisible = false;
       }
     })
   }
@@ -664,7 +687,8 @@ export struct SettingsDetailContent {
   private handleNavigationRowAction(row: SettingsDetailRowState): void {
     if (row.action === 'show_tab_overview_layout_sheet') {
       this.tabOverviewLayoutState = this.tabOverviewLayoutCoordinator.refreshDraft();
-      this.tabOverviewLayoutSheetVisible = true;
+      this.tabStyleSheetKind = 'overview';
+      this.tabStyleSheetVisible = true;
       return;
     }
     if (row.action === 'show_desktop_tab_placement_sheet') {
@@ -672,7 +696,8 @@ export struct SettingsDetailContent {
         return;
       }
       this.desktopTabPlacement = this.resolveDesktopTabPlacement();
-      this.desktopTabPlacementSheetVisible = true;
+      this.tabStyleSheetKind = 'desktop';
+      this.tabStyleSheetVisible = true;
       return;
     }
     this.onRowAction?.(row);
@@ -689,7 +714,7 @@ export struct SettingsDetailContent {
     }
     const verticalTabsEnabled = placement === 'vertical';
     if (this.desktopTabPlacement === (verticalTabsEnabled ? 'vertical' : 'horizontal')) {
-      this.desktopTabPlacementSheetVisible = false;
+      this.tabStyleSheetVisible = false;
       return;
     }
     const current = sharedPreferencesRepository.getPreferences().appearance;
@@ -701,7 +726,7 @@ export struct SettingsDetailContent {
     ).then((): void => {
       syncBrowserThemeAppStorage();
       this.desktopTabPlacementSaving = false;
-      this.desktopTabPlacementSheetVisible = false;
+      this.tabStyleSheetVisible = false;
       this.onTabOverviewLayoutApplied?.();
     }).catch((): void => {
       this.desktopTabPlacement = this.resolveDesktopTabPlacement();
@@ -721,7 +746,7 @@ export struct SettingsDetailContent {
         if (!result.succeeded) {
           return;
         }
-        this.tabOverviewLayoutSheetVisible = false;
+        this.tabStyleSheetVisible = false;
         this.onTabOverviewLayoutApplied?.();
       });
   }

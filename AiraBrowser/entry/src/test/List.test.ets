@@ -72,6 +72,7 @@ import featureIntroTest from './FeatureIntro.test';
 import browserWebTopSafeAreaColorTest from './BrowserWebTopSafeAreaColor.test';
 import browserSearchEnginePopupLayoutViewModelTest from './BrowserSearchEnginePopupLayoutViewModel.test';
 import browserTabsOverviewSwipeDismissPolicyTest from './BrowserTabsOverviewSwipeDismissPolicy.test';
+import browserTabsOverviewSelectionDisplacementCoordinatorTest from './BrowserTabsOverviewSelectionDisplacementCoordinator.test';
 import browserTabsOverviewStackLayoutPolicyTest from './BrowserTabsOverviewStackLayoutPolicy.test';
 import bottomToolbarGuideCoordinatorTest from './BottomToolbarGuideCoordinator.test';
 import crossDeviceLinkViewModelTest from './CrossDeviceLinkViewModel.test';
@@ -165,6 +166,7 @@ export default function tests(): void {
   browserWebTopSafeAreaColorTest();
   browserSearchEnginePopupLayoutViewModelTest();
   browserTabsOverviewSwipeDismissPolicyTest();
+  browserTabsOverviewSelectionDisplacementCoordinatorTest();
   browserTabsOverviewStackLayoutPolicyTest();
   bottomToolbarGuideCoordinatorTest();
   crossDeviceLinkViewModelTest();

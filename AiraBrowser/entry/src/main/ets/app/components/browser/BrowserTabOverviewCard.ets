@@ -1,3 +1,4 @@
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { image } from '@kit.ImageKit';
 import {
   BrowserTabOverviewCardPresentation,
@@ -16,6 +17,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS } from '../../../core/browser/BrowserTabsOverviewVisualTokens';
+import { BrowserTabSnapshotPixelMapCache } from '../../../core/browser/tabsOverview/BrowserTabSnapshotPixelMapCache';
 import { AiraIcon } from '../common/AiraIcon';
 
 const TAB_OVERVIEW_PENDING_SKELETON_RADIUS: number = 7;
@@ -74,6 +76,7 @@ export struct BrowserTabOverviewCard {
   @State private renderSnapshotImageWidth: number = 0;
   @State private renderSnapshotImageHeight: number = 0;
   private tabsOverlayViewModel: BrowserTabsOverlayViewModel = new BrowserTabsOverlayViewModel();
+  private blankDiagKey: string = '';
 
   onCloseTab: (tabId: string) => void = (_tabId: string) => {};
   onPreviewRectChange: (
@@ -362,8 +365,8 @@ export struct BrowserTabOverviewCard {
 
   @Builder
   private buildSharedSnapshotImage() {
-    if (this.resolveRenderableSnapshotImageUri().trim().length > 0) {
-      Image(this.resolveRenderableSnapshotImageUri())
+    if (this.resolveRenderableSnapshotPixelMap() !== undefined) {
+      Image(this.resolveRenderableSnapshotPixelMap() as image.PixelMap)
         .width(this.resolveSnapshotImageRenderWidth())
         .height(this.resolveSnapshotImageRenderHeight())
         .objectFit(this.resolveSnapshotImageFit())
@@ -372,8 +375,8 @@ export struct BrowserTabOverviewCard {
         .opacity(this.resolveEffectiveSnapshotImageOpacity())
         .blur(this.resolveSharedSnapshotBlurRadius())
         .position({ x: this.resolveSnapshotImageLeft(), y: this.resolveSnapshotImageTop() })
-    } else if (this.resolveRenderableSnapshotPixelMap() !== undefined) {
-      Image(this.resolveRenderableSnapshotPixelMap() as image.PixelMap)
+    } else if (this.resolveRenderableSnapshotImageUri().trim().length > 0) {
+      Image(this.resolveRenderableSnapshotImageUri())
         .width(this.resolveSnapshotImageRenderWidth())
         .height(this.resolveSnapshotImageRenderHeight())
         .objectFit(this.resolveSnapshotImageFit())
@@ -386,8 +389,9 @@ export struct BrowserTabOverviewCard {
   }
 
   /**
-   * The deck fills its card with the screenshot (`Cover`) because every deck card has one shared
-   * size, while the grid keeps the screenshot's own aspect ratio inside the card.
+   * The strip and the deck fill the shared card (`Cover`). The card box is the page's own
+   * aspect, so the screenshot reaches the edges instead of sitting inside a white border.
+   * The grid keeps the screenshot's own aspect ratio inside its cell.
    */
   private resolveSnapshotImageFit(): ImageFit {
     if (this.snapshotCoverEnabled) {
@@ -446,17 +450,34 @@ export struct BrowserTabOverviewCard {
   }
 
   private syncRenderableSnapshotFromProps(): void {
-    const nextPixelMap = this.snapshotPixelMap;
-    // The persisted JPEG of this same capture is published as the shrink finishes. Swapping the
-    // Image off the live PixelMap onto that file remounts it, and the card flashes blank for a
-    // frame. Keep the PixelMap that is already on screen until the session actually releases it.
-    if (this.renderSnapshotPixelMap !== undefined && nextPixelMap !== undefined) {
-      return;
-    }
-    this.renderSnapshotImageUri = this.snapshotImageUri.trim();
-    this.renderSnapshotPixelMap = nextPixelMap;
+    const nextUri = this.snapshotImageUri.trim();
+    const cachedPixelMap = nextUri.length > 0 ? undefined : BrowserTabSnapshotPixelMapCache.get(this.tab.id);
     this.renderSnapshotImageWidth = Math.max(1, Math.floor(this.presentation.sharedSnapshotImageWidth));
     this.renderSnapshotImageHeight = Math.max(1, Math.floor(this.presentation.sharedSnapshotImageHeight));
+    // The card keeps the saved picture. The memory copy only covers the moment before that
+    // file exists. The raw component snapshot is never drawn; it is present and still blank.
+    if (nextUri.length > 0) {
+      this.renderSnapshotImageUri = nextUri;
+      this.renderSnapshotPixelMap = undefined;
+    } else if (cachedPixelMap !== undefined) {
+      this.renderSnapshotPixelMap = cachedPixelMap;
+      this.renderSnapshotImageUri = '';
+    } else {
+      this.renderSnapshotImageUri = '';
+      this.renderSnapshotPixelMap = undefined;
+    }
+    const source = this.renderSnapshotImageUri.length > 0 ? 'uri' :
+      (cachedPixelMap !== undefined ? 'cache' : 'none');
+    const diagKey = `${this.tab.id}:${source}:${this.renderSnapshotImageWidth}x${this.renderSnapshotImageHeight}`;
+    if (this.blankDiagKey === diagKey) {
+      return;
+    }
+    this.blankDiagKey = diagKey;
+    hilog.info(0xB00A, 'TAB-BLANK',
+      'card tab=%{public}s draw=%{public}s offeredPm=%{public}s image=%{public}s card=%{public}s',
+      this.tab.id, source, `${cachedPixelMap !== undefined}`,
+      `${this.renderSnapshotImageWidth}x${this.renderSnapshotImageHeight}`,
+      `${Math.round(this.cardWidth)}x${Math.round(this.previewHeight)}`);
   }
 
   private resolveRenderableSnapshotImageUri(): string {
@@ -472,6 +493,9 @@ export struct BrowserTabOverviewCard {
   }
 
   private resolveRenderableSnapshotPixelMap(): image.PixelMap | undefined {
+    if (this.renderSnapshotImageUri.trim().length > 0) {
+      return undefined;
+    }
     return this.renderSnapshotPixelMap ?? this.snapshotPixelMap;
   }
 

@@ -9,6 +9,10 @@
   `extensions/aira-sync/AGENTS.md`.
 - Treat Huawei official documentation as the source of truth for platform APIs, lifecycle, permissions, storage,
   networking, and Web components.
+- A HarmonyOS node can keep only one `bindSheet`. A second `bindSheet` on the same node replaces the first, and the
+  replaced sheet never opens. Do not chain two `bindSheet` calls on one node. A `bindSheet` on a custom component also
+  occupies that component and replaces a `bindSheet` on its root. When one screen needs more than one sheet, bind each
+  sheet to its own node, or keep a single `bindSheet` and switch its builder.
 - Keep Community and Official as build distributions of one source tree. Do not create edition branches, client forks, or
   duplicate pages to carry distribution differences.
 - The committed source tree stays Community. Leave `AIRA_DISTRIBUTION = 'community'`, bundle `org.aira.browser`, hosted

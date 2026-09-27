@@ -1,6 +1,8 @@
+import { hilog } from '@kit.PerformanceAnalysisKit';
 import { image } from '@kit.ImageKit';
 import { BrowserTabsOverlayAnimationViewModel } from '../../../core/browser/BrowserTabsOverlayAnimationViewModel';
 import { BrowserTabsOverlayRect } from '../../../core/browser/BrowserTabsOverlayViewModel';
+import { BrowserTabSnapshotPixelMapCache } from '../../../core/browser/tabsOverview/BrowserTabSnapshotPixelMapCache';
 import {
   BrowserTabsSharedSnapshotTransitionCoordinator,
   BrowserTabsSharedSnapshotEntryOverlayPresentationState,
@@ -24,6 +26,8 @@ export struct BrowserTabsSharedSnapshotOverlay {
   @Prop viewportLeft: number = 0;
   @Prop viewportTop: number = 0;
 
+  @Watch('syncOverlayState')
+  @Prop imagePixelMap: image.PixelMap | undefined = undefined;
   @State decorationRevealOpacity: number = 0;
   @State private renderSnapshotImageUri: string = '';
   @State private renderSnapshotPixelMap: image.PixelMap | undefined = undefined;
@@ -83,11 +87,11 @@ export struct BrowserTabsSharedSnapshotOverlay {
   @Builder
   private buildImage() {
     Stack({ alignContent: Alignment.TopStart }) {
-      // The persisted URI is what actually paints. A session PixelMap can be present
-      // and still draw blank, so it must not cover the image the shrink is showing.
+      // The picture keeps the page's own proportion and stays top-aligned. The card frame clips
+      // whatever hangs below it. Stretching the picture to the card is what flattened the page.
       if (this.resolveRenderableImageUri().length > 0) {
         this.buildUriImage()
-      } else if (this.resolveRenderablePixelMap() !== undefined) {
+      } else if (this.resolveCachedMorphPixelMap() !== undefined) {
         this.buildPixelMapImage()
       }
     }
@@ -110,11 +114,25 @@ export struct BrowserTabsSharedSnapshotOverlay {
       .syncLoad(true)
       .interpolation(ImageInterpolation.Medium)
       .blur(this.imageBlurRadius())
+      .onComplete((event) => {
+        hilog.info(0xB00A, 'TAB-BLANK',
+          'morph-image ok tab=%{public}s dir=%{public}s size=%{public}s uri=%{public}s',
+          this.state.tabId, this.state.direction,
+          `${event?.width ?? 0}x${event?.height ?? 0}`,
+          this.describeMorphUri());
+      })
+      .onError((event) => {
+        hilog.error(0xB00A, 'TAB-BLANK',
+          'morph-image fail tab=%{public}s dir=%{public}s msg=%{public}s uri=%{public}s',
+          this.state.tabId, this.state.direction,
+          `${event?.message ?? ''}`,
+          this.describeMorphUri());
+      })
   }
 
   @Builder
   private buildPixelMapImage() {
-    Image(this.resolveRenderablePixelMap() as image.PixelMap)
+    Image(this.resolveCachedMorphPixelMap() as image.PixelMap)
       .width(Math.max(1, this.resolvePresentationState().imageFrame.width))
       .height(Math.max(1, this.resolvePresentationState().imageFrame.height))
       .position({
@@ -135,8 +153,8 @@ export struct BrowserTabsSharedSnapshotOverlay {
     return this.renderSnapshotImageUri.trim();
   }
 
-  private resolveRenderablePixelMap(): image.PixelMap | undefined {
-    return this.renderSnapshotPixelMap ?? this.state.imagePixelMap;
+  private resolveCachedMorphPixelMap(): image.PixelMap | undefined {
+    return BrowserTabSnapshotPixelMapCache.get(this.state.tabId);
   }
 
   private syncOverlayState(): void {
@@ -147,18 +165,36 @@ export struct BrowserTabsSharedSnapshotOverlay {
   private syncImageRenderState(): void {
     const nextImageUri = this.state.imageUri.trim();
     const nextImageRevision = Math.max(0, Math.floor(this.state.imageRevision ?? 0));
-    const hasPixelMap = this.state.imagePixelMap !== undefined ? 'pixelmap' : 'none';
+    const renderPixelMap = this.resolveCachedMorphPixelMap();
+    const hasPixelMap = renderPixelMap !== undefined ? 'cache' : 'none';
     const nextKey = `${this.state.direction}:${this.state.tabId}:${nextImageUri}:${nextImageRevision}:${hasPixelMap}`;
     if (this.imageKey === nextKey &&
       this.renderSnapshotImageUri === nextImageUri &&
-      this.renderSnapshotPixelMap === this.state.imagePixelMap &&
+      this.renderSnapshotPixelMap === renderPixelMap &&
       this.renderSnapshotImageRevision === nextImageRevision) {
       return;
     }
     this.imageKey = nextKey;
     this.renderSnapshotImageUri = nextImageUri;
-    this.renderSnapshotPixelMap = this.state.imagePixelMap;
+    this.renderSnapshotPixelMap = renderPixelMap;
     this.renderSnapshotImageRevision = nextImageRevision;
+    const frame = this.resolvePresentationState().frame;
+    const source = nextImageUri.length > 0 ? 'uri' : (renderPixelMap !== undefined ? 'cache' : 'none');
+    const imageFrame = this.resolvePresentationState().imageFrame;
+    hilog.info(0xB00A, 'TAB-BLANK',
+      'morph tab=%{public}s dir=%{public}s phase=%{public}s source=%{public}s frame=%{public}s image=%{public}s uri=%{public}s',
+      this.state.tabId, this.state.direction, this.state.phase, source,
+      `${Math.round(frame.width)}x${Math.round(frame.height)}`,
+      `${Math.round(imageFrame.width)}x${Math.round(imageFrame.height)}`,
+      this.describeMorphUri());
+  }
+
+  private describeMorphUri(): string {
+    const uri = this.state.imageUri.trim();
+    if (uri.length === 0) {
+      return 'empty';
+    }
+    return uri.length > 48 ? uri.slice(uri.length - 48) : uri;
   }
 
   @Builder

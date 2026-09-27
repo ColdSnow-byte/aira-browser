@@ -31,6 +31,10 @@ export struct BrowserWebViewportSurfaceHost {
   @Prop safeAreaColorTransitionDurationMs: number = 160;
   @Prop surfaceOpacity: number = 1;
   @Prop surfaceScale: number = 1;
+  @Prop morphScaleX: number = 1;
+  @Prop morphScaleY: number = 1;
+  @Prop morphTranslateX: number = 0;
+  @Prop morphTranslateY: number = 0;
   @Prop blurRadius: number = 0;
   @Prop interactive: boolean = true;
 
@@ -115,11 +119,12 @@ export struct BrowserWebViewportSurfaceHost {
       this.presentation.hostHeightPx + this.presentation.reservedBottomInsetPx)
     .opacity(this.surfaceOpacity)
     .scale({
-      x: this.surfaceScale,
-      y: this.surfaceScale,
+      x: this.surfaceScale * this.morphScaleX,
+      y: this.surfaceScale * this.morphScaleY,
       centerX: '50%',
       centerY: '50%'
     })
+    .translate({ x: this.morphTranslateX, y: this.morphTranslateY })
     .blur(this.blurRadius)
     .hitTestBehavior(this.interactive ? HitTestMode.Default : HitTestMode.None)
   }

@@ -488,15 +488,15 @@ test('the overlay deck wires the policy, per-frame motion and the reference visu
   assert.match(strip, /scrollSnapAlign\(ScrollSnapAlign\.CENTER\)/);
   assert.match(strip, /contentStartOffset\(this\.resolveHorizontalEdgeInset\(true\)\)/);
   assert.doesNotMatch(strip, /resolveDeckMetrics/);
-  // The strip is the only style whose card box follows its own screenshot, so its box must be frozen
-  // on first sight. Deriving it per render resized and re-placed the focused card when the entry
-  // capture handed over to the persisted thumbnail, which read as the card vanishing and reappearing
-  // at the end of the entry animation.
-  assert.match(overlay, /private stripCardFrameByTabId: Record<string, BrowserTabsOverviewHorizontalCardFrame> = \{\};/);
-  assert.match(overlay, /private resolveHorizontalCardFrame\(item: BrowserTabsFloatingItem\): BrowserTabsOverviewHorizontalCardFrame \{\s*const frozen = this\.stripCardFrameByTabId\[item\.tab\.id\];\s*if \(frozen !== undefined\) \{\s*return frozen;\s*\}/);
-  // Every real geometry change has to drop the frozen boxes, or a rotation keeps the old card size.
-  assert.match(overlay, /this\.layoutState = nextState;\s*\/\/[\s\S]{0,240}?this\.clearStripCardFrames\(\);/);
-  assert.match(overlay, /private clearStripCardFrames\(\): void \{\s*this\.stripCardFrameByTabId = \{\};\s*\}/);
+  // Every strip card shares the viewport box. A screenshot's pixel size is a capture artifact and
+  // must not become the card frame, or the page just opened sits lower than its neighbours.
+  assert.match(strip, /\.width\(this\.layoutState\.cardWidth\)/);
+  assert.match(overlay, /snapshotCoverEnabled: this\.isStackLayout\(\) \|\| this\.isHorizontalCardsLayout\(\)/);
+  assert.doesNotMatch(overlay, /stripCardFrameByTabId|resolveHorizontalCardFrame|clearStripCardFrames/);
+  const layout = fs.readFileSync(path.resolve(__dirname,
+    '../AiraBrowser/entry/src/main/ets/core/browser/BrowserTabsOverviewLayoutViewModel.ets'), 'utf8');
+  assert.match(layout, /resolveViewportAspectFrame\(/);
+  assert.doesNotMatch(layout, /resolveHorizontalCardFrame|snapshotWidth/);
   // Selection and closing both stop the deck motion first.
   assert.match(overlay, /private selectOverviewTab\(tabId: string/);
   assert.match(overlay, /private stopDeckMotion\(\): void/);
