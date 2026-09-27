@@ -49,10 +49,9 @@ import {
 const WEBPAGE_TRANSLATION_LOG_DOMAIN: number = 0x0000;
 const WEBPAGE_TRANSLATION_LOG_TAG: string = 'QFWebTranslate';
 const CLOUD_TRANSLATION_MAX_ITEM_CHARS: number = 500;
-const CLOUD_TRANSLATION_MAX_QUEUE_ROUNDS: number = 8;
-const CLOUD_TRANSLATION_MAX_TOTAL_CHARS: number = 30000;
-const CLOUD_TRANSLATION_DYNAMIC_PENDING_NODE_LIMIT: number = 16;
-const CLOUD_TRANSLATION_DYNAMIC_PENDING_CHAR_LIMIT: number = 2000;
+const CLOUD_TRANSLATION_MAX_QUEUE_ROUNDS: number = 16;
+const CLOUD_TRANSLATION_DYNAMIC_PENDING_NODE_LIMIT: number = 80;
+const CLOUD_TRANSLATION_DYNAMIC_PENDING_CHAR_LIMIT: number = 16000;
 
 interface WebpageTranslationCachedApplySummary {
   appliedCount: number;
@@ -891,7 +890,7 @@ export class WebpageTranslationCoordinator {
       if (this.isStale(taskGeneration)) {
         return;
       }
-      const finalHasMore = progress.hasMore || this.extractionPageIsScrollable(hydratedExtraction);
+      const finalHasMore = progress.hasMore;
       this.sessionCoordinator.updateSessionProgress(
         progress.extractedCount,
         progress.appliedCount,
@@ -2066,10 +2065,6 @@ export class WebpageTranslationCoordinator {
       }
       seenExtractionSignatures[extractionSignature] = true;
       const roundChars = this.countItemChars(currentExtraction.items);
-      if (attemptedChars >= CLOUD_TRANSLATION_MAX_TOTAL_CHARS) {
-        hasMore = true;
-        break;
-      }
       extractedCount += currentExtraction.items.length;
       extractedChars += roundChars;
       const roundHasMoreCandidates = this.extractionHasMoreCandidates(currentExtraction);
@@ -2165,10 +2160,6 @@ export class WebpageTranslationCoordinator {
       }
       if (!this.shouldContinuePageQueue(currentExtraction)) {
         hasMore = false;
-        break;
-      }
-      if (attemptedChars >= CLOUD_TRANSLATION_MAX_TOTAL_CHARS) {
-        hasMore = true;
         break;
       }
       if (round + 1 >= CLOUD_TRANSLATION_MAX_QUEUE_ROUNDS) {
@@ -2293,7 +2284,7 @@ export class WebpageTranslationCoordinator {
   }
 
   private shouldContinuePageQueue(extraction: WebpageTranslationExtractionResult): boolean {
-    return this.extractionHasMoreCandidates(extraction) || this.extractionPageIsScrollable(extraction);
+    return this.extractionHasMoreCandidates(extraction);
   }
 
   private prioritizeItemsForTranslation(items: WebpageTranslationTextItem[]): WebpageTranslationTextItem[] {

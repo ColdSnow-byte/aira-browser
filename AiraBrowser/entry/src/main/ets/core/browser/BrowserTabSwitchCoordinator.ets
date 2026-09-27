@@ -38,6 +38,32 @@ import { ElementInspectionSessionCoordinator } from './ElementInspectionSessionC
 import { browserNativeTabSceneService } from './BrowserNativeTabSceneService';
 import { sharedBrowserContinuationCoordinator } from './BrowserContinuationCoordinator';
 
+interface BrowserTabPageMediaSignal {
+  isMediaPlaying?: boolean;
+  isVideoPlaying?: boolean;
+}
+
+/**
+ * Page-behavior snapshots carry these flags. Video-event payloads do not, and must not
+ * clear a playing tab.
+ */
+export function readBrowserTabPageMediaPlaying(payloadJson: string): boolean | undefined {
+  if (payloadJson.indexOf('isMediaPlaying') < 0 && payloadJson.indexOf('isVideoPlaying') < 0) {
+    return undefined;
+  }
+  try {
+    const payload = JSON.parse(payloadJson) as BrowserTabPageMediaSignal;
+    const hasMedia = typeof payload.isMediaPlaying === 'boolean';
+    const hasVideo = typeof payload.isVideoPlaying === 'boolean';
+    if (!hasMedia && !hasVideo) {
+      return undefined;
+    }
+    return payload.isMediaPlaying === true || payload.isVideoPlaying === true;
+  } catch (_error) {
+    return undefined;
+  }
+}
+
 type BrowserTabSwitchApplicationMode = 'standard' | 'overview';
 
 export interface BrowserTabSwitchApplicationFacts {
@@ -103,6 +129,8 @@ export class BrowserTabSwitchCoordinator {
   private readonly tabManager: BrowserTabManagerPort;
   private readonly dependencies: BrowserTabSwitchDependencies;
   private readonly transitionCoordinator: BrowserTabTransitionCoordinator = new BrowserTabTransitionCoordinator();
+  private webAudioPlayingByTabId: Record<string, boolean> = {};
+  private pageMediaPlayingByTabId: Record<string, boolean> = {};
 
   constructor(tabManager: BrowserTabManagerPort, dependencies: BrowserTabSwitchDependencies) {
     this.tabManager = tabManager;
@@ -231,7 +259,9 @@ export class BrowserTabSwitchCoordinator {
       launchContext: patch.launchContext,
       openerTabId: patch.openerTabId,
       openSource: patch.openSource,
-      openedByNewWindow: patch.openedByNewWindow
+      openedByNewWindow: patch.openedByNewWindow,
+      muted: patch.muted,
+      audible: patch.audible
     });
     this.commitTabs(nextTabs, {
       syncRuntimeGraph: options.syncRuntimeGraph,
@@ -271,6 +301,18 @@ export class BrowserTabSwitchCoordinator {
   }
 
   /**
+   * ArkWeb's audio callback and the in-page media probe are separate. Either one
+   * is enough to show the speaker; a false report from one must not hide the other.
+   */
+  noteWebAudioPlaying(tabId: string, playing: boolean): void {
+    this.noteAudibleSource(tabId, true, playing);
+  }
+
+  notePageMediaPlaying(tabId: string, playing: boolean): void {
+    this.noteAudibleSource(tabId, false, playing);
+  }
+
+  /**
    * Records the latest web audio playback state for a tab so the tab strip can
    * surface an audio indicator. Session-only state (never persisted); no-op when
    * unchanged to avoid redundant presentation churn on repeated audio events.
@@ -285,6 +327,21 @@ export class BrowserTabSwitchCoordinator {
       persistTabs: false,
       refreshRuntimeTabIds: []
     });
+  }
+
+  private noteAudibleSource(tabId: string, webAudio: boolean, playing: boolean): void {
+    const normalizedTabId = tabId.trim();
+    if (normalizedTabId.length === 0) {
+      return;
+    }
+    if (webAudio) {
+      this.webAudioPlayingByTabId[normalizedTabId] = playing;
+    } else {
+      this.pageMediaPlayingByTabId[normalizedTabId] = playing;
+    }
+    const audible = this.webAudioPlayingByTabId[normalizedTabId] === true ||
+      this.pageMediaPlayingByTabId[normalizedTabId] === true;
+    this.applyTabAudibleState(normalizedTabId, audible);
   }
 
   recordNativeTabNavigation(tabId: string, url: string, title: string): boolean {

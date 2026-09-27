@@ -24,10 +24,10 @@ export default function browserLargeScreenTabTitleSlotPolicyTest(): void {
     it('gives compressed padding to the title instead of collapsing a medium tab to dots', 0, () => {
       const slot = resolveBrowserLargeScreenTabTitleSlots([tabInput(122, '小红书 - 你的生活指南')])[0];
       expect(slot.visible).assertTrue();
-      expect(slot.widthVp).assertEqual(62);
-      expect(slot.leadingPaddingVp).assertEqual(8);
+      expect(slot.widthVp).assertEqual(50);
+      expect(slot.leadingPaddingVp).assertEqual(16);
+      expect(slot.trailingPaddingVp).assertEqual(10);
       expect(slot.contentEndPaddingVp).assertEqual(0);
-      expect(slot.widthVp >= 56).assertTrue();
     });
 
     it('uses the same compressed insets for every tab once one title would be clipped', 0, () => {
@@ -35,9 +35,9 @@ export default function browserLargeScreenTabTitleSlotPolicyTest(): void {
         tabInput(240, 'GitHub'),
         tabInput(122, '小红书')
       ]);
-      expect(slots[0].leadingPaddingVp).assertEqual(8);
-      expect(slots[1].leadingPaddingVp).assertEqual(8);
-      expect(slots[0].widthVp).assertEqual(180);
+      expect(slots[0].leadingPaddingVp).assertEqual(16);
+      expect(slots[1].leadingPaddingVp).assertEqual(16);
+      expect(slots[0].widthVp).assertEqual(168);
       expect(slots[1].visible).assertTrue();
     });
 
@@ -80,11 +80,11 @@ export default function browserLargeScreenTabTitleSlotPolicyTest(): void {
       expect(presentation.visibleTabs.length).assertEqual(8);
       presentation.visibleTabs.forEach((tab: BrowserLargeScreenTabProjection): void => {
         expect(tab.titleSlot.visible).assertTrue();
-        expect(tab.titleSlot.widthVp >= 72).assertTrue();
-        expect(tab.titleSlot.leadingPaddingVp).assertEqual(8);
+        expect(tab.titleSlot.leadingPaddingVp).assertEqual(16);
+        expect(tab.titleSlot.trailingPaddingVp).assertEqual(10);
       });
-      expect(presentation.visibleTabs[0].titleSlot.widthVp).assertEqual(106);
-      expect(presentation.visibleTabs[1].titleSlot.widthVp).assertEqual(79);
+      expect(presentation.visibleTabs[0].titleSlot.widthVp).assertEqual(94);
+      expect(presentation.visibleTabs[1].titleSlot.widthVp).assertEqual(67);
     });
   });
 }

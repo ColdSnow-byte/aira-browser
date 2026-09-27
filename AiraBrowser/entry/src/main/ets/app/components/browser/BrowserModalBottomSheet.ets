@@ -144,11 +144,9 @@ export struct BrowserModalBottomOverlay {
           duration: this.animationDurationMs,
           curve: Curve.EaseOut
         })
-        // A scrim that does not dismiss must still swallow the tap, otherwise the press
-        // lands on the page behind the modal and the user interacts with what they cannot see.
-        .hitTestBehavior(this.presentationVisible
-          ? (this.dismissOnOutsideTap ? HitTestMode.Default : HitTestMode.Block)
-          : HitTestMode.None)
+        // Default, not Block. Block would take this overlay itself out of the hit test, and
+        // the page behind the scrim — including the Web — would still receive the touch.
+        .hitTestBehavior(this.resolveModalHitTestMode(HitTestMode.Block))
         .onClick(() => {
           if (this.dismissOnOutsideTap) {
             this.onDismiss();
@@ -166,9 +164,9 @@ export struct BrowserModalBottomOverlay {
     .onAreaChange((_oldArea: Area, newArea: Area): void => {
       this.updateViewportSize(newArea);
     })
-    .hitTestBehavior(this.presentationVisible
-      ? (this.dismissOnOutsideTap ? HitTestMode.Default : HitTestMode.Transparent)
-      : HitTestMode.None)
+    // A shown scrim has to block the page underneath. Transparent is only for a sheet
+    // that deliberately leaves the page live, such as element inspection with no scrim.
+    .hitTestBehavior(this.resolveModalHitTestMode(HitTestMode.Transparent))
     .zIndex(this.zIndexValue)
   }
 
@@ -185,9 +183,7 @@ export struct BrowserModalBottomOverlay {
       duration: this.animationDurationMs,
       curve: this.presentationVisible ? 'interpolatingSpring(0, 1, 360, 30)' : Curve.EaseIn
     })
-    .hitTestBehavior(this.presentationVisible
-      ? (this.dismissOnOutsideTap ? HitTestMode.Default : HitTestMode.BLOCK_HIERARCHY)
-      : HitTestMode.None)
+    .hitTestBehavior(this.resolveModalHitTestMode(HitTestMode.BLOCK_HIERARCHY))
   }
 
   @Builder
@@ -203,9 +199,7 @@ export struct BrowserModalBottomOverlay {
     .shadow({ radius: 28, color: '#21101420', offsetX: 0, offsetY: 8 })
     .opacity(this.presentationVisible ? 1 : 0)
     .animation({ duration: 120, curve: Curve.EaseOut })
-    .hitTestBehavior(this.presentationVisible
-      ? (this.dismissOnOutsideTap ? HitTestMode.Default : HitTestMode.BLOCK_HIERARCHY)
-      : HitTestMode.None)
+    .hitTestBehavior(this.resolveModalHitTestMode(HitTestMode.BLOCK_HIERARCHY))
     .keyboardShortcut(FunctionKey.ESC, [], (): void => {
       if (this.dismissOnOutsideTap) {
         this.onDismiss();
@@ -215,6 +209,21 @@ export struct BrowserModalBottomOverlay {
 
   private shouldPresentCentered(): boolean {
     return this.sheetAlignment === Alignment.Bottom && isLargeScreenDialogShell();
+  }
+
+  /**
+   * While the scrim is up, the overlay and its card stay on the default hit test so this
+   * stack blocks the page behind it. A sheet with no scrim keeps the pass-through mode,
+   * because that page is meant to stay usable outside the sheet.
+   */
+  private resolveModalHitTestMode(passThroughMode: HitTestMode): HitTestMode {
+    if (!this.presentationVisible) {
+      return HitTestMode.None;
+    }
+    if (this.showScrim || this.dismissOnOutsideTap) {
+      return HitTestMode.Default;
+    }
+    return passThroughMode;
   }
 
   private resolveCenteredWidth(): number {

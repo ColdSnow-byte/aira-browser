@@ -115,9 +115,11 @@ export interface BrowserLargeScreenPresentationSnapshot {
 }
 
 const STRUCTURAL_TAB_STRIP_POLICY: BrowserLargeScreenTabStripPolicy = {
-  minimumTabWidthVp: 64,
+  // 16 leading + 14 icon + 4 gap + 24 close + 10 trailing, plus a little air
+  // so a packed tab does not push the icon through the rounded shoulder.
+  minimumTabWidthVp: 72,
   maximumTabWidthVp: 240,
-  compactTabWidthVp: 64,
+  compactTabWidthVp: 72,
   selectedTabExtraWidthVp: 24,
   fixedChromeWidthVp: BROWSER_LARGE_SCREEN_TITLE_BAR_FIXED_CHROME_WIDTH_VP
 };

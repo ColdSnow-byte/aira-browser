@@ -898,6 +898,10 @@ export struct BrowserBottomAddressPanel {
           }
           .width('100%')
           .height('100%')
+          // The lane is the full sheet column. The card is a fixed width taken
+          // from the inset panel, so the default start alignment leaves the
+          // icon left of the column. Lanes still pin a partial row to column one.
+          .justifyContent(FlexAlign.Center)
         }
         .width('100%')
         .height(layoutState.cardHeight)

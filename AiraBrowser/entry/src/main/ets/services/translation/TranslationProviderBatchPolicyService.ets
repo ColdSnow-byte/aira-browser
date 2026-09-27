@@ -12,6 +12,13 @@ export class TranslationProviderBatchPolicyService {
     switch (provider?.templateId) {
       case 'aira_system':
         return this.buildPolicy(12000, 120, 220, 12000);
+      case 'edge_web':
+        return this.buildPolicy(8000, 40, 160, 8000);
+      case 'tencent_web':
+        return this.buildPolicy(5000, 20, 120, 5000);
+      case 'google_web':
+      case 'yandex_web':
+        return this.buildPolicy(4000, 8, 80, 4000);
       case 'google_cloud':
         return this.buildPolicy(30000, 128, 220, 30000);
       case 'microsoft':

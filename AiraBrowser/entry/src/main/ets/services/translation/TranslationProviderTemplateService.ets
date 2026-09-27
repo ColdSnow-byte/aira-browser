@@ -17,6 +17,46 @@ export class TranslationProviderTemplateService {
         requiresPro: false
       },
       {
+        id: 'edge_web',
+        displayName: 'Microsoft Edge 网页翻译',
+        description: '免密钥。清风直接请求 Edge 公开翻译接口，适合一次翻译多个段落。',
+        setupStatus: 'configured',
+        requiresSecret: false,
+        supportsDirectClientRequest: true,
+        builtIn: true,
+        requiresPro: false
+      },
+      {
+        id: 'google_web',
+        displayName: 'Google 网页翻译',
+        description: '免密钥。清风直接请求 Google 公开翻译接口，每次发送一段文字。',
+        setupStatus: 'configured',
+        requiresSecret: false,
+        supportsDirectClientRequest: true,
+        builtIn: true,
+        requiresPro: false
+      },
+      {
+        id: 'tencent_web',
+        displayName: '腾讯交互翻译',
+        description: '免密钥。清风直接请求腾讯交互翻译公开接口。',
+        setupStatus: 'configured',
+        requiresSecret: false,
+        supportsDirectClientRequest: true,
+        builtIn: true,
+        requiresPro: false
+      },
+      {
+        id: 'yandex_web',
+        displayName: 'Yandex 网页翻译',
+        description: '免密钥。清风直接请求 Yandex 公开翻译接口，每次发送一段文字。',
+        setupStatus: 'configured',
+        requiresSecret: false,
+        supportsDirectClientRequest: true,
+        builtIn: true,
+        requiresPro: false
+      },
+      {
         id: 'custom_http',
         displayName: '自定义接口',
         description: '使用你自己的 HTTPS 翻译接口，适合把官方服务商鉴权放在自有服务端代理里。',

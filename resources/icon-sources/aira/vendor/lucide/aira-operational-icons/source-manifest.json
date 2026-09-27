@@ -469,14 +469,14 @@
     {
       "glyph": "speaker-high",
       "sourceFile": "svg/speaker-high.svg",
-      "sourceSha256": "23ff3349315dd8d646c393dcdf8462449d1ce20994494b4e8c162d1c73430c56",
+      "sourceSha256": "7600ca598fcc63fa21cc3b9511325f17940b1ffb50b1ef47325318cc98af5182",
       "codePoint": 58442,
       "lucideSlug": "volume-2"
     },
     {
       "glyph": "speaker-low",
       "sourceFile": "svg/speaker-low.svg",
-      "sourceSha256": "7600ca598fcc63fa21cc3b9511325f17940b1ffb50b1ef47325318cc98af5182",
+      "sourceSha256": "5037e43f3f440c0f4cedf48b730b6b32ad1d494a1cfdd48bb92dc6c4646ba466",
       "codePoint": 58444,
       "lucideSlug": "volume-1"
     },

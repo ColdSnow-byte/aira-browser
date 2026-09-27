@@ -104,6 +104,18 @@ export class WebpageTranslationSettingsViewModel {
     if (row.templateId === 'aira_system') {
       return 0;
     }
+    if (row.templateId === 'edge_web') {
+      return 10;
+    }
+    if (row.templateId === 'google_web') {
+      return 11;
+    }
+    if (row.templateId === 'tencent_web') {
+      return 12;
+    }
+    if (row.templateId === 'yandex_web') {
+      return 13;
+    }
     if (row.templateId === 'custom_http') {
       return 200;
     }
@@ -151,6 +163,10 @@ export class WebpageTranslationSettingsViewModel {
   private buildProviderSubtitle(provider: TranslationProviderConfig): string {
     if (provider.templateId === 'aira_system') {
       return '由 Aira 系统翻译服务提供';
+    }
+    if (provider.templateId === 'edge_web' || provider.templateId === 'google_web' ||
+      provider.templateId === 'tencent_web' || provider.templateId === 'yandex_web') {
+      return '免密钥，页面文字直接发给该公开接口';
     }
     if (provider.status === 'configured') {
       return '已填写 API 凭据';

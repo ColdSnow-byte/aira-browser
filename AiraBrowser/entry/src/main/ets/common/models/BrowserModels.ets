@@ -365,6 +365,10 @@ export interface PasswordManagerSettings {
 
 export type TranslationProviderTemplateId =
   'aira_system' |
+  'google_web' |
+  'edge_web' |
+  'yandex_web' |
+  'tencent_web' |
   'custom_http' |
   'deepl' |
   'google_cloud' |

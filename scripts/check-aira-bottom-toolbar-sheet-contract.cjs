@@ -96,8 +96,9 @@ assertContract(addressPanel.includes(".width(actionCellWidth > 0 ? actionCellWid
   'Toolbar system Sheet cards must use fixed equal-width cells so a final partial row stays left aligned.');
 assertContract(toolbarSheetGrid.includes(".width('100%')") &&
   toolbarSheetGrid.includes('.lanes(layoutState.columnCount, layoutState.columnGap)') &&
-  toolbarSheetGrid.includes('this.resolveToolbarSystemSheetActionCellWidth(layoutState)'),
-  'Toolbar system Sheet must use full-width equal lanes so the complete fixed-width grid stays centered and partial rows start at column one.');
+  toolbarSheetGrid.includes('this.resolveToolbarSystemSheetActionCellWidth(layoutState)') &&
+  toolbarSheetGrid.includes('.justifyContent(FlexAlign.Center)'),
+  'Toolbar system Sheet must center each fixed-width card in its full-width lane so the complete grid stays centered and partial rows start at column one.');
 assertContract(addressPanel.includes('private shouldSuppressBackdropForToolbarSystemSheetGesture(') &&
   addressPanel.includes('this.suppressBackdropForActiveToolbarSheetGesture =\n' +
     '              this.shouldSuppressBackdropForToolbarSystemSheetGesture(this.activeChromeGestureSource);') &&

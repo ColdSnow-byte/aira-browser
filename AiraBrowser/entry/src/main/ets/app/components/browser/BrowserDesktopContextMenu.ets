@@ -109,6 +109,8 @@ export struct BrowserDesktopContextMenuItem {
   @Prop shortcut: string = '';
   @Prop itemEnabled: boolean = true;
   @Prop checked: boolean = false;
+  /** Menus that never show a check keep labels flush; check groups still reserve the gutter. */
+  @Prop reserveCheckmark: boolean = true;
   onAction: () => void = () => {};
 
   build() {
@@ -130,17 +132,19 @@ export struct BrowserDesktopContextMenuItem {
   @Builder
   private buildContent() {
     Row({ space: BROWSER_DESKTOP_MENU_LABEL_SHORTCUT_GAP_VP }) {
-      Row() {
-        if (this.checked) {
-          SymbolGlyph($r('sys.symbol.checkmark'))
-            .fontSize(BROWSER_DESKTOP_MENU_CHECKMARK_SIZE_FP)
-            .fontWeight(FontWeight.Bold)
-            .fontColor([this.storedPrimaryTextColor])
+      if (this.reserveCheckmark) {
+        Row() {
+          if (this.checked) {
+            SymbolGlyph($r('sys.symbol.checkmark'))
+              .fontSize(BROWSER_DESKTOP_MENU_CHECKMARK_SIZE_FP)
+              .fontWeight(FontWeight.Bold)
+              .fontColor([this.storedPrimaryTextColor])
+          }
         }
+        .width(BROWSER_DESKTOP_MENU_CHECKMARK_GUTTER_VP)
+        .justifyContent(FlexAlign.Center)
+        .alignItems(VerticalAlign.Center)
       }
-      .width(BROWSER_DESKTOP_MENU_CHECKMARK_GUTTER_VP)
-      .justifyContent(FlexAlign.Center)
-      .alignItems(VerticalAlign.Center)
 
       Text(this.label)
         .layoutWeight(1)

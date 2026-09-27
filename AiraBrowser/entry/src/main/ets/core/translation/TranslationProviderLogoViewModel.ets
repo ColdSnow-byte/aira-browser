@@ -7,12 +7,15 @@ export class TranslationProviderLogoViewModel {
         return $r('app.media.startup_brand_icon');
       case 'deepl':
         return $r('app.media.translation_provider_deepl');
+      case 'google_web':
       case 'google_cloud':
         return $r('app.media.translation_provider_google_cloud');
+      case 'tencent_web':
       case 'tencent_cloud':
         return $r('app.media.translation_provider_tencent_cloud');
       case 'baidu':
         return $r('app.media.translation_provider_baidu');
+      case 'edge_web':
       case 'microsoft':
         return $r('app.media.translation_provider_microsoft');
       case 'alibaba_cloud':

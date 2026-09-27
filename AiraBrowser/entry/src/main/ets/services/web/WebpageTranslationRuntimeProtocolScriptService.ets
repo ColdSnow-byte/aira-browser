@@ -1,5 +1,5 @@
 export const TRANSLATION_RUNTIME_NAME: string = '__aira_translation__';
-export const TRANSLATION_RUNTIME_VERSION: string = 'wrapper_cache_v18_translation_only_default';
+export const TRANSLATION_RUNTIME_VERSION: string = 'wrapper_cache_v20_site_rules';
 
 export class WebpageTranslationRuntimeProtocolScriptService {
   buildExtractVisibleBatchScript(limitNodes: number, limitChars: number): string {

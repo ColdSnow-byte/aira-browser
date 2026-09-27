@@ -35,6 +35,45 @@ export function createHiddenDownloadToolbarIndicatorState(): DownloadToolbarIndi
   return new DownloadToolbarIndicatorState(false, 0, false, 0);
 }
 
+/**
+ * Desktop toolbar download button. It stays hidden until this process sees a
+ * download, then remains until the browser process itself is gone. Nothing is
+ * written down, so the next launch starts hidden again.
+ */
+const DESKTOP_DOWNLOAD_ENTRY_SESSION_STARTED_AT: number = Date.now();
+let desktopDownloadEntryPinned: boolean = false;
+
+export function hasDesktopDownloadEntryActivity(
+  tasks: DownloadV2TaskEntity[],
+  sessionStartedAt: number
+): boolean {
+  for (let index = 0; index < tasks.length; index++) {
+    const task = tasks[index];
+    if (task === undefined) {
+      continue;
+    }
+    if (task.status === 'running') {
+      return true;
+    }
+    const createdAt = task.timing.createdAt;
+    if (Number.isFinite(createdAt) && createdAt >= sessionStartedAt) {
+      return true;
+    }
+  }
+  return false;
+}
+
+export function isDesktopDownloadEntryVisible(tasks: DownloadV2TaskEntity[]): boolean {
+  if (desktopDownloadEntryPinned) {
+    return true;
+  }
+  if (hasDesktopDownloadEntryActivity(tasks, DESKTOP_DOWNLOAD_ENTRY_SESSION_STARTED_AT)) {
+    desktopDownloadEntryPinned = true;
+    return true;
+  }
+  return false;
+}
+
 export class DownloadToolbarIndicatorViewModel {
   buildState(tasks: DownloadV2TaskEntity[]): DownloadToolbarIndicatorState {
     const activeTasks = tasks.filter((task: DownloadV2TaskEntity): boolean => task.status === 'running');

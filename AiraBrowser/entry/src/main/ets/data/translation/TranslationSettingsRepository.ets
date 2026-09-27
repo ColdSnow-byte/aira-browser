@@ -15,6 +15,13 @@ const TRANSLATION_SETTINGS_KEY: string = 'translation_settings';
 export const AIRA_SYSTEM_TRANSLATION_PROVIDER_ID: string = 'aira_system_translation';
 const AIRA_SYSTEM_TRANSLATION_ENDPOINT: string = '';
 
+interface PublicWebTranslationProviderDefinition {
+  id: string;
+  templateId: TranslationProviderTemplateId;
+  displayName: string;
+  endpoint: string;
+}
+
 export const DEFAULT_TRANSLATION_PREFERENCES: TranslationSettingsPreferences = {
   enabled: true,
   offerToTranslate: false,
@@ -263,6 +270,10 @@ export class TranslationSettingsRepository {
 
   private isKnownTemplateId(value: string): boolean {
     return value === 'aira_system' ||
+      value === 'google_web' ||
+      value === 'edge_web' ||
+      value === 'yandex_web' ||
+      value === 'tencent_web' ||
       value === 'custom_http' ||
       value === 'deepl' ||
       value === 'google_cloud' ||
@@ -340,6 +351,14 @@ export class TranslationSettingsRepository {
     switch (templateId) {
       case 'aira_system':
         return 'Aira 系统翻译';
+      case 'google_web':
+        return 'Google 网页翻译';
+      case 'edge_web':
+        return 'Microsoft Edge 网页翻译';
+      case 'yandex_web':
+        return 'Yandex 网页翻译';
+      case 'tencent_web':
+        return '腾讯交互翻译';
       case 'deepl':
         return 'DeepL';
       case 'google_cloud':
@@ -386,8 +405,8 @@ export class TranslationSettingsRepository {
     const hasAiraSystemProvider = providers.some((provider: TranslationProviderConfig) => {
       return provider.id === AIRA_SYSTEM_TRANSLATION_PROVIDER_ID || provider.templateId === 'aira_system';
     });
-    if (hasAiraSystemProvider) {
-      return providers.map((provider: TranslationProviderConfig) => {
+    const withSystemProvider = hasAiraSystemProvider
+      ? providers.map((provider: TranslationProviderConfig) => {
         if (provider.id === AIRA_SYSTEM_TRANSLATION_PROVIDER_ID || provider.templateId === 'aira_system') {
           return this.normalizeProvider({
             id: AIRA_SYSTEM_TRANSLATION_PROVIDER_ID,
@@ -407,9 +426,70 @@ export class TranslationSettingsRepository {
           });
         }
         return provider;
+      })
+      : [this.buildAiraSystemProvider()].concat(providers);
+    return this.ensurePublicWebProviders(withSystemProvider);
+  }
+
+  private ensurePublicWebProviders(providers: TranslationProviderConfig[]): TranslationProviderConfig[] {
+    const next = providers.slice();
+    this.publicWebProviderDefinitions().forEach((definition: PublicWebTranslationProviderDefinition) => {
+      const exists = next.some((provider: TranslationProviderConfig) => {
+        return provider.id === definition.id || provider.templateId === definition.templateId;
       });
-    }
-    return [this.buildAiraSystemProvider()].concat(providers);
+      if (!exists) {
+        next.push(this.buildPublicWebProvider(definition));
+      }
+    });
+    return next;
+  }
+
+  private publicWebProviderDefinitions(): PublicWebTranslationProviderDefinition[] {
+    return [
+      {
+        id: 'edge_web_translation',
+        templateId: 'edge_web',
+        displayName: 'Microsoft Edge 网页翻译',
+        endpoint: 'https://edge.microsoft.com/translate/translatetext'
+      },
+      {
+        id: 'google_web_translation',
+        templateId: 'google_web',
+        displayName: 'Google 网页翻译',
+        endpoint: 'https://translate.googleapis.com/translate_a/single'
+      },
+      {
+        id: 'tencent_web_translation',
+        templateId: 'tencent_web',
+        displayName: '腾讯交互翻译',
+        endpoint: 'https://transmart.qq.com/api/imt'
+      },
+      {
+        id: 'yandex_web_translation',
+        templateId: 'yandex_web',
+        displayName: 'Yandex 网页翻译',
+        endpoint: 'https://translate.yandex.net/api/v1/tr.json/translate'
+      }
+    ];
+  }
+
+  private buildPublicWebProvider(definition: PublicWebTranslationProviderDefinition): TranslationProviderConfig {
+    return {
+      id: definition.id,
+      templateId: definition.templateId,
+      displayName: definition.displayName,
+      endpoint: definition.endpoint,
+      apiKey: '',
+      appId: '',
+      secretKey: '',
+      region: '',
+      model: '',
+      optionsJson: '{}',
+      secretRefsJson: '{}',
+      status: 'configured',
+      failureReason: '',
+      updatedAt: 0
+    };
   }
 
   private buildAiraSystemProvider(): TranslationProviderConfig {

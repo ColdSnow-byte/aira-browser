@@ -40,7 +40,7 @@ import {
   buildBrowserDesktopMenuOptions
 } from './BrowserDesktopContextMenu';
 import {
-  BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+  BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP,
   BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import {
@@ -639,7 +639,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
   private buildAudioButton(tab: BrowserLargeScreenTabProjection) {
     Button({ type: ButtonType.Circle }) {
       AiraIcon({
-        airaIconId: tab.muted ? 'videoAssistant.gesture.volumeMuted' : 'videoAssistant.gesture.volumeHigh',
+        airaIconId: tab.muted ? 'videoAssistant.gesture.volumeMuted' : 'videoAssistant.gesture.volumeMedium',
         iconSize: AUDIO_ICON_SIZE_VP,
         iconColor: this.storedSecondaryTextColor
       })
@@ -647,7 +647,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     .width(CLOSE_BUTTON_SIZE_VP)
     .height(CLOSE_BUTTON_SIZE_VP)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .accessibilityText(tab.muted ? `取消${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
+    .accessibilityText(tab.muted ? `解除${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
     .onMouse((event: MouseEvent): void => {
       if (!this.isPrimaryPointerDown(event)) {
         return;
@@ -720,7 +720,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
 
   @Builder
   private buildTabContextMenu(tab: BrowserLargeScreenTabProjection) {
-    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP }) {
+    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP }) {
       MenuItemGroup() {
         this.buildTabContextMenuItem(tab, 'new_tab_to_right', '在右侧新增标签页', '', true)
         this.buildTabContextMenuItem(tab, 'move_to_new_window', '将标签页移至新窗口', '', true)
@@ -740,7 +740,7 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
         this.buildTabContextMenuItem(
           tab,
           'toggle_mute',
-          tab.muted ? '取消此网站静音' : '将此网站静音',
+          tab.muted ? '解除静音' : '将此网站静音',
           '',
           tab.contextMenu.muteEnabled
         )
@@ -762,10 +762,11 @@ export struct BrowserLargeScreenVerticalTabsSidebar {
     itemEnabled: boolean
   ) {
     BrowserDesktopContextMenuItem({
-      menuWidthVp: BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+      menuWidthVp: BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP,
       label: label,
       shortcut: shortcut,
       itemEnabled: itemEnabled,
+      reserveCheckmark: false,
       onAction: (): void => {
         this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: actionId });
       }

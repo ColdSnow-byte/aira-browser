@@ -16,6 +16,11 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { resolveDownloadFileTypeImage } from './DownloadFileTypeIcon';
 import {
+  BrowserDesktopContextMenu,
+  BrowserDesktopContextMenuItem,
+  buildBrowserDesktopMenuOptions
+} from './BrowserDesktopContextMenu';
+import {
   MANAGEMENT_LARGE_SCREEN_ROW_INSET,
   MANAGEMENT_LARGE_SCREEN_ROW_RADIUS
 } from '../common/ManagementLargeScreenShell';
@@ -54,6 +59,7 @@ export struct BrowserDownloadManagementRow {
   @Prop selectionMode: boolean = false;
   @Prop selected: boolean = false;
   @State private desktopHovered: boolean = false;
+  @State private desktopPressed: boolean = false;
   onAction: (guid: string, action: DownloadManagementRowAction) => void =
     (_guid: string, _action: DownloadManagementRowAction): void => {};
   onToggleSelection: (guid: string) => void = (_guid: string): void => {};
@@ -109,6 +115,15 @@ export struct BrowserDownloadManagementRow {
     .clip(true)
     .onHover((hovered: boolean): void => {
       this.desktopHovered = hovered;
+      if (!hovered) {
+        this.desktopPressed = false;
+      }
+    })
+    .onTouch((event: TouchEvent): void => {
+      this.handleDesktopTouch(event);
+    })
+    .onMouse((event: MouseEvent): void => {
+      this.handleDesktopMouse(event);
     })
     .onClick((): void => {
       if (this.selectionMode) {
@@ -119,11 +134,69 @@ export struct BrowserDownloadManagementRow {
         this.handleCompletedCardClick();
       }
     })
-    .bindContextMenu(this.buildContextMenu(), ResponseType.RightClick)
+    .bindContextMenuWithResponse(
+      this.buildDesktopContextMenuResponse,
+      buildBrowserDesktopMenuOptions({
+        preview: MenuPreviewMode.NONE,
+        onAppear: (): void => {
+          this.desktopPressed = false;
+        }
+      })
+    )
+  }
+
+  private handleDesktopTouch(event: TouchEvent): void {
+    if (event.type === TouchType.Down) {
+      this.desktopPressed = true;
+      return;
+    }
+    if (event.type === TouchType.Up || event.type === TouchType.Cancel) {
+      this.desktopPressed = false;
+    }
+  }
+
+  private handleDesktopMouse(event: MouseEvent): void {
+    if (event.button !== MouseButton.Left) {
+      return;
+    }
+    if (event.action === MouseAction.Press) {
+      this.desktopPressed = true;
+      return;
+    }
+    if (event.action === MouseAction.Release || event.action === MouseAction.CANCEL) {
+      this.desktopPressed = false;
+    }
+  }
+
+  /**
+   * PC rows are used with a mouse and with touch. Right click and long press open the
+   * same actions the phone card already offers from a long press.
+   */
+  @Builder
+  private buildDesktopContextMenuResponse(responseType: ResponseType) {
+    if ((responseType === ResponseType.LongPress || responseType === ResponseType.RightClick) &&
+      !this.selectionMode && this.row.menuActions.length > 0) {
+      this.buildDesktopContextMenu()
+    }
+  }
+
+  @Builder
+  private buildDesktopContextMenu() {
+    BrowserDesktopContextMenu() {
+      ForEach(this.row.menuActions, (menuAction: DownloadManagementRowMenuActionView) => {
+        BrowserDesktopContextMenuItem({
+          label: menuAction.label,
+          reserveCheckmark: false,
+          onAction: (): void => {
+            this.onAction(this.row.guid, menuAction.action);
+          }
+        })
+      }, (menuAction: DownloadManagementRowMenuActionView): string => `${menuAction.action}:${menuAction.label}`)
+    }
   }
 
   private resolveDesktopRowBackground(): ResourceColor {
-    if (this.selected || this.desktopHovered) {
+    if (this.desktopPressed || this.selected || this.desktopHovered) {
       return this.storedPressedBackgroundColor;
     }
     return $r('sys.color.ohos_id_color_background_transparent');

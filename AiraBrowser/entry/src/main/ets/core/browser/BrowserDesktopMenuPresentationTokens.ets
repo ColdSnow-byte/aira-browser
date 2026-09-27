@@ -9,6 +9,11 @@
  */
 export const BROWSER_DESKTOP_MENU_CORNER_RADIUS_VP: number = 18;
 export const BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP: number = 188;
+/**
+ * Tab context menu. It never shows a check, so it does not reserve that gutter.
+ * 168 fits "将标签页移至新窗口" at 14fp plus the shared insets, and no wider.
+ */
+export const BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP: number = 168;
 export const BROWSER_DESKTOP_MENU_WIDTH_VP: number = 216;
 export const BROWSER_DESKTOP_MENU_WIDE_WIDTH_VP: number = 248;
 /**

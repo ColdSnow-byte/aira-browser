@@ -488,7 +488,8 @@ import {
 } from '../../core/browser/BrowserForegroundTabCreationCoordinator';
 import {
   BrowserTabSwitchApplicationSink,
-  BrowserTabSwitchCoordinator
+  BrowserTabSwitchCoordinator,
+  readBrowserTabPageMediaPlaying
 } from '../../core/browser/BrowserTabSwitchCoordinator';
 import {
   BrowserBottomChromeScrollCoordinator,
@@ -11433,7 +11434,7 @@ struct BrowserShellPage {
       onNativeMediaPlayerObserved: (tabId: string, mediaInfo: webview.MediaInfo) =>
         this.browserMediaRuntimeObservationApplicationCoordinator.handleNativeMediaPlayerObserved(tabId, mediaInfo),
       onAudioStateChanged: (tabId: string, playing: boolean) =>
-        this.browserTabSwitchCoordinator.applyTabAudibleState(tabId, playing),
+        this.browserTabSwitchCoordinator.noteWebAudioPlaying(tabId, playing),
       onLoadFinished: (tabId: string) =>
         this.browserWebPageLifecycleApplicationCoordinator.handleLoadFinished(tabId),
       onProgressChange: (tabId: string, event: OnProgressChangeEvent) =>
@@ -11519,6 +11520,10 @@ struct BrowserShellPage {
         );
       },
       onPageBehaviorSignal: (tabId: string, payloadJson: string) => {
+        const pageMediaPlaying = readBrowserTabPageMediaPlaying(payloadJson);
+        if (pageMediaPlaying !== undefined) {
+          this.browserTabSwitchCoordinator.notePageMediaPlaying(tabId, pageMediaPlaying);
+        }
         if (!this.browserWebBottomSafeAreaCoordinator.handleSignal(tabId, payloadJson)) {
           this.browserMediaRuntimeObservationApplicationCoordinator.handlePageBehaviorSignal(tabId, payloadJson);
         }

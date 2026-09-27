@@ -40,7 +40,7 @@ import {
   buildBrowserDesktopMenuOptions
 } from './BrowserDesktopContextMenu';
 import {
-  BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+  BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP,
   BROWSER_DESKTOP_MENU_TAB_STRIP_BLANK_WIDTH_VP
 } from '../../../core/browser/BrowserDesktopMenuPresentationTokens';
 import {
@@ -287,6 +287,7 @@ export struct BrowserLargeScreenTabStripSurface {
     }
     .width(tab.widthVp)
     .height(TAB_HEIGHT_VP)
+    .clip(true)
     .onHover((hovered: boolean) => {
       this.hoveredTabId = hovered ? tab.id : (this.hoveredTabId === tab.id ? '' : this.hoveredTabId);
       if (hovered) {
@@ -448,7 +449,7 @@ export struct BrowserLargeScreenTabStripSurface {
   private buildAudioIndicator(tab: BrowserLargeScreenTabProjection) {
     Button({ type: ButtonType.Circle }) {
       AiraIcon({
-        airaIconId: tab.muted ? 'videoAssistant.gesture.volumeMuted' : 'videoAssistant.gesture.volumeHigh',
+        airaIconId: tab.muted ? 'videoAssistant.gesture.volumeMuted' : 'videoAssistant.gesture.volumeMedium',
         iconSize: TAB_AUDIO_ICON_SIZE_VP,
         iconColor: this.storedSecondaryTextColor
       })
@@ -457,7 +458,7 @@ export struct BrowserLargeScreenTabStripSurface {
     .height(BROWSER_LARGE_SCREEN_TAB_ACTION_BUTTON_SIZE_VP)
     .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
     .stateEffect(true)
-    .accessibilityText(tab.muted ? `取消${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
+    .accessibilityText(tab.muted ? `解除${this.resolveTabTitle(tab)}静音` : `将${this.resolveTabTitle(tab)}静音`)
     .onClick(() => {
       this.onIntent({ kind: 'tab_context_action', tabId: tab.id, actionId: 'toggle_mute' });
     })
@@ -474,7 +475,7 @@ export struct BrowserLargeScreenTabStripSurface {
 
   @Builder
   private buildTabContextMenu(tab: BrowserLargeScreenTabProjection) {
-    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP }) {
+    BrowserDesktopContextMenu({ menuWidthVp: BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP }) {
       MenuItemGroup() {
         this.buildTabContextMenuItem(tab, 'new_tab_to_right', '在右侧新增标签页', '', true)
         this.buildTabContextMenuItem(tab, 'move_to_new_window', '将标签页移至新窗口', '', true)
@@ -496,7 +497,7 @@ export struct BrowserLargeScreenTabStripSurface {
         this.buildTabContextMenuItem(
           tab,
           'toggle_mute',
-          tab.muted ? '取消此网站静音' : '将此网站静音',
+          tab.muted ? '解除静音' : '将此网站静音',
           '',
           tab.contextMenu.muteEnabled
         )
@@ -519,10 +520,11 @@ export struct BrowserLargeScreenTabStripSurface {
     itemEnabled: boolean
   ) {
     BrowserDesktopContextMenuItem({
-      menuWidthVp: BROWSER_DESKTOP_MENU_COMPACT_WIDTH_VP,
+      menuWidthVp: BROWSER_DESKTOP_MENU_TAB_CONTEXT_WIDTH_VP,
       label: label,
       shortcut: shortcut,
       itemEnabled: itemEnabled,
+      reserveCheckmark: false,
       onAction: (): void => {
         this.onIntent({
           kind: 'tab_context_action',

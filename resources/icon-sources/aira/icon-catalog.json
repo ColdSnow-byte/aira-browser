@@ -5,11 +5,11 @@
     "familyName": "AiraOperationalIcons",
     "fontFile": "vendor/lucide/aira-operational-icons/AiraOperationalIcons.ttf",
     "packagedRawfile": "fonts/aira/aira-operational-icons.ttf",
-    "fontSha256": "e133c1134e808aeab0c7f313c0995fb2dcd3d56a391cb200a15b43f47de6c7e4",
+    "fontSha256": "f55da0c50e336270a1295f0b5eed09b42746226c8f1f7201d60709543187af58",
     "selectionFile": "vendor/lucide/aira-operational-icons/selection.json",
     "selectionSha256": "00030ae477ab80f7d628b28393ecf3ce54f00e26b5f5cf705c9c07295fc6d514",
     "sourceManifestFile": "vendor/lucide/aira-operational-icons/source-manifest.json",
-    "sourceManifestSha256": "587f3678bfa5ec418d9142116df1281639dfe6211c4518038259bdb6a1e2fdba",
+    "sourceManifestSha256": "273385ac2feb167d62c0a2c4daf6e66edb67eaf5fdbc1101755f8ffdfdae81b4",
     "fontQuarantinedIconIds": [
       "desktopCard.shortcut.history",
       "desktopCard.shortcut.bookmarks",

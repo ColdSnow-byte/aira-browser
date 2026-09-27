@@ -28,6 +28,8 @@ import browserPrivacyEffectPolicyTest from './BrowserPrivacyEffectPolicy.test';
 import browserRecentlyClosedRestoreTest from './BrowserRecentlyClosedRestore.test';
 import downloadPrivacyPolicyTest from './DownloadPrivacyPolicy.test';
 import downloadSelectionModeTest from './DownloadSelectionMode.test';
+import downloadRecentRecordsViewModelTest from './DownloadRecentRecordsViewModel.test';
+import downloadToolbarIndicatorViewModelTest from './DownloadToolbarIndicatorViewModel.test';
 import downloadV2StateMachineTest from './DownloadV2StateMachine.test';
 import historyAccountBindingPolicyTest from './HistoryAccountBindingPolicy.test';
 import huaweiAgcSdkLoaderTest from './HuaweiAgcSdkLoader.test';
@@ -120,6 +122,8 @@ export default function tests(): void {
   browserRecentlyClosedRestoreTest();
   downloadPrivacyPolicyTest();
   downloadSelectionModeTest();
+  downloadRecentRecordsViewModelTest();
+  downloadToolbarIndicatorViewModelTest();
   downloadV2StateMachineTest();
   historyAccountBindingPolicyTest();
   huaweiAgcSdkLoaderTest();

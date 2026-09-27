@@ -83,6 +83,12 @@ import {
 import { AiraIcon } from '../common/AiraIcon';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
 import { BrowserLargeScreenAccountPopover } from './BrowserLargeScreenAccountPopover';
+import { BrowserLargeScreenDownloadPopover } from './BrowserLargeScreenDownloadPopover';
+import { DownloadV2TaskEntity } from '../../../domain/downloadv2/DownloadV2TaskEntity';
+import {
+  isDesktopDownloadEntryVisible
+} from '../../../core/download/DownloadToolbarIndicatorViewModel';
+import { sharedDownloadRuntimeService } from '../../bootstrap/BrowserAppRuntime';
 import { BrowserLargeScreenBookmarkPopover } from './BrowserLargeScreenBookmarkPopover';
 import { BrowserSiteInfoSheet } from './BrowserSiteInfoSheet';
 import {
@@ -270,8 +276,11 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   private toolbarMenuViewModel: BrowserLargeScreenToolbarMenuViewModel =
     new BrowserLargeScreenToolbarMenuViewModel();
   private readonly modalLayoutService: AppWindowModalLayoutService = new AppWindowModalLayoutService();
+  private downloadIndicatorListenerKey: string = '';
+  @State private downloadIndicatorVisible: boolean = false;
 
   aboutToDisappear(): void {
+    this.unbindDownloadIndicator();
     this.clearFocusRequest();
     this.clearSelectionRequest();
     this.clearOmniboxBlurCollapse();
@@ -280,6 +289,7 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
   }
 
   aboutToAppear(): void {
+    this.bindDownloadIndicator();
     this.lastOmniboxEditing = this.omniboxPresentation.editing;
     this.omniboxDraftText = this.omniboxPresentation.draft;
     this.onIntent({
@@ -416,6 +426,18 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
         .clip(false)
 
         if (this.inputProfile !== 'touch') {
+          this.buildCrossDeviceTabsButton()
+          this.buildUserScriptButton()
+          if (this.downloadIndicatorVisible) {
+            BrowserLargeScreenDownloadPopover({
+              viewportWidthVp: this.viewportWidthVp,
+              viewportHeightVp: this.viewportHeightVp,
+              popupReservedTopVp: this.popupReservedTopVp,
+              onOpenDownloads: (): void => {
+                this.onIntent({ kind: 'open_downloads', text: '' });
+              }
+            })
+          }
           // The account popover signs in to Huawei and opens Aira Pro, both Official-only
           // capabilities. Community has no Huawei project, cloud, or payment approval, so it
           // must not offer an account entry that can never complete.
@@ -434,9 +456,6 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
               }
             })
           }
-
-          this.buildCrossDeviceTabsButton()
-          this.buildUserScriptButton()
         }
 
         this.buildOverflowButton()
@@ -1730,6 +1749,26 @@ export struct BrowserLargeScreenNavigationToolbarSurface {
       clearTimeout(this.omniboxBlurCollapseTimer);
       this.omniboxBlurCollapseTimer = -1;
     }
+  }
+
+  private bindDownloadIndicator(): void {
+    if (this.downloadIndicatorListenerKey.length > 0) {
+      return;
+    }
+    this.downloadIndicatorListenerKey = sharedDownloadRuntimeService.addCallbacksListener({
+      onTaskListChange: (tasks: DownloadV2TaskEntity[]): void => {
+        this.downloadIndicatorVisible = isDesktopDownloadEntryVisible(tasks);
+      }
+    });
+  }
+
+  private unbindDownloadIndicator(): void {
+    if (this.downloadIndicatorListenerKey.length <= 0) {
+      return;
+    }
+    sharedDownloadRuntimeService.removeCallbacksListener(this.downloadIndicatorListenerKey);
+    this.downloadIndicatorListenerKey = '';
+    this.downloadIndicatorVisible = false;
   }
 
   private resolvePopupWidth(preferredWidth: number): number {

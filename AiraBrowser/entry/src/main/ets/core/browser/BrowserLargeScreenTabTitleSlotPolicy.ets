@@ -34,10 +34,12 @@ const COMFORTABLE_TITLE_CHROME: BrowserLargeScreenTabTitleChrome = {
 };
 
 // Used only when the comfortable slot cannot show a recognizable title.
-// The saved padding is given to the title instead of sitting as blank inset.
+// The gap before the title can shrink. The side insets cannot: the active tab
+// shoulder is 10vp, and a smaller inset paints the icon or close button
+// outside that rounded card.
 const COMPRESSED_TITLE_CHROME: BrowserLargeScreenTabTitleChrome = {
-  leadingPaddingVp: 8,
-  trailingPaddingVp: 6,
+  leadingPaddingVp: 16,
+  trailingPaddingVp: 10,
   iconTextGapVp: 4,
   contentEndPaddingVp: 0
 };

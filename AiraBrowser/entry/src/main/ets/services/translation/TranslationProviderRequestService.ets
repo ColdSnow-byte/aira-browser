@@ -165,6 +165,44 @@ interface MicrosoftTranslationRequestText {
   Text: string;
 }
 
+interface GoogleWebTranslationSentence {
+  trans?: string;
+}
+
+interface GoogleWebTranslationResponse {
+  sentences?: GoogleWebTranslationSentence[];
+}
+
+interface YandexWebTranslationResponse {
+  text?: string[];
+}
+
+interface TencentWebTranslationResponse {
+  auto_translation?: string[];
+}
+
+interface TencentWebTranslationRequest {
+  header: TencentWebTranslationHeader;
+  type: string;
+  model_category: string;
+  source: TencentWebTranslationSource;
+  target: TencentWebTranslationTarget;
+}
+
+interface TencentWebTranslationHeader {
+  fn: string;
+  client_key: string;
+}
+
+interface TencentWebTranslationSource {
+  text_list: string[];
+  lang: string;
+}
+
+interface TencentWebTranslationTarget {
+  lang: string;
+}
+
 export class TranslationProviderRequestService {
   private failureClassifier: TranslationProviderFailureClassifierService =
     new TranslationProviderFailureClassifierService();
@@ -196,8 +234,37 @@ export class TranslationProviderRequestService {
     if (provider.templateId === 'aira_system') {
       return this.airaSystemService.translateBatch(items, sourceLanguage, targetLanguage);
     }
+    if (provider.templateId === 'google_web' || provider.templateId === 'yandex_web') {
+      return this.translateItemsSeparately(provider, items, sourceLanguage, targetLanguage);
+    }
 
     const providerRequest = this.buildProviderRequest(provider, items, sourceLanguage, targetLanguage);
+    return this.executeProviderRequest(provider, providerRequest, items);
+  }
+
+  private async translateItemsSeparately(
+    provider: TranslationProviderConfig,
+    items: WebpageTranslationTextItem[],
+    sourceLanguage: string,
+    targetLanguage: string
+  ): Promise<WebpageTranslationApplyItem[]> {
+    const results: WebpageTranslationApplyItem[] = [];
+    for (let index = 0; index < items.length; index++) {
+      const item = items[index];
+      const providerRequest = this.buildProviderRequest(provider, [item], sourceLanguage, targetLanguage);
+      const translated = await this.executeProviderRequest(provider, providerRequest, [item]);
+      translated.forEach((entry: WebpageTranslationApplyItem) => {
+        results.push(entry);
+      });
+    }
+    return results;
+  }
+
+  private async executeProviderRequest(
+    provider: TranslationProviderConfig,
+    providerRequest: ProviderHttpRequest,
+    items: WebpageTranslationTextItem[]
+  ): Promise<WebpageTranslationApplyItem[]> {
     const request = http.createHttp();
     this.activeRequests.push(request);
     try {
@@ -245,6 +312,10 @@ export class TranslationProviderRequestService {
   supportsProvider(templateId: TranslationProviderTemplateId): boolean {
     switch (templateId) {
       case 'aira_system':
+      case 'google_web':
+      case 'edge_web':
+      case 'yandex_web':
+      case 'tencent_web':
       case 'custom_http':
       case 'deepl':
       case 'google_cloud':
@@ -267,7 +338,7 @@ export class TranslationProviderRequestService {
         '当前翻译服务模板尚未实现。'
       ));
     }
-    if (provider.templateId === 'aira_system') {
+    if (provider.templateId === 'aira_system' || this.isPublicWebTemplate(provider.templateId)) {
       return;
     }
     if (provider.templateId === 'custom_http') {
@@ -295,6 +366,10 @@ export class TranslationProviderRequestService {
   private validateProviderCredentials(provider: TranslationProviderConfig): string {
     switch (provider.templateId) {
       case 'aira_system':
+      case 'google_web':
+      case 'edge_web':
+      case 'yandex_web':
+      case 'tencent_web':
         return '';
       case 'deepl':
       case 'google_cloud':
@@ -340,6 +415,14 @@ export class TranslationProviderRequestService {
         ));
       case 'custom_http':
         return this.buildCustomHttpRequest(provider, items, sourceLanguage, targetLanguage);
+      case 'google_web':
+        return this.buildGoogleWebRequest(items, sourceLanguage, targetLanguage);
+      case 'edge_web':
+        return this.buildEdgeWebRequest(items, sourceLanguage, targetLanguage);
+      case 'yandex_web':
+        return this.buildYandexWebRequest(items, sourceLanguage, targetLanguage);
+      case 'tencent_web':
+        return this.buildTencentWebRequest(items, sourceLanguage, targetLanguage);
       case 'deepl':
         return this.buildDeepLRequest(provider, items, sourceLanguage, targetLanguage);
       case 'google_cloud':
@@ -362,6 +445,104 @@ export class TranslationProviderRequestService {
           '当前翻译服务模板尚未实现。'
         ));
     }
+  }
+
+  private buildGoogleWebRequest(
+    items: WebpageTranslationTextItem[],
+    sourceLanguage: string,
+    targetLanguage: string
+  ): ProviderHttpRequest {
+    const query = this.formEncode([
+      { key: 'client', value: 'gtx' },
+      { key: 'dt', value: 't' },
+      { key: 'dj', value: '1' },
+      { key: 'ie', value: 'UTF-8' },
+      { key: 'sl', value: this.toGoogleWebLanguage(sourceLanguage) },
+      { key: 'tl', value: this.toGoogleWebLanguage(targetLanguage) },
+      { key: 'q', value: items[0]?.text ?? '' }
+    ]);
+    return {
+      url: `https://translate.googleapis.com/translate_a/single?${query}`,
+      method: http.RequestMethod.GET,
+      headers: this.publicWebHeaders(),
+      body: '',
+      responseParser: (rawBody: string, sourceItems: WebpageTranslationTextItem[]) =>
+        this.parseGoogleWebResponse(rawBody, sourceItems)
+    };
+  }
+
+  private buildEdgeWebRequest(
+    items: WebpageTranslationTextItem[],
+    sourceLanguage: string,
+    targetLanguage: string
+  ): ProviderHttpRequest {
+    const query = this.formEncode([
+      { key: 'from', value: this.toEdgeWebLanguage(sourceLanguage) },
+      { key: 'to', value: this.toEdgeWebLanguage(targetLanguage) },
+      { key: 'isEnterpriseClient', value: 'false' }
+    ]);
+    return {
+      url: `https://edge.microsoft.com/translate/translatetext?${query}`,
+      method: http.RequestMethod.POST,
+      headers: this.publicWebHeaders(),
+      body: JSON.stringify(items.map((item: WebpageTranslationTextItem): string => item.text)),
+      responseParser: (rawBody: string, sourceItems: WebpageTranslationTextItem[]) =>
+        this.parseMicrosoftResponse(rawBody, sourceItems)
+    };
+  }
+
+  private buildYandexWebRequest(
+    items: WebpageTranslationTextItem[],
+    sourceLanguage: string,
+    targetLanguage: string
+  ): ProviderHttpRequest {
+    const query = this.formEncode([
+      { key: 'id', value: this.buildYandexRequestId() },
+      { key: 'srv', value: 'android' },
+      { key: 'source_lang', value: this.toYandexWebLanguage(sourceLanguage) },
+      { key: 'target_lang', value: this.toYandexWebLanguage(targetLanguage) },
+      { key: 'text', value: items[0]?.text ?? '' }
+    ]);
+    return {
+      url: `https://translate.yandex.net/api/v1/tr.json/translate?${query}`,
+      method: http.RequestMethod.POST,
+      headers: this.publicWebHeaders(),
+      body: '',
+      responseParser: (rawBody: string, sourceItems: WebpageTranslationTextItem[]) =>
+        this.parseYandexWebResponse(rawBody, sourceItems)
+    };
+  }
+
+  private buildTencentWebRequest(
+    items: WebpageTranslationTextItem[],
+    sourceLanguage: string,
+    targetLanguage: string
+  ): ProviderHttpRequest {
+    const body: TencentWebTranslationRequest = {
+      header: {
+        fn: 'auto_translation',
+        client_key: 'aira-browser'
+      },
+      type: 'plain',
+      model_category: 'normal',
+      source: {
+        text_list: items.map((item: WebpageTranslationTextItem): string => item.text),
+        lang: this.toTencentWebLanguage(sourceLanguage)
+      },
+      target: {
+        lang: this.toTencentWebLanguage(targetLanguage)
+      }
+    };
+    const headers = this.publicWebHeaders();
+    headers['Referer'] = 'https://transmart.qq.com/';
+    return {
+      url: 'https://transmart.qq.com/api/imt',
+      method: http.RequestMethod.POST,
+      headers: headers,
+      body: JSON.stringify(body),
+      responseParser: (rawBody: string, sourceItems: WebpageTranslationTextItem[]) =>
+        this.parseTencentWebResponse(rawBody, sourceItems)
+    };
   }
 
   private buildCustomHttpRequest(
@@ -722,6 +903,27 @@ export class TranslationProviderRequestService {
     };
   }
 
+  private isPublicWebTemplate(templateId: TranslationProviderTemplateId): boolean {
+    return templateId === 'google_web' || templateId === 'edge_web' ||
+      templateId === 'yandex_web' || templateId === 'tencent_web';
+  }
+
+  private publicWebHeaders(): Record<string, string> {
+    return {
+      'Accept': 'application/json',
+      'Content-Type': 'application/json; charset=utf-8',
+      'User-Agent': AIRA_USER_AGENT
+    };
+  }
+
+  private buildYandexRequestId(): string {
+    let id = '';
+    for (let index = 0; index < 32; index++) {
+      id += Math.floor(Math.random() * 16).toString(16);
+    }
+    return `${id}-0-0`;
+  }
+
   private jsonHeaders(): Record<string, string> {
     return {
       'Accept': 'application/json',
@@ -814,6 +1016,28 @@ export class TranslationProviderRequestService {
       sourceItems,
       parsed.map((item: MicrosoftTranslationResponseItem): string => item.translations?.[0]?.text ?? '')
     );
+  }
+
+  private parseGoogleWebResponse(rawBody: string, sourceItems: WebpageTranslationTextItem[]): WebpageTranslationApplyItem[] {
+    const parsed = this.parseJson<GoogleWebTranslationResponse>(rawBody);
+    const parts: string[] = [];
+    (parsed.sentences ?? []).forEach((sentence: GoogleWebTranslationSentence) => {
+      const translated = (sentence.trans ?? '').trim();
+      if (translated.length > 0) {
+        parts.push(translated);
+      }
+    });
+    return this.mapIndexedTranslations(sourceItems, [parts.join('')]);
+  }
+
+  private parseYandexWebResponse(rawBody: string, sourceItems: WebpageTranslationTextItem[]): WebpageTranslationApplyItem[] {
+    const parsed = this.parseJson<YandexWebTranslationResponse>(rawBody);
+    return this.mapIndexedTranslations(sourceItems, parsed.text ?? []);
+  }
+
+  private parseTencentWebResponse(rawBody: string, sourceItems: WebpageTranslationTextItem[]): WebpageTranslationApplyItem[] {
+    const parsed = this.parseJson<TencentWebTranslationResponse>(rawBody);
+    return this.mapIndexedTranslations(sourceItems, parsed.auto_translation ?? []);
   }
 
   private parseBaiduResponse(rawBody: string, sourceItems: WebpageTranslationTextItem[]): WebpageTranslationApplyItem[] {
@@ -1046,6 +1270,51 @@ export class TranslationProviderRequestService {
 
   private toGoogleLanguage(languageCode: string): string {
     return this.normalizeCommonLanguage(languageCode);
+  }
+
+  private toGoogleWebLanguage(languageCode: string): string {
+    const normalized = languageCode.trim();
+    return normalized.length > 0 ? normalized : 'auto';
+  }
+
+  private toEdgeWebLanguage(languageCode: string): string {
+    switch (languageCode) {
+      case 'zh-CN':
+        return 'zh-Hans';
+      case 'zh-TW':
+        return 'zh-Hant';
+      case 'auto':
+      case '':
+        return '';
+      default:
+        return languageCode.trim();
+    }
+  }
+
+  private toYandexWebLanguage(languageCode: string): string {
+    switch (languageCode) {
+      case 'zh-CN':
+      case 'zh-TW':
+        return 'zh';
+      case 'auto':
+      case '':
+        return '';
+      default:
+        return languageCode.trim();
+    }
+  }
+
+  private toTencentWebLanguage(languageCode: string): string {
+    switch (languageCode) {
+      case 'zh-CN':
+      case 'zh-TW':
+        return 'zh';
+      case 'auto':
+      case '':
+        return 'auto';
+      default:
+        return languageCode.trim();
+    }
   }
 
   private toMicrosoftLanguage(languageCode: string): string {
