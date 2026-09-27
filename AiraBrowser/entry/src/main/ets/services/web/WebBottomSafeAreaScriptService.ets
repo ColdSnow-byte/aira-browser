@@ -32,18 +32,62 @@ export class WebBottomSafeAreaScriptService {
             style.visibility === 'visible' && Number(style.opacity) > 0 &&
             style.pointerEvents !== 'none';
         }
-        function isBar(node) {
+        function geometry(node, slack) {
           var rect = node.getBoundingClientRect();
           if (rect.width < width * 0.65 || rect.height < 28 ||
             rect.height > Math.min(140, height * 0.24) ||
             rect.left > width * 0.2 || rect.right < width * 0.8 ||
-            Math.abs(height - rect.bottom) > 32 || !visible(node, rect)) return false;
-          var style = getComputedStyle(node);
-          if (style.position !== 'fixed' && style.position !== 'sticky') return false;
+            Math.abs(height - rect.bottom) > slack || !visible(node, rect)) return null;
+          return rect;
+        }
+        function insideDialog(node) {
+          return !!node.closest('[role="dialog"], [aria-modal="true"], dialog');
+        }
+        function stickyRejected(style, rect) {
           // A sticky footer in normal flow is not enough: require a bottom constraint.
-          if (style.position === 'sticky' && (style.bottom === 'auto' ||
-            Math.abs(height - rect.bottom - parseFloat(style.bottom)) > 4)) return false;
-          if (node.closest('[role="dialog"], [aria-modal="true"], dialog')) return false;
+          return style.position === 'sticky' && (style.bottom === 'auto' ||
+            Math.abs(height - rect.bottom - parseFloat(style.bottom)) > 4);
+        }
+        function isOverlay(node, style) {
+          // Chat shells are often absolute. Body counts only when its own box fills
+          // the viewport; a scroll lock that shifts body fails the bottom-edge test.
+          if (style.position !== 'fixed' && style.position !== 'absolute') return false;
+          var rect = node.getBoundingClientRect();
+          if (rect.width <= 0 || rect.height <= 0 || style.display === 'none' ||
+            style.visibility === 'hidden' || Number(style.opacity) <= 0) return false;
+          if (rect.width < width * 0.65 || rect.height < height * 0.25 ||
+            rect.left > width * 0.2 || rect.right < width * 0.8 ||
+            Math.abs(height - rect.bottom) > 32) return false;
+          return Math.abs(node.scrollTop || 0) <= 1 && Math.abs(node.scrollLeft || 0) <= 1;
+        }
+        function nearestOverlay(node) {
+          // The document root is never an overlay. Body is, when isOverlay accepts it.
+          var parent = node.parentElement;
+          while (parent && parent !== document.documentElement) {
+            if (!withinBudget()) return null;
+            var style = getComputedStyle(parent);
+            if (isOverlay(parent, style)) return parent;
+            parent = parent.parentElement;
+          }
+          return null;
+        }
+        function chainUnscrolled(node, overlay) {
+          var parent = node.parentElement;
+          while (parent && parent !== overlay) {
+            if (Math.abs(parent.scrollTop || 0) > 1 || Math.abs(parent.scrollLeft || 0) > 1) return false;
+            var style = getComputedStyle(parent);
+            if (style.position === 'sticky' || style.position === 'fixed') {
+              var rect = parent.getBoundingClientRect();
+              // A pinned composer stays at the bottom while the list behind it scrolls.
+              if (style.bottom !== 'auto' &&
+                Math.abs(height - rect.bottom - parseFloat(style.bottom)) <= 4 &&
+                Math.abs(height - rect.bottom) <= 48) return true;
+            }
+            parent = parent.parentElement;
+          }
+          return true;
+        }
+        function hasTargets(node, rect, minimum, relax) {
           var walker = document.createTreeWalker(node, 1);
           var controls = [];
           var child;
@@ -55,16 +99,20 @@ export class WebBottomSafeAreaScriptService {
               child.tagName === 'BUTTON' || role === 'tab' || role === 'button' ||
               role === 'link' || child.hasAttribute('onclick') ||
               getComputedStyle(child).cursor === 'pointer';
-            if (!interactive || child.disabled || child.getAttribute('aria-disabled') === 'true') continue;
+            if (!interactive) continue;
+            // A disabled action is still covered by the browser bar. Only the classic
+            // two-target bar keeps the enabled-control requirement.
+            if (!relax && (child.disabled || child.getAttribute('aria-disabled') === 'true')) continue;
             var item = child.getBoundingClientRect();
             if (!visible(child, item) || item.width < 20 || item.height < 20 ||
-              item.width > rect.width * 0.6 || item.top < rect.top - 2 ||
+              item.width > rect.width * (relax ? 1 : 0.6) || item.top < rect.top - 2 ||
               item.bottom > rect.bottom + 2) continue;
             if (controls.some(function(entry) { return entry.node.contains(child); })) continue;
             var centerX = (item.left + item.right) / 2;
             var centerY = (item.top + item.bottom) / 2;
             var hit = document.elementFromPoint(centerX, centerY);
             if (!hit || !child.contains(hit)) continue;
+            if (minimum < 2) return true;
             controls.push({ node: child, x: centerX, y: centerY });
             // Two horizontally separated, visible click targets are sufficient. This also
             // supports framework div-based tabs whose only signal is cursor:pointer.
@@ -75,7 +123,22 @@ export class WebBottomSafeAreaScriptService {
           }
           return false;
         }
-        if (cached && cached.isConnected && withinBudget() && isBar(cached)) {
+        function matches(node) {
+          var style = getComputedStyle(node);
+          var positioned = style.position === 'fixed' || style.position === 'sticky';
+          var rect = geometry(node, 32);
+          if (rect && positioned && !stickyRejected(style, rect) &&
+            !insideDialog(node) && hasTargets(node, rect, 2, false)) return true;
+          // Action row of a tall bottom overlay. The row may sit in normal flow under
+          // an inner dialog, or under a sticky composer in an absolute full-screen shell.
+          // One target is enough, including a disabled send button.
+          rect = geometry(node, 48);
+          if (!rect || (positioned && stickyRejected(style, rect))) return false;
+          var overlay = nearestOverlay(node);
+          if (!overlay || !chainUnscrolled(node, overlay)) return false;
+          return hasTargets(node, rect, 1, true);
+        }
+        if (cached && cached.isConnected && withinBudget() && matches(cached)) {
           if (deferred || performance.now() > deadline) return 'deferred';
           remember(cached);
           return 'detected';
@@ -89,7 +152,7 @@ export class WebBottomSafeAreaScriptService {
               if (visited.indexOf(node) >= 0) break;
               if (!withinBudget()) return 'deferred';
               visited.push(node);
-              var detected = isBar(node);
+              var detected = matches(node);
               if (deferred || performance.now() > deadline) return 'deferred';
               if (detected) { remember(node); return 'detected'; }
             }

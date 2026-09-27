@@ -82,7 +82,7 @@ function fixture({ position = 'fixed', width = 390, barWidth = width, bottom = 8
   if (overlay) node('DIV', 0, 0, width, viewportHeight, body);
   let hitTests = 0;
   const document = {
-    hidden: false, fullscreenElement: null, documentElement: { clientWidth: width },
+    hidden: false, fullscreenElement: null, body, documentElement: { clientWidth: width },
     elementFromPoint(x, y) {
       hitTests++;
       return [...nodes].reverse().find(item => {
@@ -124,6 +124,155 @@ let elapsed = 0; expensive.performance.now = () => (elapsed += 5);
 assert.equal(expensive.run(), 'deferred', 'exhausted time budget yields without changing detection state');
 const bounded = fixture({ position: 'static' }); bounded.run();
 assert.ok(bounded.hits() <= 20, 'normal pages use a bounded number of hit-tests');
+
+// Fullscreen editor: fixed shell, optional inner dialog, static submit row.
+function editorFixture({
+  width = 390, viewportHeight = 800, overlayHeight = 800, overlayBottom = 800,
+  rowHeight = 44, rowGap = 6, count = 1, dialog = true, disabled = false,
+  shellScroll = 0, midScroll = 0, cover = false, shellPosition = 'fixed',
+  bodyPosition = 'static', bodyTop = 0, bodyHeight = viewportHeight,
+  rowPosition = 'static', controlWidth = 120
+} = {}) {
+  const nodes = [];
+  function node(tagName, left, top, w, h, parent, attrs = {}, style = {}) {
+    const item = {
+      tagName, nodeType: 1, isConnected: true, parentElement: parent, attrs, children: [],
+      disabled: false, scrollTop: 0, scrollLeft: 0,
+      style: { position: 'static', display: 'block', visibility: 'visible', opacity: '1',
+        pointerEvents: 'auto', cursor: 'auto', bottom: 'auto', ...style },
+      getBoundingClientRect: () => ({ left, top, width: w, height: h, right: left + w, bottom: top + h }),
+      getAttribute: key => attrs[key] ?? null,
+      hasAttribute: key => Object.prototype.hasOwnProperty.call(attrs, key),
+      contains(other) { for (; other; other = other.parentElement) if (other === this) return true; return false; },
+      closest() {
+        for (let current = this; current; current = current.parentElement) {
+          if (current.tagName === 'DIALOG' || current.attrs.role === 'dialog' ||
+            current.attrs['aria-modal'] === 'true') return current;
+        }
+        return null;
+      }
+    };
+    if (parent) parent.children.push(item);
+    nodes.push(item);
+    return item;
+  }
+  const body = node('BODY', 0, bodyTop, width, bodyHeight, null, {}, { position: bodyPosition });
+  const shell = node('DIV', 0, overlayBottom - overlayHeight, width, overlayHeight, body,
+    { id: 'reply-control' }, { position: shellPosition });
+  shell.scrollTop = shellScroll;
+  const sheet = node('DIV', 0, overlayBottom - overlayHeight, width, overlayHeight, shell,
+    dialog ? { role: 'dialog' } : {});
+  const mid = node('DIV', 0, overlayBottom - overlayHeight, width, overlayHeight, sheet);
+  mid.scrollTop = midScroll;
+  const rowBottom = overlayBottom - rowGap;
+  const row = node('DIV', 0, rowBottom - rowHeight, width, rowHeight, mid, { class: 'submit-panel' },
+    { position: rowPosition });
+  for (let i = 0; i < count; i++) {
+    const control = node('BUTTON', controlWidth >= width ? 0 : width - controlWidth - 16,
+      rowBottom - rowHeight + 4, Math.min(controlWidth, width), Math.min(36, rowHeight), row);
+    if (disabled) control.disabled = true;
+  }
+  if (cover) node('DIV', 0, rowBottom - rowHeight, width, rowHeight, body);
+  const document = {
+    hidden: false, fullscreenElement: null, body, documentElement: { clientWidth: width },
+    elementFromPoint(x, y) {
+      return [...nodes].reverse().find(item => {
+        if (!item.isConnected || item.style.display === 'none') return false;
+        const rect = item.getBoundingClientRect();
+        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+      }) || null;
+    },
+    createTreeWalker(parent) {
+      const list = nodes.filter(item => item !== parent && parent.contains(item));
+      let index = 0;
+      return { nextNode: () => list[index++] || null };
+    }
+  };
+  const window = { innerHeight: viewportHeight, visualViewport: { scale: 1, height: viewportHeight } };
+  const performance = { now: () => 0 };
+  return { run: () => vm.runInNewContext(script, {
+    document, window, performance, getComputedStyle: item => item.style
+  }) };
+}
+assert.equal(editorFixture().run(), 'detected', 'fullscreen editor submit row inside an inner dialog');
+assert.equal(editorFixture({ disabled: true }).run(), 'detected', 'disabled submit button is still covered');
+assert.equal(editorFixture({ dialog: false }).run(), 'detected', 'overlay action row does not require a dialog');
+assert.equal(editorFixture({ rowPosition: 'fixed' }).run(), 'detected', 'fixed single-button row inside a tall dialog');
+assert.equal(editorFixture({ controlWidth: 390 }).run(), 'detected', 'full-width submit button');
+assert.equal(editorFixture({ rowGap: 40 }).run(), 'detected', 'editor safe-area padding stays inside 48px');
+for (const options of [
+  { shellScroll: 24 }, { midScroll: 24 }, { count: 0 }, { overlayHeight: 160 },
+  { bodyPosition: 'fixed', shellPosition: 'static', bodyTop: -1200, bodyHeight: 3000 },
+  { rowGap: 64 }, { shellPosition: 'static' }, { cover: true },
+  { overlayBottom: 700, overlayHeight: 700 }
+]) assert.equal(editorFixture(options).run(), 'absent', `editor ${JSON.stringify(options)}`);
+assert.equal(editorFixture({ bodyPosition: 'fixed', shellPosition: 'static' }).run(), 'detected',
+  'body locked as the full-viewport shell still exposes its bottom action row');
+assert.equal(editorFixture({ shellPosition: 'absolute' }).run(), 'detected',
+  'absolute full-screen shell still exposes its bottom action row');
+
+// Chat composer: absolute viewport shell, scrolled transcript, sticky footer taller than a bar.
+function chatFixture({ shellPosition = 'absolute', listScroll = 480, pin = true,
+  composerHeight = 180, rowHeight = 56, caveatHeight = 28, shellHeight = 800 } = {}) {
+  const width = 390;
+  const viewportHeight = 800;
+  const nodes = [];
+  function node(tagName, left, top, w, h, parent, attrs = {}, style = {}) {
+    const item = {
+      tagName, nodeType: 1, isConnected: true, parentElement: parent, attrs, children: [],
+      disabled: false, scrollTop: 0, scrollLeft: 0,
+      style: { position: 'static', display: 'block', visibility: 'visible', opacity: '1',
+        pointerEvents: 'auto', cursor: 'auto', bottom: 'auto', ...style },
+      getBoundingClientRect: () => ({ left, top, width: w, height: h, right: left + w, bottom: top + h }),
+      getAttribute: key => attrs[key] ?? null,
+      hasAttribute: key => Object.prototype.hasOwnProperty.call(attrs, key),
+      contains(other) { for (; other; other = other.parentElement) if (other === this) return true; return false; },
+      closest: () => null
+    };
+    if (parent) parent.children.push(item);
+    nodes.push(item);
+    return item;
+  }
+  const body = node('BODY', 0, 0, width, viewportHeight, null);
+  const shell = node('DIV', 0, viewportHeight - shellHeight, width, shellHeight, body, {},
+    { position: shellPosition });
+  const column = node('DIV', 0, 0, width, viewportHeight, shell, {}, { position: 'relative' });
+  const list = node('DIV', 0, 0, width, viewportHeight, column);
+  list.scrollTop = listScroll;
+  const composerTop = viewportHeight - composerHeight;
+  const composer = node('DIV', 16, composerTop, width - 32, composerHeight, list, {},
+    pin ? { position: 'sticky', bottom: '0px' } : {});
+  const rowBottom = viewportHeight - caveatHeight;
+  const row = node('DIV', 16, rowBottom - rowHeight, width - 32, rowHeight, composer);
+  const send = node('BUTTON', width - 16 - 36 - 12, rowBottom - rowHeight + 10, 36, 36, row);
+  send.disabled = true;
+  node('DIV', 16, viewportHeight - caveatHeight, width - 32, caveatHeight, composer);
+  const document = {
+    hidden: false, fullscreenElement: null, body, documentElement: { clientWidth: width },
+    elementFromPoint(x, y) {
+      return [...nodes].reverse().find(item => {
+        if (!item.isConnected || item.style.display === 'none') return false;
+        const rect = item.getBoundingClientRect();
+        return x >= rect.left && x < rect.right && y >= rect.top && y < rect.bottom;
+      }) || null;
+    },
+    createTreeWalker(parent) {
+      const listItems = nodes.filter(item => item !== parent && parent.contains(item));
+      let index = 0;
+      return { nextNode: () => listItems[index++] || null };
+    }
+  };
+  const window = { innerHeight: viewportHeight, visualViewport: { scale: 1, height: viewportHeight } };
+  return {
+    run: () => vm.runInNewContext(script, {
+      document, window, performance: { now: () => 0 }, getComputedStyle: item => item.style
+    })
+  };
+}
+assert.equal(chatFixture().run(), 'detected', 'scrolled chat keeps its sticky composer clear');
+assert.equal(chatFixture({ shellPosition: 'static' }).run(), 'absent', 'static page with a scrolled footer');
+assert.equal(chatFixture({ pin: false }).run(), 'absent', 'unpinned row only visible because the list is scrolled');
+assert.equal(chatFixture({ shellHeight: 160 }).run(), 'absent', 'short absolute sheet is not a chat shell');
 
 const { BrowserWebViewportCoordinator: Viewport } = load('core/browser/BrowserWebViewportCoordinator.ets');
 const geometry = { hostHeightPx: 844, visualTopInsetPx: 40, visualBottomInsetPx: 101,
