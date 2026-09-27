@@ -89,6 +89,12 @@ require_pattern "${OVERVIEW_REL}" "AIRA_PRO_BENEFITS" \
   "the membership page must consume the shared benefit list."
 reject_pattern "${OVERVIEW_REL}" "id: 'cross_system_bookmark_sync'" \
   "the membership page must not keep a second copy of the benefit list."
+# A claim or gift period carries no store subscription and therefore no
+# auto-renewal to stop first, and the purchase policy already allows the
+# permanent plan right away. The page must not tell the user to wait for the
+# expiry date before buying.
+reject_pattern "${OVERVIEW_REL}" "到期后可购买" \
+  "a timed claim or gift period must not be described as waiting for expiry before purchase."
 
 # Do-not-disturb: once per lapse, keyed by the expiry instant, and only spent
 # after the sheet actually revealed.

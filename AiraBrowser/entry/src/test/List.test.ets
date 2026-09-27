@@ -63,6 +63,7 @@ import huaweiSpaceTransportWarmupTest from './HuaweiSpaceTransportWarmup.test';
 import historySelectionMoreMenuTest from './HistorySelectionMoreMenu.test';
 import huaweiIapProductCatalogTest from './HuaweiIapProductCatalog.test';
 import airaProComplimentaryClaimPolicyTest from './AiraProComplimentaryClaimPolicy.test';
+import airaProPurchasePolicyServiceTest from './AiraProPurchasePolicyService.test';
 import startupWelcomeIntroTest from './StartupWelcomeIntro.test';
 import featureIntroTest from './FeatureIntro.test';
 import browserWebTopSafeAreaColorTest from './BrowserWebTopSafeAreaColor.test';
@@ -151,6 +152,7 @@ export default function tests(): void {
   historySelectionMoreMenuTest();
   huaweiIapProductCatalogTest();
   airaProComplimentaryClaimPolicyTest();
+  airaProPurchasePolicyServiceTest();
   startupWelcomeIntroTest();
   featureIntroTest();
   browserWebTopSafeAreaColorTest();

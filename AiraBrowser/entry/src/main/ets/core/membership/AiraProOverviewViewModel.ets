@@ -263,9 +263,13 @@ export class AiraProOverviewViewModel {
       const planName = productTitle.length > 0 ? productTitle : '订阅';
       return until.length > 0 ? `${planName}已生效，权益至 ${until}。` : `${planName}已生效。`;
     }
+    // A timed Pro period that is not a store subscription is the claim or gift
+    // kind, and neither of them holds an auto-renewal the user must stop first:
+    // the permanent and subscription plans are purchasable right now, so the
+    // subtitle must not send the user away to wait for the expiry date.
     return until.length > 0
-      ? `当前会员至 ${until}，到期后可购买永久会员或订阅。`
-      : '当前会员生效中，到期后可购买永久会员或订阅。';
+      ? `当前会员至 ${until}，也可以直接购买永久会员或订阅。`
+      : '当前会员生效中，也可以直接购买永久会员或订阅。';
   }
 
   private buildVisiblePlans(
@@ -338,7 +342,7 @@ export class AiraProOverviewViewModel {
       return until.length > 0 ? `自动续费中 · ${until} 到期` : '自动续费中';
     }
     if (timed) {
-      return until.length > 0 ? `至 ${until}` : '到期后可购买';
+      return `至 ${until}`;
     }
     return '';
   }
