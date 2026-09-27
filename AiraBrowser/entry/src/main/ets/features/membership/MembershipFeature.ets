@@ -15,7 +15,11 @@ import {
   buildEmptyLapsedProView,
   buildEmptyNewUserGiftView
 } from '../../common/models/MembershipModels';
-import { MembershipRepository } from '../../data/membership/MembershipRepository';
+import {
+  MembershipRepository,
+  MembershipRepositoryCommitGuard,
+  MembershipRepositoryStateUpdater
+} from '../../data/membership/MembershipRepository';
 import {
   EntitlementContext,
   EntitlementService
@@ -37,6 +41,10 @@ import {
   MEMBERSHIP_REFRESH_DEFAULT_FRESH_MS,
   MEMBERSHIP_REFRESH_RETRY_COOLDOWN_MS
 } from '../../services/membership/MembershipRefreshPolicyService';
+import {
+  MembershipAccountPresence,
+  MembershipEntitlementRetentionPolicy
+} from '../../services/membership/MembershipEntitlementRetentionPolicy';
 import { isAiraProLifetimeProductId } from '../../services/membership/HuaweiIapProductCatalog';
 import { resolveAiraHuaweiAccountIdentity } from '../../common/models/AiraSyncModels';
 import { AiraSyncConfigStore } from '../../services/sync/AiraSyncConfigStore';
@@ -93,6 +101,7 @@ export class MembershipFeature {
   private profileBoundaryService: BrowserProfileBoundaryService;
   private newUserGiftService: AiraNewUserGiftFunctionService;
   private complimentaryClaimService: AiraComplimentaryClaimFunctionService;
+  private retentionPolicy: MembershipEntitlementRetentionPolicy;
   private syncConfigStore?: AiraSyncConfigStore;
   private stateChangeHandler?: MembershipStateChangeHandler;
   private newUserGift: AiraNewUserGiftView = buildEmptyNewUserGiftView();
@@ -116,7 +125,8 @@ export class MembershipFeature {
     privacyEffectPolicy: BrowserPrivacyEffectPolicyService = new BrowserPrivacyEffectPolicyService(),
     profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService(),
     newUserGiftService: AiraNewUserGiftFunctionService = new AiraNewUserGiftFunctionService(),
-    complimentaryClaimService: AiraComplimentaryClaimFunctionService = new AiraComplimentaryClaimFunctionService()
+    complimentaryClaimService: AiraComplimentaryClaimFunctionService = new AiraComplimentaryClaimFunctionService(),
+    retentionPolicy: MembershipEntitlementRetentionPolicy = new MembershipEntitlementRetentionPolicy()
   ) {
     this.repository = repository;
     this.entitlementService = entitlementService;
@@ -128,6 +138,7 @@ export class MembershipFeature {
     this.syncConfigStore = syncConfigStore;
     this.newUserGiftService = newUserGiftService;
     this.complimentaryClaimService = complimentaryClaimService;
+    this.retentionPolicy = retentionPolicy;
   }
 
   setStateChangeHandler(handler: MembershipStateChangeHandler): void {
@@ -415,74 +426,47 @@ export class MembershipFeature {
     const currentState = this.repository.getState();
     const refreshOptions = this.normalizeRefreshOptions(options);
     if (this.syncConfigStore === undefined) {
-      let state = this.resolveLocalPlanExpiration(currentState);
-      if (this.shouldPersistEffectiveState(currentState, state)) {
-        const committedState = await this.repository.updateStateIf(
-          (): boolean => true,
-          (latestState: AiraMembershipState): AiraMembershipState => this.resolveLocalPlanExpiration(latestState)
-        );
-        if (committedState === undefined) {
-          return this.getState();
-        }
-        state = committedState;
-        this.notifyStateChanged(state);
-      }
-      return state;
+      const state = this.resolveLocalPlanExpiration(currentState);
+      return await this.commitUnconfirmedState(
+        currentState,
+        state,
+        (): boolean => true,
+        (latestState: AiraMembershipState): AiraMembershipState => this.resolveLocalPlanExpiration(latestState)
+      );
     }
     if (refreshOptions.loadSyncConfig) {
       await this.initializeSyncConfigIfAvailable();
     } else if (!this.syncConfigStore.isInitialized()) {
-      let state = this.resolveLocalPlanExpiration(currentState);
-      if (this.shouldPersistEffectiveState(currentState, state)) {
-        const committedState = await this.repository.updateStateIf(
-          (): boolean => true,
-          (latestState: AiraMembershipState): AiraMembershipState => this.resolveLocalPlanExpiration(latestState)
-        );
-        if (committedState === undefined) {
-          return this.getState();
-        }
-        state = committedState;
-        this.notifyStateChanged(state);
-      }
-      return state;
+      const state = this.resolveLocalPlanExpiration(currentState);
+      return await this.commitUnconfirmedState(
+        currentState,
+        state,
+        (): boolean => true,
+        (latestState: AiraMembershipState): AiraMembershipState => this.resolveLocalPlanExpiration(latestState)
+      );
     }
     const uid = this.getHuaweiUid();
     const accountScope = this.captureAccountScope(uid);
     if (uid.length <= 0) {
-      let state = this.buildLoggedOutState(currentState);
-      if (this.shouldPersistEffectiveState(currentState, state)) {
-        const committedState = await this.repository.updateStateIf(
-          (): boolean => this.isCurrentAccountScope(accountScope),
-          (latestState: AiraMembershipState): AiraMembershipState => this.buildLoggedOutState(latestState)
-        );
-        if (committedState === undefined) {
-          return this.getState();
-        }
-        state = committedState;
-      }
-      this.notifyStateChanged(state);
-      return state;
+      // Sign-out clears the stored grant itself. A refresh that cannot see an
+      // account must not overwrite the last confirmed Pro.
+      return this.getState();
     }
     const initialAccountState = currentState.userId === uid
       ? currentState
       : this.buildStateForUid(currentState, uid);
     const accountState = this.restoreVerifiedEntitlement(initialAccountState, uid);
     const shouldVerifyExpiredPro = this.isStoredProExpired(accountState);
-    let state = this.resolveLocalPlanExpiration(accountState);
-    if (this.shouldPersistEffectiveState(currentState, state)) {
-      const committedState = await this.repository.updateStateIf(
-        (): boolean => this.isCurrentAccountScope(accountScope),
-        (latestState: AiraMembershipState): AiraMembershipState => {
-          const latestAccountState = this.buildStateForUid(latestState, uid);
-          return this.resolveLocalPlanExpiration(this.restoreVerifiedEntitlement(latestAccountState, uid));
-        }
-      );
-      if (committedState === undefined) {
-        return this.getState();
+    const resolvedState = this.resolveLocalPlanExpiration(accountState);
+    const state = await this.commitUnconfirmedState(
+      currentState,
+      resolvedState,
+      (): boolean => this.isCurrentAccountScope(accountScope),
+      (latestState: AiraMembershipState): AiraMembershipState => {
+        const latestAccountState = this.buildStateForUid(latestState, uid);
+        return this.resolveLocalPlanExpiration(this.restoreVerifiedEntitlement(latestAccountState, uid));
       }
-      state = committedState;
-      this.notifyStateChanged(state);
-    }
+    );
     if (!refreshOptions.force && !shouldVerifyExpiredPro && this.isRemoteStateFresh(state, refreshOptions.minFreshMs)) {
       return state;
     }
@@ -864,9 +848,38 @@ export class MembershipFeature {
 
   private getHuaweiUid(): string {
     const settings = this.syncConfigStore?.getSettings();
-    return settings === undefined
-      ? ''
-      : resolveAiraHuaweiAccountIdentity(settings.huaweiCloud, settings.huaweiSpace).uid;
+    if (settings === undefined) {
+      return '';
+    }
+    const resolvedUid = resolveAiraHuaweiAccountIdentity(settings.huaweiCloud, settings.huaweiSpace).uid;
+    const presence: MembershipAccountPresence = {
+      cloudUid: settings.huaweiCloud.uid.trim(),
+      spaceUid: settings.huaweiSpace.uid.trim(),
+      resolvedUid: resolvedUid
+    };
+    return this.retentionPolicy.retainQueryUid(this.repository.getState(), presence, Date.now());
+  }
+
+  /**
+   * Writes a local resolution only when it does not take Pro away. The
+   * membership endpoint is the only path that may do that, after it succeeds.
+   */
+  private async commitUnconfirmedState(
+    currentState: AiraMembershipState,
+    nextState: AiraMembershipState,
+    guard: MembershipRepositoryCommitGuard,
+    updater: MembershipRepositoryStateUpdater
+  ): Promise<AiraMembershipState> {
+    if (!this.shouldPersistEffectiveState(currentState, nextState) ||
+      !this.retentionPolicy.allowsUnconfirmedPersist(currentState, nextState)) {
+      return nextState.plan === 'pro' ? nextState : this.resolveEffectiveState(currentState);
+    }
+    const committedState = await this.repository.updateStateIf(guard, updater);
+    if (committedState === undefined) {
+      return this.getState();
+    }
+    this.notifyStateChanged(committedState);
+    return committedState;
   }
 
   private captureAccountScope(uid: string): MembershipAccountScope {
@@ -1011,7 +1024,9 @@ export class MembershipFeature {
       return this.buildLoggedOutState(state);
     }
     if (state.userId !== uid) {
-      return this.buildStateForUid(state, uid);
+      return this.resolveLocalPlanExpiration(
+        this.restoreVerifiedEntitlement(this.buildStateForUid(state, uid), uid)
+      );
     }
     return this.resolveLocalPlanExpiration(state);
   }

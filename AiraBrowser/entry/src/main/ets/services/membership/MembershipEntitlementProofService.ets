@@ -50,8 +50,7 @@ export class MembershipEntitlementProofService {
     const normalizedUid = expectedUid.trim();
     const cached = this.cachedResult;
     if (normalizedProof === this.cachedProof && normalizedUid === this.cachedUid && cached?.valid === true &&
-      (cached.claims?.issuedAt ?? 0) <= now + MEMBERSHIP_ENTITLEMENT_CLOCK_SKEW_MS &&
-      (cached.claims?.offlineUntil ?? 0) > now) {
+      this.isCachedProofCurrent(cached.claims, now)) {
       return cached;
     }
     const result = this.verifyUncached(normalizedProof, normalizedUid, now);
@@ -88,7 +87,7 @@ export class MembershipEntitlementProofService {
         return this.invalid('claims_mismatch');
       }
       if (claims.issuedAt <= 0 || claims.issuedAt > now + MEMBERSHIP_ENTITLEMENT_CLOCK_SKEW_MS ||
-        claims.offlineUntil <= claims.issuedAt || claims.offlineUntil <= now) {
+        !this.isOfflineWindowOpen(claims, now)) {
         return this.invalid('outside_offline_window');
       }
       if (claims.grantExpiresAt > 0 && claims.offlineUntil < claims.grantExpiresAt) {
@@ -131,6 +130,30 @@ export class MembershipEntitlementProofService {
       issuedAt: this.normalizeTimestamp(raw.issuedAt),
       offlineUntil: this.normalizeTimestamp(raw.offlineUntil)
     };
+  }
+
+  private isCachedProofCurrent(claims: AiraMembershipEntitlementClaims | undefined, now: number): boolean {
+    if (claims === undefined) {
+      return false;
+    }
+    return claims.issuedAt <= now + MEMBERSHIP_ENTITLEMENT_CLOCK_SKEW_MS &&
+      this.isOfflineWindowOpen(claims, now);
+  }
+
+  /**
+   * A timed grant was only vouched for until `offlineUntil`. A long-term grant
+   * has no end (`grantExpiresAt === 0`); the signature stays a local memory of
+   * the last server answer until a newer authoritative response clears it.
+   * Nothing local is unlocked either way.
+   */
+  private isOfflineWindowOpen(claims: AiraMembershipEntitlementClaims, now: number): boolean {
+    if (claims.offlineUntil <= claims.issuedAt) {
+      return false;
+    }
+    if (claims.grantExpiresAt === 0) {
+      return true;
+    }
+    return claims.offlineUntil > now;
   }
 
   private verifySignature(signingInput: string, signatureSegment: string): boolean {
