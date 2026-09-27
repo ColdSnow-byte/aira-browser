@@ -239,7 +239,7 @@ export class AiraProOverviewViewModel {
     }
     if (this.membershipPresentationService.isLongTermMember(state) &&
       !this.membershipPresentationService.hasInsiderRecognition(state)) {
-      return '永久会员已开通';
+      return '长期会员已开通';
     }
     return 'Aira Pro 已开通';
   }
@@ -268,8 +268,8 @@ export class AiraProOverviewViewModel {
     // the permanent and subscription plans are purchasable right now, so the
     // subtitle must not send the user away to wait for the expiry date.
     return until.length > 0
-      ? `当前会员至 ${until}，也可以直接购买永久会员或订阅。`
-      : '当前会员生效中，也可以直接购买永久会员或订阅。';
+      ? `当前会员至 ${until}，也可以直接购买长期会员或订阅。`
+      : '当前会员生效中，也可以直接购买长期会员或订阅。';
   }
 
   private buildVisiblePlans(
@@ -316,7 +316,7 @@ export class AiraProOverviewViewModel {
       return 'INSIDER 长期会员';
     }
     if (permanent) {
-      return '永久会员';
+      return '长期会员';
     }
     if (subscription) {
       const productTitle = this.resolveIapProductTitle(state.subscriptionProductId);
@@ -332,7 +332,7 @@ export class AiraProOverviewViewModel {
     timed: boolean
   ): string {
     if (permanent) {
-      return '永久有效，无需续费';
+      return '长期有效，无需续费';
     }
     const until = state.planExpiresAt > 0 ? this.formatDate(state.planExpiresAt) : '';
     if (subscription) {

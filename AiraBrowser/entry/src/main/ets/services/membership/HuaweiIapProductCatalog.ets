@@ -83,11 +83,11 @@ export const AIRA_PRO_ONE_TIME_PLAN: HuaweiIapOneTimePlan = {
   productId: AIRA_PRO_ONE_TIME_PRODUCT_ID,
   planId: 'one_time',
   featurePlan: 'pro',
-  title: '永久会员',
-  displayPrice: `${AIRA_PRO_ONE_TIME_DISPLAY_PRICE} 永久`,
+  title: '长期会员',
+  displayPrice: `${AIRA_PRO_ONE_TIME_DISPLAY_PRICE} 长期`,
   amountText: AIRA_PRO_ONE_TIME_DISPLAY_PRICE,
-  periodText: '永久',
-  description: '一次购买，永久有效，不自动续费',
+  periodText: '长期',
+  description: '一次购买，长期有效，不自动续费',
   badgeText: ''
 };
 

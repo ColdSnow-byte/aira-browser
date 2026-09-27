@@ -33,7 +33,7 @@ export default function airaProComplimentaryClaimPolicyTest(): void {
       const permanentDecision = resolveAiraProComplimentaryClaimDecision(permanentMember, NOW);
       expect(permanentDecision.availability).assertEqual('already_member');
       expect(permanentDecision.actionEnabled).assertFalse();
-      expect(permanentDecision.statusText.indexOf('永久会员') >= 0).assertTrue();
+      expect(permanentDecision.statusText.indexOf('长期会员') >= 0).assertTrue();
 
       const subscriber = membership('pro', NOW + 30 * 24 * 60 * 60 * 1000);
       subscriber.subscriptionStatus = 'active';

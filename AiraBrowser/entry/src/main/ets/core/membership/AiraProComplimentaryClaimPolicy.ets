@@ -30,7 +30,7 @@ export function resolveAiraProComplimentaryClaimDecision(
   now: number
 ): AiraProComplimentaryClaimDecision {
   if (isPermanentMember(membership, now)) {
-    return blocked('already_member', '你已是永久会员，无法领取。');
+    return blocked('already_member', '你已是长期会员，无法领取。');
   }
   if (isCurrentSubscriptionMember(membership, now)) {
     return blocked('already_member', '你已开通订阅会员，无法领取。');

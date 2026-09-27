@@ -46,10 +46,10 @@ export default function huaweiIapProductCatalogTest(): void {
     // auto-renewing plans the renewal sheet sells.
     it('prices permanent membership at 68.8 without selling it as a subscription', 0, () => {
       expect(AIRA_PRO_ONE_TIME_PLAN.productId).assertEqual('aira_pro_lifetime');
-      expect(AIRA_PRO_ONE_TIME_PLAN.title).assertEqual('永久会员');
+      expect(AIRA_PRO_ONE_TIME_PLAN.title).assertEqual('长期会员');
       expect(AIRA_PRO_ONE_TIME_PLAN.amountText).assertEqual('¥68.8');
-      expect(AIRA_PRO_ONE_TIME_PLAN.periodText).assertEqual('永久');
-      expect(AIRA_PRO_ONE_TIME_PLAN.displayPrice).assertEqual('¥68.8 永久');
+      expect(AIRA_PRO_ONE_TIME_PLAN.periodText).assertEqual('长期');
+      expect(AIRA_PRO_ONE_TIME_PLAN.displayPrice).assertEqual('¥68.8 长期');
       expect(isAiraProSellablePlanId('one_time')).assertFalse();
     });
   });
