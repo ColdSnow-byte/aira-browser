@@ -12,6 +12,11 @@ import {
   SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import { BrowserAddressBarTabSwipeEvent } from '../../../core/browser/BrowserAddressBarTabSwipePolicy';
+import {
+  CENTERED_HOME_SEARCH_CHROME_FADE_MS,
+  CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS,
+  CENTERED_HOME_SEARCH_GEOMETRY_ID
+} from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
@@ -47,6 +52,7 @@ export struct BrowserSplitToolbarChrome {
     new BrowserSearchEnginePresentationViewModel();
   private searchInputController: TextInputController = new TextInputController();
   private addressSelectAllTimeout: number = -1;
+  private searchFocusTimeout: number = -1;
   @State private selectAllAddressOnOpen: boolean = false;
   private appliedSearchDismissVersion: number = 0;
   private appliedSearchOpenRequestVersion: number = 0;
@@ -74,6 +80,13 @@ export struct BrowserSplitToolbarChrome {
    * do not stack. Search still uses the row; web pages keep it.
    */
   @Prop suppressHomeAddressBar: boolean = false;
+  /**
+   * Shell-owned shared-element flag. The centered-home field and this search field swap inside
+   * one animateTo, so this prop — not the local searching flag — decides which copy is on screen.
+   */
+  @Prop centeredSearchPresented: boolean = false;
+  /** 1 while the centered-home return has faded the search-page chrome away. */
+  @Prop centeredSearchChromeFade: number = 0;
   /** Existing scroll presentation asked both bars to leave. Search keeps the address row. */
   @Prop barsCollapsed: boolean = false;
   /** Top immersion asked only the address row to leave. The bottom bar stays. */
@@ -99,6 +112,7 @@ export struct BrowserSplitToolbarChrome {
   @Prop secondaryTextColor: ResourceColor = '#8A8A8E';
   onSearchSessionChange: (active: boolean, query: string) => void =
     (_active: boolean, _query: string) => {};
+  onCenteredSearchGeometryReverse: () => void = () => {};
   onSubmit: (rawInput: string) => void = (_rawInput: string) => {};
   onSelectEngine: (engineId: SearchEngineId) => void = (_engineId: SearchEngineId) => {};
   onOpenSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
@@ -118,9 +132,14 @@ export struct BrowserSplitToolbarChrome {
     }
   }
 
+  aboutToDisappear(): void {
+    this.clearSearchFocusTimeout();
+    this.clearAddressSelectAllTimeout();
+  }
+
   build() {
     Stack({ alignContent: Alignment.Top }) {
-      if (this.searching || this.sessionMode === 'search_only') {
+      if (this.shouldShowSearchSheet()) {
         this.buildSearchSheet()
       }
       Column() {
@@ -135,10 +154,38 @@ export struct BrowserSplitToolbarChrome {
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.Transparent)
+
+      if (this.shouldMountCenteredSearchGeometryHost()) {
+        this.buildCenteredSearchGeometryHost()
+      }
     }
     .width('100%')
     .height('100%')
     .hitTestBehavior(HitTestMode.Transparent)
+  }
+
+  /**
+   * Stays mounted on the centered homepage so the search field itself is the node that appears
+   * and disappears. The shared-element transition only runs for that node.
+   */
+  @Builder
+  private buildCenteredSearchGeometryHost() {
+    Column() {
+      if (this.shouldShowCenteredSearchGeometryPill()) {
+        this.buildSearchPill()
+      }
+      if (this.engineMenuOpen) {
+        this.buildEngineMenu()
+      }
+    }
+    .width('100%')
+    .padding({
+      top: this.resolveTopInset(),
+      left: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+      right: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN
+    })
+    .alignItems(HorizontalAlign.Center)
+    .hitTestBehavior(this.shouldShowCenteredSearchGeometryPill() ? HitTestMode.Default : HitTestMode.None)
   }
 
   @Builder
@@ -335,7 +382,19 @@ export struct BrowserSplitToolbarChrome {
 
   @Builder
   private buildSearchPill() {
-    Row({ space: 8 }) {
+    Stack() {
+      Row()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(this.pageBackgroundColor)
+        .opacity(this.resolveSearchChromeOpacity())
+        .animation({
+          duration: this.resolveSearchChromeFadeDuration(),
+          curve: Curve.EaseOut
+        })
+        .hitTestBehavior(HitTestMode.None)
+
+      Row({ space: 8 }) {
       Button() {
         Image(this.searchEnginePresentation.resolveIcon(this.selectedEngineId))
           .width(22)
@@ -347,6 +406,11 @@ export struct BrowserSplitToolbarChrome {
       .type(ButtonType.Circle)
       .buttonStyle(ButtonStyleMode.TEXTUAL)
       .backgroundColor(Color.Transparent)
+      .opacity(this.resolveSearchChromeOpacity())
+      .animation({
+        duration: this.resolveSearchChromeFadeDuration(),
+        curve: Curve.EaseOut
+      })
       .onClick(() => {
         this.engineMenuOpen = !this.engineMenuOpen;
       })
@@ -360,6 +424,11 @@ export struct BrowserSplitToolbarChrome {
         .halfLeading(true)
         .fontColor(this.textColor)
         .placeholderColor(this.secondaryTextColor)
+        .opacity(this.resolveSearchChromeOpacity())
+        .animation({
+          duration: this.resolveSearchChromeFadeDuration(),
+          curve: Curve.EaseOut
+        })
         .backgroundColor(Color.Transparent)
         .padding({ left: 0, right: 0, top: 0, bottom: 0 })
         .border({ width: 0, color: Color.Transparent })
@@ -369,8 +438,10 @@ export struct BrowserSplitToolbarChrome {
         .focusable(true)
         .enableKeyboardOnFocus(true)
         .onAppear(() => {
-          if (this.sessionMode === 'search_only') {
-            this.focusSearchInput();
+          // The centered homepage keeps this field unmounted until search opens, so the
+          // click that asked for search cannot focus a node that does not exist yet.
+          if (this.searching || this.sessionMode === 'search_only') {
+            this.scheduleSearchInputFocus();
           }
         })
         .onEditChange((editing: boolean) => {
@@ -397,18 +468,30 @@ export struct BrowserSplitToolbarChrome {
         .backgroundColor(Color.Transparent)
         .padding({ left: 8, right: 10 })
         .flexShrink(0)
+        .opacity(this.resolveSearchChromeOpacity())
+        .animation({
+          duration: this.resolveSearchChromeFadeDuration(),
+          curve: Curve.EaseOut
+        })
         .onClick(() => {
           this.closeSearch();
         })
+      }
+      .width('100%')
+      .height('100%')
+      .alignItems(VerticalAlign.Center)
+      .padding({ left: 8, right: 0 })
     }
     .width('100%')
     .height(SPLIT_TOOLBAR_PILL_HEIGHT)
-    .alignItems(VerticalAlign.Center)
-    .padding({ left: 8, right: 0 })
+    .alignContent(Alignment.Center)
     .border({ width: SPLIT_TOOLBAR_SEARCH_PILL_BORDER, color: this.textColor })
     .borderRadius(23)
     .clip(true)
-    .backgroundColor(this.pageBackgroundColor)
+    .backgroundColor(Color.Transparent)
+    .id(this.shouldBindCenteredSearchGeometry() ? 'centered-home-search-target' : 'split-toolbar-search-pill')
+    .geometryTransition(this.shouldBindCenteredSearchGeometry() ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
+    .transition(this.resolveSearchPillTransition())
   }
 
   @Builder
@@ -483,6 +566,7 @@ export struct BrowserSplitToolbarChrome {
             this.query = '';
             this.selectAllAddressOnOpen = false;
             this.clearAddressSelectAllTimeout();
+            this.clearSearchFocusTimeout();
             this.releaseSearchInputFocus();
             this.onSearchSessionChange(false, '');
             this.onExternalSearch(targetId, query);
@@ -500,6 +584,7 @@ export struct BrowserSplitToolbarChrome {
     .alignItems(HorizontalAlign.Start)
     .backgroundColor(this.pageBackgroundColor)
     .hitTestBehavior(HitTestMode.Default)
+    .transition(this.resolveSearchSheetTransition())
   }
 
   @Builder
@@ -553,6 +638,32 @@ export struct BrowserSplitToolbarChrome {
     focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
   }
 
+  private scheduleSearchInputFocus(): void {
+    this.clearSearchFocusTimeout();
+    if (this.shouldBindCenteredSearchGeometry()) {
+      // The field is still flying up from the homepage. Focusing now would cover that motion.
+      this.searchFocusTimeout = setTimeout(() => {
+        this.searchFocusTimeout = -1;
+        this.focusSearchInput();
+      }, CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS);
+      return;
+    }
+    this.focusSearchInput();
+    // The first request often lands before the new field can take the keyboard.
+    this.searchFocusTimeout = setTimeout(() => {
+      this.searchFocusTimeout = -1;
+      this.focusSearchInput();
+    }, SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS);
+  }
+
+  private clearSearchFocusTimeout(): void {
+    if (this.searchFocusTimeout < 0) {
+      return;
+    }
+    clearTimeout(this.searchFocusTimeout);
+    this.searchFocusTimeout = -1;
+  }
+
   private releaseSearchInputFocus(): void {
     focusControl.requestFocus('');
   }
@@ -590,7 +701,9 @@ export struct BrowserSplitToolbarChrome {
       return;
     }
     this.appliedSearchDismissVersion = this.searchDismissVersion;
-    this.closeSearch();
+    // The shell already started the return flight. Clearing the field here must not start
+    // another animation, or the system back key snaps the box instead of flying it home.
+    this.clearSearchSessionLocally();
   }
 
   private handleSearchOpenRequest(): void {
@@ -600,6 +713,7 @@ export struct BrowserSplitToolbarChrome {
     }
     this.appliedSearchOpenRequestVersion = this.searchOpenRequestVersion;
     this.openSearch('');
+    this.scheduleSearchInputFocus();
   }
 
   private closeSearch(): void {
@@ -607,13 +721,24 @@ export struct BrowserSplitToolbarChrome {
     if (!sessionOpen) {
       return;
     }
+    const reverseGeometry = this.shouldReverseCenteredSearchGeometry();
+    this.clearSearchSessionLocally();
+    if (reverseGeometry) {
+      // Opened from the centered homepage: the field flies back. A webpage search just closes.
+      this.onCenteredSearchGeometryReverse();
+      return;
+    }
+    this.onSearchSessionChange(false, '');
+  }
+
+  private clearSearchSessionLocally(): void {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
     this.selectAllAddressOnOpen = false;
     this.clearAddressSelectAllTimeout();
+    this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
-    this.onSearchSessionChange(false, '');
   }
 
   private submitQuery(rawInput: string): void {
@@ -626,6 +751,7 @@ export struct BrowserSplitToolbarChrome {
     this.query = '';
     this.selectAllAddressOnOpen = false;
     this.clearAddressSelectAllTimeout();
+    this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
     this.onSearchSessionChange(false, '');
     this.onSubmit(trimmed);
@@ -637,6 +763,7 @@ export struct BrowserSplitToolbarChrome {
     this.query = '';
     this.selectAllAddressOnOpen = false;
     this.clearAddressSelectAllTimeout();
+    this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
     this.onSearchSessionChange(false, '');
     this.onOpenSuggestion(suggestion);
@@ -657,14 +784,69 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private shouldShowBottomBar(): boolean {
-    return this.sessionMode !== 'search_only' && !this.searching;
+    return this.sessionMode !== 'search_only' && !this.searching && !this.centeredSearchPresented;
   }
 
   private shouldShowTopBar(): boolean {
-    if (this.searching || this.sessionMode === 'search_only') {
-      return true;
+    if (this.homeScene && this.suppressHomeAddressBar) {
+      return false;
     }
-    return !(this.homeScene && this.suppressHomeAddressBar);
+    return true;
+  }
+
+  private shouldShowSearchSheet(): boolean {
+    if (this.suppressHomeAddressBar && this.homeScene) {
+      return this.searching || this.centeredSearchPresented;
+    }
+    return this.searching || this.sessionMode === 'search_only';
+  }
+
+  private shouldMountCenteredSearchGeometryHost(): boolean {
+    return this.suppressHomeAddressBar && this.homeScene;
+  }
+
+  private shouldShowCenteredSearchGeometryPill(): boolean {
+    return this.centeredSearchPresented || this.searching;
+  }
+
+  private shouldBindCenteredSearchGeometry(): boolean {
+    return this.suppressHomeAddressBar && this.homeScene;
+  }
+
+  private shouldReverseCenteredSearchGeometry(): boolean {
+    return this.shouldBindCenteredSearchGeometry() && this.centeredSearchPresented;
+  }
+
+  private resolveSearchChromeOpacity(): number {
+    if (!this.shouldBindCenteredSearchGeometry()) {
+      return 1;
+    }
+    const fade = this.centeredSearchChromeFade;
+    if (!Number.isFinite(fade)) {
+      return 1;
+    }
+    return 1 - Math.max(0, Math.min(1, fade));
+  }
+
+  private resolveSearchChromeFadeDuration(): number {
+    return this.shouldBindCenteredSearchGeometry() ? CENTERED_HOME_SEARCH_CHROME_FADE_MS : 0;
+  }
+
+  private resolveSearchPillTransition(): TransitionEffect {
+    if (!this.shouldBindCenteredSearchGeometry()) {
+      return TransitionEffect.IDENTITY;
+    }
+    return TransitionEffect.opacity(0.99);
+  }
+
+  private resolveSearchSheetTransition(): TransitionEffect {
+    if (!this.shouldBindCenteredSearchGeometry()) {
+      return TransitionEffect.IDENTITY;
+    }
+    return TransitionEffect.OPACITY.animation({
+      duration: CENTERED_HOME_SEARCH_CHROME_FADE_MS,
+      curve: Curve.EaseOut
+    });
   }
 
   private shouldCollapseBars(): boolean {

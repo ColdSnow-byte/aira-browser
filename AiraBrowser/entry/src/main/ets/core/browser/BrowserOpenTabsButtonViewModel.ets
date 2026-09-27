@@ -1,31 +1,14 @@
-import { BrowserDataScope, BrowserSessionPrivacyMode } from '../../common/models/BrowserModels';
 import { BrowserTabState } from '../tabs/TabManager';
-import { BrowserProfileBoundaryService } from './BrowserProfileBoundaryService';
+import { BrowserTabsOverviewSectionPolicy } from './tabsOverview/BrowserTabsOverviewSectionPolicy';
 
-export interface BrowserOpenTabsButtonCountInput {
-  tabs: BrowserTabState[];
-  privacyMode: BrowserSessionPrivacyMode;
-  dataScope: BrowserDataScope;
-}
-
+/**
+ * The split-toolbar tab button and the tabs-overview middle count are the same number:
+ * ordinary tabs only. Home and privacy tabs stay out of both.
+ */
 export class BrowserOpenTabsButtonViewModel {
-  private profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService();
+  private sectionPolicy: BrowserTabsOverviewSectionPolicy = new BrowserTabsOverviewSectionPolicy();
 
-  resolveTabCount(input: BrowserOpenTabsButtonCountInput): number {
-    const currentIsPrivateBoundary = this.profileBoundaryService.isSessionEphemeral(
-      this.profileBoundaryService.buildBoundaryInput('profile-main', input.privacyMode, input.dataScope)
-    );
-    return input.tabs.filter((tab: BrowserTabState) => {
-      if (tab.isHome) {
-        return false;
-      }
-      return this.isTabSessionEphemeral(tab) === currentIsPrivateBoundary;
-    }).length;
-  }
-
-  private isTabSessionEphemeral(tab: BrowserTabState): boolean {
-    return this.profileBoundaryService.isSessionEphemeral(
-      this.profileBoundaryService.buildBoundaryInput(tab.profileId, tab.privacyMode, tab.dataScope)
-    );
+  resolveTabCount(tabs: BrowserTabState[]): number {
+    return this.sectionPolicy.countVisibleTabs(tabs, 'tabs', {});
   }
 }

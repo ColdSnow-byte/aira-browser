@@ -86,6 +86,7 @@ import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntim
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
 import browserSplitToolbarCustomizationPolicyTest from './BrowserSplitToolbarCustomizationPolicy.test';
+import browserOpenTabsButtonViewModelTest from './BrowserOpenTabsButtonViewModel.test';
 import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
 
 export default function tests(): void {
@@ -175,5 +176,6 @@ export default function tests(): void {
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();
   browserSplitToolbarCustomizationPolicyTest();
+  browserOpenTabsButtonViewModelTest();
   documentViewerHtmlFileTransportTest();
 }

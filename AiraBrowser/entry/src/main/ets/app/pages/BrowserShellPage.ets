@@ -1,7 +1,7 @@
 import { common } from '@kit.AbilityKit';
 import { webview } from '@kit.ArkWeb';
 import { AiraNavForensicsProbe } from '../../common/debug/AiraNavForensicsProbe';
-import { FrameCallback, KeyboardAvoidMode, window } from '@kit.ArkUI';
+import { curves, FrameCallback, KeyboardAvoidMode, window } from '@kit.ArkUI';
 import { KeyCode } from '@kit.InputKit';
 import { accessibility } from '@kit.AccessibilityKit';
 import {
@@ -6054,6 +6054,9 @@ struct BrowserShellPage {
   private storedHomePageStyle: string = 'classic';
   @State private topSearchOpenRequestVersion: number = 0;
   @State private centeredHomeSearchSessionMounted: boolean = false;
+  @State private centeredHomeSearchGeometryOpen: boolean = false;
+  /** 0 keeps the search-page field. 1 has already faded it toward the homepage field. */
+  @State private centeredHomeSearchChromeFade: number = 0;
   // First-frame Home colors. The literal defaults below are light, so a dark-mode
   // cold start painted a light Home background for the first frame — the "white
   // flash" — until the appearance refresh landed. Resolving the current theme here
@@ -8597,6 +8600,8 @@ struct BrowserShellPage {
     BrowserSplitToolbarChrome({
       sessionMode: sessionMode,
       suppressHomeAddressBar: this.isCenteredHomePageStyleActive(),
+      centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
+      centeredSearchChromeFade: this.centeredHomeSearchChromeFade,
       searchOpenRequestVersion: this.topSearchOpenRequestVersion,
       bottomChromeReserveVp: sessionMode === 'search_only' ?
         this.resolveCenteredHomeSearchBottomReserveVp() : -1,
@@ -8604,7 +8609,7 @@ struct BrowserShellPage {
       displayAddress: this.resolveSplitToolbarDisplayAddress(),
       editableAddress: this.showHomePage ? '' : this.resolveEditableWebBottomAddress(),
       secure: isSecureCurrentSiteUrl(this.currentUrl, this.addressInput),
-      tabCount: this.tabCount,
+      tabCount: this.resolveOpenTabsButtonTabCount(),
       buttons: this.resolveSplitToolbarButtons(),
       pageLoading: this.shouldShowWebLoadingProgress(),
       suggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
@@ -8631,6 +8636,9 @@ struct BrowserShellPage {
       secondaryTextColor: this.themedHomeTextSecondaryColor,
       onSearchSessionChange: (active: boolean, query: string): void => {
         this.handleSplitToolbarSearchSession(active, query);
+      },
+      onCenteredSearchGeometryReverse: (): void => {
+        this.reverseCenteredHomeSearchGeometry();
       },
       onSubmit: (rawInput: string): void => {
         this.submitRootBottomAddressInput(rawInput);
@@ -8694,6 +8702,8 @@ struct BrowserShellPage {
   private handleSplitToolbarSearchSession(active: boolean, query: string): void {
     this.splitToolbarSearchActive = active;
     if (!active) {
+      this.centeredHomeSearchGeometryOpen = false;
+      this.centeredHomeSearchChromeFade = 0;
       this.centeredHomeSearchSessionMounted = false;
       this.browserSearchSuggestionCoordinator.beginClosingOverlay();
       this.webBottomAddressFocused = false;
@@ -8719,7 +8729,16 @@ struct BrowserShellPage {
   }
 
   private dismissSplitToolbarSearch(): void {
+    if (this.centeredHomeSearchGeometryOpen && this.isCenteredHomePageStyleActive() && this.showHomePage) {
+      // The system back key lands here, not on the cancel button. The shared-element animation has
+      // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
+      this.reverseCenteredHomeSearchGeometry(true);
+      return;
+    }
     this.splitToolbarSearchActive = false;
+    this.centeredHomeSearchGeometryOpen = false;
+    this.centeredHomeSearchChromeFade = 0;
+    this.centeredHomeSearchSessionMounted = false;
     this.splitToolbarSearchDismissVersion += 1;
     this.browserSearchSuggestionCoordinator.beginClosingOverlay();
     this.webBottomAddressFocused = false;
@@ -9048,7 +9067,8 @@ struct BrowserShellPage {
       themeBackgroundColor: this.resolveHomeRootBackgroundColor(),
       privateModeVisible: this.tabScopedEventContextCoordinator.isCurrentBoundaryPrivate(),
       backdropEffectState: DEFAULT_BROWSER_BACKDROP_EFFECT_STATE,
-      searchFocused: this.browserRootBottomPanelSessionCoordinator.shouldMountHomeSearchDismissLayer({
+      searchFocused: !this.isCenteredHomeInlineSearchActive() &&
+        this.browserRootBottomPanelSessionCoordinator.shouldMountHomeSearchDismissLayer({
         showHomePage: this.showHomePage,
         homeSearchFocused: this.browserSearchSuggestionSnapshot.homeSearchFocused,
         homeSearchOverlayVisible: this.browserSearchSuggestionSnapshot.homeSearchOverlayVisible,
@@ -9105,6 +9125,11 @@ struct BrowserShellPage {
       }),
       contextMenuShortcutId: $contextMenuHomeShortcutId,
       centeredStyle: this.isCenteredHomePageStyleActive(),
+      centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
+      inlineSearch: this.isLargeScreenShellFamilyActive(),
+      inlineSearchActive: this.isCenteredHomeInlineSearchActive(),
+      searchSuggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
+      searchDismissVersion: this.splitToolbarSearchDismissVersion,
       centeredViewportHeight: this.rootViewportHeight,
       centeredTopSafeInset: this.resolveHomeContentTopSafeInsetVp(),
       centeredBottomReserve: this.resolveCenteredHomeBottomReserveVp(),
@@ -9118,6 +9143,35 @@ struct BrowserShellPage {
       },
       onScan: () => {
         void this.scanQrCodeFromBottomPanel();
+      },
+      onInlineSearchSession: (active: boolean, query: string): void => {
+        this.handleCenteredHomeInlineSearchSession(active, query);
+      },
+      onSubmitSearch: (query: string): void => {
+        this.submitCenteredHomeInlineSearch(query);
+      },
+      onOpenSearchSuggestion: (suggestion: SearchSuggestion): void => {
+        this.openCenteredHomeInlineSuggestion(suggestion);
+      },
+      onDeleteSearchSuggestion: (suggestion: SearchSuggestion): void => {
+        void this.browserSearchSuggestionCoordinator.deleteHistorySuggestion(suggestion);
+      },
+      onClearSearchSuggestions: (): void => {
+        void this.browserSearchSuggestionCoordinator.clearHistorySuggestions()
+          .then((cleared: boolean): void => {
+            this.showNativeToast(cleared ? '已清空搜索历史。' : '当前没有搜索历史。');
+          });
+      },
+      onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string): void => {
+        this.endCenteredHomeInlineSearch();
+        void this.addressSubmissionCoordinator.submitExternalAppSearch(
+          targetId,
+          query,
+          this.selectedSearchEngine
+        );
+      },
+      onDismissInlineSearch: (): void => {
+        this.dismissCenteredHomeInlineSearch();
       }
     })
   }
@@ -9363,11 +9417,7 @@ struct BrowserShellPage {
   }
 
   private resolveOpenTabsButtonTabCount(): number {
-    return this.browserOpenTabsButtonViewModel.resolveTabCount({
-      tabs: this.tabs,
-      privacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
-      dataScope: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().dataScope
-    });
+    return this.browserOpenTabsButtonViewModel.resolveTabCount(this.tabs);
   }
 
   private syncWindowSafeInsetsForShell(forceWebTopInsetAlign: boolean = false): void {
@@ -9475,11 +9525,87 @@ struct BrowserShellPage {
     return this.storedHomePageStyle === 'centered';
   }
 
-  private openCenteredHomeSearch(): void {
-    this.topSearchOpenRequestVersion += 1;
-    if (!this.shouldUseSplitToolbarChrome()) {
-      this.centeredHomeSearchSessionMounted = true;
+  private isCenteredHomeInlineSearchActive(): boolean {
+    return this.isLargeScreenShellFamilyActive() &&
+      this.isCenteredHomePageStyleActive() &&
+      this.splitToolbarSearchActive;
+  }
+
+  private handleCenteredHomeInlineSearchSession(active: boolean, query: string): void {
+    if (!active) {
+      this.endCenteredHomeInlineSearch();
+      return;
     }
+    this.handleSplitToolbarSearchSession(true, query);
+  }
+
+  private submitCenteredHomeInlineSearch(rawInput: string): void {
+    this.endCenteredHomeInlineSearch();
+    this.submitRootBottomAddressInput(rawInput);
+  }
+
+  private openCenteredHomeInlineSuggestion(suggestion: SearchSuggestion): void {
+    this.endCenteredHomeInlineSearch();
+    BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'submitted');
+    this.browserShellSearchInvocationAdapter.openSuggestion(suggestion);
+  }
+
+  private dismissCenteredHomeInlineSearch(): void {
+    this.endCenteredHomeInlineSearch();
+    this.splitToolbarSearchDismissVersion += 1;
+  }
+
+  private endCenteredHomeInlineSearch(): void {
+    const snapshot = this.browserSearchSuggestionSnapshot;
+    if (!this.splitToolbarSearchActive && !snapshot.homeSearchFocused && !snapshot.homeSearchOverlayVisible) {
+      return;
+    }
+    this.splitToolbarSearchActive = false;
+    this.centeredHomeSearchSessionMounted = false;
+    this.centeredHomeSearchGeometryOpen = false;
+    this.centeredHomeSearchChromeFade = 0;
+    this.webBottomAddressFocused = false;
+    this.addressInput = '';
+    this.browserSearchSuggestionCoordinator.reset();
+  }
+
+  private openCenteredHomeSearch(): void {
+    if (this.isLargeScreenShellFamilyActive()) {
+      return;
+    }
+    this.centeredHomeSearchChromeFade = 0;
+    this.getUIContext().animateTo({
+      curve: curves.interpolatingSpring(0, 1, 342, 38)
+    }, () => {
+      this.centeredHomeSearchGeometryOpen = true;
+      this.topSearchOpenRequestVersion += 1;
+      if (!this.shouldUseSplitToolbarChrome()) {
+        this.centeredHomeSearchSessionMounted = true;
+      }
+    });
+  }
+
+  private reverseCenteredHomeSearchGeometry(dismissChrome: boolean = false): void {
+    // The field's own animation fades the search-page chrome. Keeping that change out of
+    // the spring stops the cancel button and fill from waiting until the box lands.
+    this.centeredHomeSearchChromeFade = 1;
+    this.getUIContext().animateTo({
+      curve: curves.interpolatingSpring(0, 1, 342, 38),
+      onFinish: (): void => {
+        if (this.centeredHomeSearchGeometryOpen) {
+          return;
+        }
+        this.centeredHomeSearchSessionMounted = false;
+      }
+    }, () => {
+      this.centeredHomeSearchGeometryOpen = false;
+      this.splitToolbarSearchActive = false;
+      if (dismissChrome) {
+        this.splitToolbarSearchDismissVersion += 1;
+      }
+      this.browserSearchSuggestionCoordinator.beginClosingOverlay();
+      this.webBottomAddressFocused = false;
+    });
   }
 
   private resolveCenteredHomeSearchBottomReserveVp(): number {

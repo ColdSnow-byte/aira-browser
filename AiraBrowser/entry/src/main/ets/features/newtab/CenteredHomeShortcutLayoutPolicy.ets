@@ -18,6 +18,20 @@ export const CENTERED_HOME_SEARCH_HEIGHT: number = 48;
 export const CENTERED_HOME_HEADER_BOTTOM_GAP: number = 28;
 /** Pulls the pinned search a little above the screen center. */
 export const CENTERED_HOME_SEARCH_CENTER_LIFT_VP: number = 40;
+/**
+ * Large-screen content rails are much wider than a phone. The centered search
+ * field stops growing past this width and stays centered under the wordmark.
+ */
+export const CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH: number = 560;
+/** Shared by the centered-home field and the search-page field so one can fly into the other. */
+export const CENTERED_HOME_SEARCH_GEOMETRY_ID: string = 'aira.centered-home.search';
+/** Lets the field finish moving before the keyboard covers it. */
+export const CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS: number = 280;
+/**
+ * Search-page chrome (engine icon, cancel, solid fill) fades out on the way home,
+ * and finishes before the box lands.
+ */
+export const CENTERED_HOME_SEARCH_CHROME_FADE_MS: number = 200;
 
 export interface CenteredHomeFrameInput {
   viewportHeight: number;
@@ -28,6 +42,18 @@ export interface CenteredHomeFrameInput {
 export interface CenteredHomeFrame {
   headerTop: number;
   iconRegionHeight: number;
+}
+
+/**
+ * Phone search uses the full content width. On a large screen the same field
+ * is capped, and a narrow window still shrinks it to the space it actually has.
+ */
+export function resolveCenteredHomeSearchFieldWidth(largeScreen: boolean, availableWidth: number): number {
+  const available = Math.max(0, availableWidth);
+  if (!largeScreen) {
+    return available;
+  }
+  return Math.min(available, CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH);
 }
 
 /** Distance from the top of the fixed header to the vertical center of the search field. */

@@ -5,6 +5,7 @@ import {
   HomeShortcutPresentationState,
   createDefaultHomeContentThemePresentationState
 } from '../../../core/browser/HomeContentPresentationState';
+import { ExternalAppSearchTargetId, SearchSuggestion } from '../../../common/models/BrowserModels';
 import { HomeShortcutUserAction } from '../../../features/newtab/HomeShortcutTypes';
 import { HomeShortcutViewModel } from '../../../features/newtab/HomeShortcutViewModel';
 import { BrowserRecentlyClosedUserAction } from '../../../core/browser/BrowserRecentlyClosedApplicationCoordinator';
@@ -37,6 +38,11 @@ export struct HomeContentSections {
   private storedShowSettingsButton: boolean = true;
   @Prop showShortcuts: boolean = true;
   @Prop centeredStyle: boolean = false;
+  @Prop centeredSearchPresented: boolean = false;
+  @Prop inlineSearch: boolean = false;
+  @Prop inlineSearchActive: boolean = false;
+  @Prop searchSuggestions: SearchSuggestion[] = [];
+  @Prop searchDismissVersion: number = 0;
   @Prop centeredViewportHeight: number = 0;
   @Prop centeredTopSafeInset: number = 0;
   @Prop centeredBottomReserve: number = 0;
@@ -56,6 +62,17 @@ export struct HomeContentSections {
   onAction: (action: BrowserTabHomeContentAction) => void = (_action: BrowserTabHomeContentAction) => {};
   onOpenSearch: () => void = () => {};
   onScan: () => void = () => {};
+  onInlineSearchSession: (active: boolean, query: string) => void =
+    (_active: boolean, _query: string) => {};
+  onSubmitSearch: (query: string) => void = (_query: string) => {};
+  onOpenSearchSuggestion: (suggestion: SearchSuggestion) => void =
+    (_suggestion: SearchSuggestion) => {};
+  onDeleteSearchSuggestion: (suggestion: SearchSuggestion) => void =
+    (_suggestion: SearchSuggestion) => {};
+  onClearSearchSuggestions: () => void = () => {};
+  onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string) => void =
+    (_targetId: ExternalAppSearchTargetId, _query: string) => {};
+  onDismissInlineSearch: () => void = () => {};
 
   build() {
     if (this.centeredStyle) {
@@ -76,34 +93,48 @@ export struct HomeContentSections {
 
       // Scroll defaults to Alignment.Center, which floats a short icon block in the middle.
       // Icons must pack from the top of this region and continue downward.
-      Scroll(this.homeContentScroller) {
-        Column({ space: this.presentation.sectionVerticalGap }) {
-          this.buildFavoritesSection()
+      Stack() {
+        Scroll(this.homeContentScroller) {
+          Column({ space: this.presentation.sectionVerticalGap }) {
+            this.buildFavoritesSection()
+          }
+          .width('100%')
+          .constraintSize({ minHeight: '100%' })
+          .alignItems(HorizontalAlign.Center)
+          .justifyContent(FlexAlign.Start)
+          .padding({
+            left: this.presentation.horizontalPadding,
+            right: this.presentation.horizontalPadding,
+            top: 4,
+            bottom: 12
+          })
         }
         .width('100%')
-        .constraintSize({ minHeight: '100%' })
-        .alignItems(HorizontalAlign.Start)
-        .justifyContent(FlexAlign.Start)
-        .padding({
-          left: this.presentation.horizontalPadding,
-          right: this.presentation.horizontalPadding,
-          top: 4,
-          bottom: 12
+        .height('100%')
+        .align(Alignment.TopStart)
+        .clip(true)
+        .scrollBar(BarState.Off)
+        .enableScrollInteraction(!this.shortcutDragActive && !this.inlineSearchActive)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
+          this.reportHomeScroll();
         })
+        .onScrollStop(() => {
+          this.onAction({ type: 'scroll_stop', scrollSource: 'system' });
+        })
+
+        if (this.inlineSearch && this.inlineSearchActive) {
+          Column()
+            .width('100%')
+            .height('100%')
+            .hitTestBehavior(HitTestMode.Default)
+            .onClick(() => {
+              this.onDismissInlineSearch();
+            })
+        }
       }
       .layoutWeight(1)
       .width('100%')
-      .align(Alignment.TopStart)
-      .clip(true)
-      .scrollBar(BarState.Off)
-      .enableScrollInteraction(!this.shortcutDragActive)
-      .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
-      .onDidScroll((_scrollDelta: number, _scrollState: ScrollState) => {
-        this.reportHomeScroll();
-      })
-      .onScrollStop(() => {
-        this.onAction({ type: 'scroll_stop', scrollSource: 'system' });
-      })
 
       Column()
         .width('100%')
@@ -182,15 +213,41 @@ export struct HomeContentSections {
       CenteredHomeHeader({
         textColor: this.theme.primaryTextColor,
         secondaryTextColor: this.theme.secondaryTextColor,
+        searchPresented: this.centeredSearchPresented,
+        inlineSearch: this.inlineSearch,
+        searchSuggestions: this.searchSuggestions,
+        searchViewportHeight: this.centeredViewportHeight,
+        searchPopupReservedTop: this.centeredTopSafeInset,
+        searchDismissVersion: this.searchDismissVersion,
         onOpenSearch: () => {
           this.onOpenSearch();
         },
         onScan: () => {
           this.onScan();
+        },
+        onInlineSearchSession: (active: boolean, query: string): void => {
+          this.onInlineSearchSession(active, query);
+        },
+        onSubmitSearch: (query: string): void => {
+          this.onSubmitSearch(query);
+        },
+        onOpenSuggestion: (suggestion: SearchSuggestion): void => {
+          this.onOpenSearchSuggestion(suggestion);
+        },
+        onDeleteSuggestion: (suggestion: SearchSuggestion): void => {
+          this.onDeleteSearchSuggestion(suggestion);
+        },
+        onClearSuggestions: (): void => {
+          this.onClearSearchSuggestions();
+        },
+        onExternalSearch: (targetId: ExternalAppSearchTargetId, query: string): void => {
+          this.onExternalSearch(targetId, query);
         }
       })
     }
     .width('100%')
+    .zIndex(this.inlineSearch && this.inlineSearchActive ? 2 : 0)
+    .clip(false)
     .padding({
       left: this.presentation.horizontalPadding,
       right: this.presentation.horizontalPadding

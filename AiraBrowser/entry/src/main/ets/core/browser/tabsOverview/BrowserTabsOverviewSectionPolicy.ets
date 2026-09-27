@@ -18,6 +18,26 @@ export class BrowserTabsOverviewSectionPolicy {
     return tabs.filter((tab: BrowserTabState) => this.belongsToSection(tab, section));
   }
 
+  /**
+   * The ordinary-tab count shown on the tabs overview and on the split toolbar's tab button.
+   * Home tabs and the other section never count, and ids already removed inside the overview
+   * drop out before the close is committed.
+   */
+  countVisibleTabs(
+    tabs: BrowserTabState[],
+    section: BrowserTabsOverviewSection,
+    removedTabIds: Record<string, boolean>
+  ): number {
+    const sectionTabs = this.resolveTabsForSection(tabs, section);
+    let count = 0;
+    for (let index = 0; index < sectionTabs.length; index += 1) {
+      if (removedTabIds[sectionTabs[index].id] !== true) {
+        count += 1;
+      }
+    }
+    return count;
+  }
+
   resolveSectionForTab(tab: BrowserTabState | undefined): BrowserTabsOverviewSection {
     return this.isPrivateTab(tab) ? 'privacy' : 'tabs';
   }

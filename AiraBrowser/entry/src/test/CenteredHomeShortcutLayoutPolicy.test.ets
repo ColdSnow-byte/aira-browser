@@ -4,8 +4,10 @@ import {
   applyCenteredHomeShortcutLayout,
   centeredHomeSearchCenterOffset,
   CENTERED_HOME_ICON_CORNER_RADIUS_RATIO,
+  CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH,
   CENTERED_HOME_SEARCH_CENTER_LIFT_VP,
-  resolveCenteredHomeFrame
+  resolveCenteredHomeFrame,
+  resolveCenteredHomeSearchFieldWidth
 } from '../main/ets/features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { HomeResponsiveLayoutState } from '../main/ets/features/newtab/HomeResponsiveLayoutViewModel';
 
@@ -69,6 +71,14 @@ export default function centeredHomeShortcutLayoutPolicyTest(): void {
       expect(CENTERED_HOME_SEARCH_CENTER_LIFT_VP > 0).assertTrue();
       expect(frame.headerTop > 47).assertTrue();
       expect(frame.iconRegionHeight > 0).assertTrue();
+    });
+
+    it('caps the centered search field on a large screen', 0, () => {
+      expect(resolveCenteredHomeSearchFieldWidth(false, 900)).assertEqual(900);
+      expect(resolveCenteredHomeSearchFieldWidth(true, 900))
+        .assertEqual(CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH);
+      expect(resolveCenteredHomeSearchFieldWidth(true, 400)).assertEqual(400);
+      expect(resolveCenteredHomeSearchFieldWidth(true, -20)).assertEqual(0);
     });
 
     it('keeps the fixed header below the status bar on a short screen', 0, () => {

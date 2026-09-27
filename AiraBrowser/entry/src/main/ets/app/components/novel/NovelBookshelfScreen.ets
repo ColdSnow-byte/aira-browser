@@ -44,6 +44,9 @@ import {
 } from '../common/FloatingGlassMaterialTokens';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { NovelBookCover } from './NovelBookCover';
+import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
+import { HdsImmersiveMaterialSurface } from '../common/HdsImmersiveMaterialSurface';
+import { isHdsMaterialAvailable } from '../common/HdsImmersiveMaterialTokens';
 import { SegmentedTabOption, SegmentedTabs } from '../common/SegmentedTabs';
 import {
   BrowserClipboardCopyResult,
@@ -93,6 +96,7 @@ export struct NovelBookshelfScreen {
   private readonly shareService: WebPageShareService = new WebPageShareService();
   private readonly gridScroller: Scroller = new Scroller();
   @State private headerBlurRadius: number = 0;
+  @State private categoryBarWidth: number = 1;
   @Prop presentationMode: 'page' | 'native_tab' = 'page';
   @Prop persistentAccessAllowed: boolean = false;
   @Prop layoutMode: NovelBookshelfLayoutMode = 'phone';
@@ -269,15 +273,16 @@ export struct NovelBookshelfScreen {
         }
 
         Row() {
-          SegmentedTabs({
-            options: NOVEL_BOOKSHELF_CATEGORY_OPTIONS,
-            selectedId: this.selectedCategory,
-            onSelect: (id: string): void => {
-              this.selectedCategory = id === 'comic' ? 'comic' : 'novel';
-            }
-          })
+          Column() {
+            this.buildCategoryTabs()
+          }
           .width('100%')
           .constraintSize({ maxWidth: this.resolveCategoryControlMaxWidth() })
+          .onAreaChange((_oldArea: Area, newArea: Area): void => {
+            // The HDS plate needs the capsule's concrete width; -1 is its guard against a
+            // zero measurement, which would collapse the bar to nothing.
+            this.categoryBarWidth = Math.max(1, this.parseAreaDimension(newArea.width));
+          })
         }
         .width('100%')
         .height(NOVEL_BOOKSHELF_TABS_HEIGHT)
@@ -303,6 +308,42 @@ export struct NovelBookshelfScreen {
     .height('100%')
     .justifyContent(FlexAlign.Center)
     .alignItems(VerticalAlign.Top)
+  }
+
+  @Builder
+  private buildCategoryTabs() {
+    FloatingGlassMaterialSurface({
+      surfaceWidth: '100%',
+      surfaceHeight: NOVEL_BOOKSHELF_TABS_HEIGHT,
+      surfaceRadius: NOVEL_BOOKSHELF_TABS_HEIGHT / 2,
+      tintColor: resolveFloatingGlassMaterialTintForMode(this.storedResolvedThemeMode),
+      fallbackColor: this.storedControlBackgroundColor,
+      hostMaterialActive: this.shouldUseHdsMaterial(),
+      backgroundBlurEnabled: false
+    }) {
+      if (this.shouldUseHdsMaterial()) {
+        HdsImmersiveMaterialSurface({
+          plateWidth: this.categoryBarWidth,
+          plateHeight: NOVEL_BOOKSHELF_TABS_HEIGHT,
+          plateRadius: NOVEL_BOOKSHELF_TABS_HEIGHT / 2
+        })
+      }
+      SegmentedTabs({
+        options: NOVEL_BOOKSHELF_CATEGORY_OPTIONS,
+        selectedId: this.selectedCategory,
+        barHeight: NOVEL_BOOKSHELF_TABS_HEIGHT,
+        itemHeight: NOVEL_BOOKSHELF_TABS_HEIGHT - 6,
+        fontSize: 14,
+        barPadding: 3,
+        fallbackColor: $r('sys.color.ohos_id_color_background_transparent'),
+        barMaterialEnabled: false,
+        onSelect: (id: string): void => {
+          this.selectedCategory = id === 'comic' ? 'comic' : 'novel';
+        }
+      })
+        .width('100%')
+        .height(NOVEL_BOOKSHELF_TABS_HEIGHT)
+    }
   }
 
   @Builder
@@ -615,6 +656,10 @@ export struct NovelBookshelfScreen {
   private resolveContentMaxWidth(): Length {
     const maxWidth = this.resolveLayoutState().contentMaxWidth;
     return maxWidth > 0 ? maxWidth : '100%';
+  }
+
+  private shouldUseHdsMaterial(): boolean {
+    return isHdsMaterialAvailable();
   }
 
   private resolveCategoryControlMaxWidth(): Length {

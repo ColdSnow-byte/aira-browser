@@ -33,14 +33,7 @@ export class BrowserTabsOverviewBottomChromeViewModel {
   }
 
   private resolveRegularTabCount(tabs: BrowserTabState[], removedTabIds: Record<string, boolean>): number {
-    const regularTabs = this.sectionPolicy.resolveTabsForSection(tabs, 'tabs');
-    let count = 0;
-    for (let index = 0; index < regularTabs.length; index += 1) {
-      if (removedTabIds[regularTabs[index].id] !== true) {
-        count += 1;
-      }
-    }
-    return count;
+    return this.sectionPolicy.countVisibleTabs(tabs, 'tabs', removedTabIds);
   }
 
   private resolveReturnTab(
