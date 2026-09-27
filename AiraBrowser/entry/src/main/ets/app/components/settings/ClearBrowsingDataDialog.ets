@@ -182,10 +182,11 @@ export struct ClearBrowsingDataContent {
 
   @Builder
   private buildActions() {
-    Row({ space: 12 }) {
+    Column({ space: 8 }) {
       BrowserSheetActionButton({
         label: this.dialogState.confirmLabel,
         emphasis: 'primary',
+        stacked: true,
         actionEnabled: this.selectedItemIds.length > 0,
         accentColor: this.storedAccentColor,
         buttonHeight: 44,
@@ -197,6 +198,8 @@ export struct ClearBrowsingDataContent {
 
       BrowserSheetActionButton({
         label: '取消',
+        emphasis: 'ghost',
+        stacked: true,
         buttonHeight: 44,
         fontSize: 15,
         onAction: () => {
@@ -364,3 +367,4 @@ export struct ClearBrowsingDataDialog {
       .attributeModifier(CENTERED_DIALOG_SYSTEM_TALL_PADDED_SURFACE_MODIFIER)
   }
 }
+

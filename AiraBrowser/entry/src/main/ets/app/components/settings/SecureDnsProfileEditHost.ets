@@ -175,10 +175,11 @@ export struct SecureDnsProfileEditHost {
 
       this.buildFieldsSection()
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: this.saving ? '保存中...' : '保存并使用',
           emphasis: 'primary',
+          stacked: true,
           actionEnabled: !this.saving && !this.deleting,
           accentColor: this.storedAccentColor,
           textColor: this.storedOnPrimaryColor,
@@ -191,6 +192,8 @@ export struct SecureDnsProfileEditHost {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           actionEnabled: !this.saving && !this.deleting,
           buttonHeight: 44,
           fontSize: 15,
@@ -385,3 +388,4 @@ export struct SecureDnsProfileEditHost {
     }
   }
 }
+

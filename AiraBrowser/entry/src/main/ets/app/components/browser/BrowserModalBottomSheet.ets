@@ -461,7 +461,8 @@ export struct BrowserSheetActionButton {
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
   @Prop label: string = '';
-  @Prop emphasis: 'primary' | 'secondary' | 'destructive' = 'secondary';
+  /** Ghost rests as label text only, but keeps a full button and fills it while pressed. */
+  @Prop emphasis: 'primary' | 'secondary' | 'destructive' | 'ghost' = 'secondary';
   @Prop actionEnabled: boolean = true;
   @Prop accentColor: ResourceColor = '';
   @Prop textColor: ResourceColor = '';
@@ -476,7 +477,30 @@ export struct BrowserSheetActionButton {
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
-      if (this.useFlatFill()) {
+      if (this.emphasis === 'ghost') {
+        Button() {
+          this.buildButtonLabel()
+        }
+          .width('100%')
+          .height('100%')
+          .type(ButtonType.Normal)
+          .buttonStyle(ButtonStyleMode.NORMAL)
+          .backgroundColor(Color.Transparent)
+          .borderRadius(this.resolveRenderedHeight() / 2)
+          .stateEffect(false)
+          .stateStyles({
+            normal: {
+              .backgroundColor(Color.Transparent)
+            },
+            pressed: {
+              .backgroundColor(this.storedPressedBackgroundColor)
+            }
+          })
+          .enabled(this.actionEnabled)
+          .onClick(() => {
+            this.onAction();
+          })
+      } else if (this.useFlatFill()) {
         Button() {
           this.buildButtonLabel()
         }
@@ -546,16 +570,20 @@ export struct BrowserSheetActionButton {
     .alignItems(VerticalAlign.Center)
   }
 
-  private useFlatFill(): boolean {
+  private useDesktopActionMetrics(): boolean {
     return this.emphasis === 'destructive' || isLargeScreenDialogShell();
   }
 
+  private useFlatFill(): boolean {
+    return this.emphasis !== 'ghost' && this.useDesktopActionMetrics();
+  }
+
   private resolveRenderedHeight(): number {
-    return this.useFlatFill() ? DESKTOP_DIALOG_ACTION_HEIGHT_VP : this.buttonHeight;
+    return this.useDesktopActionMetrics() ? DESKTOP_DIALOG_ACTION_HEIGHT_VP : this.buttonHeight;
   }
 
   private resolveRenderedFontSize(): number {
-    return this.useFlatFill() ? DESKTOP_DIALOG_ACTION_FONT_SIZE_FP : this.fontSize;
+    return this.useDesktopActionMetrics() ? DESKTOP_DIALOG_ACTION_FONT_SIZE_FP : this.fontSize;
   }
 
   private resolveFlatFill(): ResourceColor {

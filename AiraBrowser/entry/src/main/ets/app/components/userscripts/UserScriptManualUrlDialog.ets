@@ -41,10 +41,11 @@ export struct UserScriptManualUrlDialog {
           this.urlDraft = value;
         })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '读取',
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.storedAccentColor,
           buttonHeight: 44,
           fontSize: 15,
@@ -56,6 +57,8 @@ export struct UserScriptManualUrlDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -68,3 +71,4 @@ export struct UserScriptManualUrlDialog {
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
+

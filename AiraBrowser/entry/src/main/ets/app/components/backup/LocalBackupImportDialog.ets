@@ -6,8 +6,11 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
+  CENTERED_DIALOG_BOTTOM_PADDING_VP,
+  CENTERED_DIALOG_HORIZONTAL_PADDING_VP,
+  CENTERED_DIALOG_SYSTEM_SCROLL_SURFACE_MODIFIER,
   CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER,
-  CENTERED_DIALOG_SYSTEM_SCROLL_SURFACE_MODIFIER
+  CENTERED_DIALOG_TOP_PADDING_VP
 } from '../common/CenteredDialogSurface';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 import { SettingsGroupCard, SettingsGroupDivider } from '../settings/SettingsLayout';
@@ -239,10 +242,10 @@ export struct LocalBackupImportContent {
     }
     .width('100%')
     .padding({
-      left: this.presentationKind === 'sheet' ? 16 : 20,
-      right: this.presentationKind === 'sheet' ? 16 : 20,
-      top: this.presentationKind === 'sheet' ? 8 : 22,
-      bottom: this.presentationKind === 'sheet' ? 24 : 18
+      left: this.presentationKind === 'sheet' ? 16 : CENTERED_DIALOG_HORIZONTAL_PADDING_VP,
+      right: this.presentationKind === 'sheet' ? 16 : CENTERED_DIALOG_HORIZONTAL_PADDING_VP,
+      top: this.presentationKind === 'sheet' ? 8 : CENTERED_DIALOG_TOP_PADDING_VP,
+      bottom: this.presentationKind === 'sheet' ? 24 : CENTERED_DIALOG_BOTTOM_PADDING_VP
     })
   }
 

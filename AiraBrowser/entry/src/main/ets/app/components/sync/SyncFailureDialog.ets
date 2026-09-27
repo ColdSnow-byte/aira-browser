@@ -52,10 +52,11 @@ export struct SyncFailureDialog {
       }
       .width('100%')
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '知道了',
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.storedAccentColor,
           buttonHeight: 44,
           fontSize: 15,
@@ -66,6 +67,8 @@ export struct SyncFailureDialog {
 
         BrowserSheetActionButton({
           label: '复制详情',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -101,3 +104,4 @@ export struct SyncFailureDialog {
     .alignItems(VerticalAlign.Top)
   }
 }
+

@@ -199,10 +199,11 @@ export struct UserScriptRiskConsentSheet {
     // The phone footer hosts this builder inside its own Row, so the stack lives here:
     // a stacked action keeps width 100%, and two of those laid out side by side by the
     // caller would overflow the sheet.
-    Row({ space: 12 }) {
+    Column({ space: 8 }) {
       BrowserSheetActionButton({
         label: this.state.primaryActionLabel,
         emphasis: 'primary',
+        stacked: true,
         accentColor: this.storedAccentColor,
         onAction: () => {
           this.onAccept();
@@ -211,6 +212,8 @@ export struct UserScriptRiskConsentSheet {
 
       BrowserSheetActionButton({
         label: this.state.secondaryActionLabel,
+        emphasis: 'ghost',
+        stacked: true,
         onAction: () => {
           this.onDecline();
         }
@@ -242,3 +245,4 @@ export struct UserScriptRiskConsentSheet {
     .alignItems(VerticalAlign.Top)
   }
 }
+

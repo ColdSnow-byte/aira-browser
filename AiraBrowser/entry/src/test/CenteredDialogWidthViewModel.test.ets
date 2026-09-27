@@ -77,13 +77,14 @@ export default function centeredDialogWidthViewModelTest(): void {
       expect(viewModel.resolve('m', 900, 700).widthVp).assertEqual(520);
     });
 
-    it('stacks three actions and a pair that would wrap', 0, () => {
+    it('stacks every pair and leaves a single action on one row', 0, () => {
       const viewModel = new DesktopDialogWidthViewModel();
 
       expect(viewModel.resolveActionLayout(['取消', '保存', '删除'], 360, 1280)).assertEqual('stack');
-      expect(viewModel.resolveActionLayout(['取消', '保存'], 312, 1280)).assertEqual('row');
+      expect(viewModel.resolveActionLayout(['取消', '保存'], 312, 1280)).assertEqual('stack');
       expect(viewModel.resolveActionLayout(['仅在使用期间允许', '不允许'], 200, 1280)).assertEqual('stack');
       expect(viewModel.resolveActionLayout(['取消', '保存'], 312, 420)).assertEqual('stack');
+      expect(viewModel.resolveActionLayout(['知道了'], 312, 1280)).assertEqual('row');
     });
 
     it('keeps the phone alert width owner unchanged', 0, () => {

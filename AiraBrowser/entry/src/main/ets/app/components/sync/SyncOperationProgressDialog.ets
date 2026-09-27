@@ -53,15 +53,8 @@ export struct SyncOperationProgressDialog {
         .opacity(this.detailOpacity)
         .animation({ duration: 240, curve: Curve.EaseInOut })
     }
-    // Let CustomDialogController's default style own the dialog surface. The
-    // shared modifier supplies the centered-dialog width and its 420vp cap so
-    // this alert cannot stretch to the whole PC/large-screen window.
-    .padding({
-      left: 20,
-      right: 20,
-      top: 22,
-      bottom: 18
-    })
+    // The shared surface already applies the centered-dialog padding and the
+    // 420vp width cap. A second inset here made this alert looser than the others.
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 

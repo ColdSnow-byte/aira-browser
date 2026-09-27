@@ -501,9 +501,11 @@ export struct OfflinePageViewerScreen {
         }
         .width('100%')
 
-        Row({ space: 12 }) {
+        Column({ space: 8 }) {
           BrowserSheetActionButton({
             label: '打开原网页',
+            emphasis: 'primary',
+            stacked: true,
             actionEnabled: this.resolveOriginalPageUrl().length > 0,
             accentColor: this.themedAccentColor,
             onAction: () => {
@@ -514,6 +516,8 @@ export struct OfflinePageViewerScreen {
 
           BrowserSheetActionButton({
             label: '复制链接',
+            emphasis: 'ghost',
+            stacked: true,
             actionEnabled: this.resolveOriginalPageUrl().length > 0,
             accentColor: this.themedAccentColor,
             onAction: () => {
@@ -1687,3 +1691,4 @@ export struct OfflinePageViewerScreen {
     }
   }
 }
+

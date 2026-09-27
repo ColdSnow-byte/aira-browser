@@ -108,10 +108,11 @@ export struct BottomToolbarGuideSheet {
         .width('100%')
         .alignItems(HorizontalAlign.Center)
 
-        Row({ space: 12 }) {
+        Column({ space: 8 }) {
           BrowserSheetActionButton({
             label: this.state.primaryActionTitle,
             emphasis: 'primary',
+            stacked: true,
             accentColor: this.storedAccentColor,
             onAction: () => {
               this.onAction('acknowledge');
@@ -120,6 +121,8 @@ export struct BottomToolbarGuideSheet {
 
           BrowserSheetActionButton({
             label: this.state.secondaryActionTitle,
+            emphasis: 'ghost',
+            stacked: true,
             onAction: () => {
               this.onAction('never_show_again');
             }
@@ -136,3 +139,4 @@ export struct BottomToolbarGuideSheet {
     }
   }
 }
+

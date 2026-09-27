@@ -59,16 +59,19 @@ struct ClientUpdateRequiredDialog {
           .textAlign(TextAlign.Start)
       }
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '前往升级',
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.storedAccentColor,
           onAction: (): void => this.commit('open_update')
         })
 
         BrowserSheetActionButton({
           label: '继续使用本地功能',
+          emphasis: 'ghost',
+          stacked: true,
           textColor: this.storedAccentColor,
           onAction: (): void => this.commit('continue_local')
         })
@@ -173,3 +176,4 @@ export struct ClientUpdateRequiredOverlay {
     }
   }
 }
+

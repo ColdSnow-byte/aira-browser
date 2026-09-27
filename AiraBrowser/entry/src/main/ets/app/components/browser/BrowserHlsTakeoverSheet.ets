@@ -440,10 +440,11 @@ struct BrowserHlsTakeoverSheet {
   @Builder
   private buildFooter() {
     Column({ space: 8 }) {
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '刷新解析',
           emphasis: 'primary',
+          stacked: true,
           actionEnabled: this.target !== undefined && !this.parsing,
           accentColor: this.storedAccentColor,
           onAction: () => {
@@ -453,7 +454,8 @@ struct BrowserHlsTakeoverSheet {
 
         BrowserSheetActionButton({
           label: '复制链接',
-          emphasis: 'secondary',
+          emphasis: 'ghost',
+          stacked: true,
           actionEnabled: this.target !== undefined,
           onAction: () => {
             this.onCopyUrl();
@@ -462,10 +464,11 @@ struct BrowserHlsTakeoverSheet {
       }
       .width('100%')
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '复制上下文',
-          emphasis: 'secondary',
+          emphasis: 'primary',
+          stacked: true,
           actionEnabled: this.target !== undefined,
           onAction: () => {
             this.onCopyContext();
@@ -474,7 +477,8 @@ struct BrowserHlsTakeoverSheet {
 
         BrowserSheetActionButton({
           label: '资源嗅探',
-          emphasis: 'secondary',
+          emphasis: 'ghost',
+          stacked: true,
           actionEnabled: true,
           onAction: () => {
             this.onOpenResources();
@@ -576,3 +580,4 @@ export struct BrowserHlsTakeoverOverlay {
     }
   }
 }
+

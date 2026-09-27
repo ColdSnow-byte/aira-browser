@@ -197,10 +197,11 @@ export struct TabOverviewLayoutChoiceSheet {
 
   @Builder
   private buildActionFooter() {
-    Row({ space: 12 }) {
+    Column({ space: 8 }) {
       BrowserSheetActionButton({
         label: this.isSaving ? '应用中…' : '应用',
         emphasis: 'primary',
+        stacked: true,
         actionEnabled: !this.isSaving,
         accentColor: this.storedAccentColor,
         onAction: () => {
@@ -210,7 +211,8 @@ export struct TabOverviewLayoutChoiceSheet {
 
       BrowserSheetActionButton({
         label: '取消',
-        emphasis: 'secondary',
+        emphasis: 'ghost',
+        stacked: true,
         actionEnabled: !this.isSaving,
         onAction: () => {
           this.onCancel();
@@ -292,3 +294,4 @@ export struct TabOverviewLayoutOption {
     return this.primaryTextColor.length > 0 ? this.primaryTextColor : this.storedPrimaryTextColor;
   }
 }
+

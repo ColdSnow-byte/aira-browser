@@ -1,5 +1,10 @@
 import { display } from '@kit.ArkUI';
-import { BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
+import {
+  BROWSER_THEME_STORAGE_ACCENT_KEY,
+  BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
+  BROWSER_THEME_STORAGE_ON_PRIMARY_KEY,
+  BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY
+} from '../../../core/theme/BrowserThemeStorageKeys';
 import {
   DESKTOP_DIALOG_ACTION_FONT_SIZE_FP,
   DESKTOP_DIALOG_ACTION_GAP_VP,
@@ -32,8 +37,6 @@ export const CENTERED_DIALOG_TITLE_FONT_SIZE_FP: number = DESKTOP_DIALOG_TITLE_F
 export const CENTERED_DIALOG_ACTION_GAP_VP: number = DESKTOP_DIALOG_ACTION_GAP_VP;
 export const CENTERED_DIALOG_ACTION_HEIGHT_VP: number = DESKTOP_DIALOG_ACTION_HEIGHT_VP;
 export const CENTERED_DIALOG_ACTION_FONT_SIZE_FP: number = DESKTOP_DIALOG_ACTION_FONT_SIZE_FP;
-const CENTERED_DIALOG_WIDTH: string =
-  `calc(100% - ${CENTERED_DIALOG_HORIZONTAL_MARGIN_VP * 2}vp)`;
 const CENTERED_DIALOG_TALL_HEIGHT: string = 'calc(100% - 48vp)';
 const CENTERED_DIALOG_TALL_MAX_HEIGHT_VP: number = 720;
 // AlertDialog.width accepts Dimension (not calc expressions) and has no
@@ -43,6 +46,9 @@ const CENTERED_DIALOG_TALL_MAX_HEIGHT_VP: number = 720;
 // shared width owner keeps the percentage only while it still fits the
 // centered-dialog maximum and pins to that maximum otherwise.
 const CENTERED_DIALOG_ALERT_WIDTH_PERCENT: Dimension = '90%';
+const ALERT_PAIR_FALLBACK_ACCENT_COLOR: string = '#0A59F7';
+const ALERT_PAIR_FALLBACK_ON_PRIMARY_COLOR: string = '#FFFFFF';
+const ALERT_PAIR_GHOST_BACKGROUND_COLOR: string = '#00000000';
 
 const centeredDialogWidthViewModel: CenteredDialogWidthViewModel = new CenteredDialogWidthViewModel();
 const desktopDialogWidthViewModel: DesktopDialogWidthViewModel = new DesktopDialogWidthViewModel();
@@ -91,18 +97,153 @@ function isDestructiveAlertLabel(value: ResourceStr): boolean {
     return false;
   }
   return value.includes('删除') || value.includes('清除') ||
-    value.includes('移除') || value.includes('不保存');
+    value.includes('移除') || value.includes('移出') ||
+    value.includes('清空') || value.includes('退出') ||
+    value.includes('重置') || value.includes('不保存');
+}
+
+/** Call sites mark a dangerous action with red text and no fill. That is the same action. */
+function isCallerDestructiveAlertColor(color: ResourceColor | undefined): boolean {
+  if (color === undefined || typeof color !== 'object') {
+    return false;
+  }
+  const marked: Resource = $r('app.color.permission_blocked');
+  return color.id === marked.id;
 }
 
 function styleDestructiveAlertButton(button: AlertDialogButtonBaseOptions): void {
-  if (button.value === undefined || !isDestructiveAlertLabel(button.value)) {
+  const labeledDestructive = button.value !== undefined && isDestructiveAlertLabel(button.value);
+  if (!labeledDestructive && !isCallerDestructiveAlertColor(button.fontColor)) {
     return;
   }
   button.backgroundColor = DESKTOP_DIALOG_DESTRUCTIVE_FILL;
   button.fontColor = DESKTOP_DIALOG_DESTRUCTIVE_TEXT;
 }
 
-function applyAlertActionChrome(params: CenteredAlertDialogParams): void {
+function alertButtonLabel(button: AlertDialogButtonBaseOptions): string {
+  return typeof button.value === 'string' ? button.value : '';
+}
+
+function isDismissAlertLabel(label: string): boolean {
+  return label === '取消' || label === '稍后' || label === '稍后处理' || label === '知道了';
+}
+
+function resolveStoredAlertColor(key: string, fallback: string): ResourceColor {
+  const stored = AppStorage.get<string>(key);
+  if (stored === undefined || stored.length === 0) {
+    return fallback;
+  }
+  return stored;
+}
+
+function resolveAlertTextColor(): ResourceColor {
+  const stored = AppStorage.get<string>(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY);
+  if (stored === undefined || stored.length === 0) {
+    return $r('sys.color.ohos_id_color_text_primary');
+  }
+  return stored;
+}
+
+/**
+ * primaryButton is the left-hand button. secondaryButton is the right-hand button.
+ * A dismiss label moves under the action; two real choices keep that left-to-right
+ * order from top to bottom. Neither button is marked primary, so Enter does not
+ * confirm a destructive action and the system does not restyle the lower button.
+ */
+function orderPairedAlertButtons(
+  leading: AlertDialogButtonBaseOptions,
+  trailing: AlertDialogButtonBaseOptions
+): AlertDialogButtonBaseOptions[] {
+  const leadingDismiss = isDismissAlertLabel(alertButtonLabel(leading));
+  const trailingDismiss = isDismissAlertLabel(alertButtonLabel(trailing));
+  if (leadingDismiss && !trailingDismiss) {
+    return [trailing, leading];
+  }
+  return [leading, trailing];
+}
+
+function styleStackedAlertPair(
+  top: AlertDialogButtonBaseOptions,
+  bottom: AlertDialogButtonBaseOptions
+): void {
+  if (top.backgroundColor === undefined && top.fontColor === undefined) {
+    top.backgroundColor = resolveStoredAlertColor(
+      BROWSER_THEME_STORAGE_ACCENT_KEY, ALERT_PAIR_FALLBACK_ACCENT_COLOR);
+    top.fontColor = resolveStoredAlertColor(
+      BROWSER_THEME_STORAGE_ON_PRIMARY_KEY, ALERT_PAIR_FALLBACK_ON_PRIMARY_COLOR);
+  }
+  if (bottom.backgroundColor !== undefined || isDestructiveAlertLabel(alertButtonLabel(bottom))) {
+    return;
+  }
+  bottom.backgroundColor = ALERT_PAIR_GHOST_BACKGROUND_COLOR;
+  if (bottom.fontColor === undefined) {
+    bottom.fontColor = resolveAlertTextColor();
+  }
+}
+
+interface StackedAlertDialogParams {
+  primaryButton?: AlertDialogButtonBaseOptions;
+  secondaryButton?: AlertDialogButtonBaseOptions;
+  buttons?: AlertDialogButtonOptions[];
+  buttonDirection?: DialogButtonDirection;
+}
+
+/**
+ * The primary/secondary API cannot set buttonDirection. A new options object
+ * carries the same dialog fields plus a vertical button list, and omits the
+ * old pair so the system does not also draw the side-by-side buttons.
+ */
+function stackPairedAlertButtons(params: CenteredAlertDialogParams): AlertDialogParamWithOptions | undefined {
+  const paired = params as StackedAlertDialogParams;
+  if (paired.primaryButton === undefined || paired.secondaryButton === undefined) {
+    return undefined;
+  }
+  const leading = paired.primaryButton;
+  const trailing = paired.secondaryButton;
+  styleDestructiveAlertButton(leading);
+  styleDestructiveAlertButton(trailing);
+  const ordered = orderPairedAlertButtons(leading, trailing);
+  styleStackedAlertPair(ordered[0], ordered[1]);
+  const source = params as AlertDialogParam;
+  const stacked: AlertDialogParamWithOptions = {
+    title: source.title,
+    subtitle: source.subtitle,
+    message: source.message,
+    autoCancel: source.autoCancel,
+    cancel: source.cancel,
+    alignment: source.alignment,
+    offset: source.offset,
+    gridCount: source.gridCount,
+    maskRect: source.maskRect,
+    showInSubWindow: source.showInSubWindow,
+    isModal: source.isModal,
+    backgroundColor: source.backgroundColor,
+    backgroundBlurStyle: source.backgroundBlurStyle,
+    onWillDismiss: source.onWillDismiss,
+    cornerRadius: source.cornerRadius,
+    width: source.width,
+    height: source.height,
+    borderWidth: source.borderWidth,
+    borderColor: source.borderColor,
+    borderStyle: source.borderStyle,
+    shadow: source.shadow,
+    textStyle: source.textStyle,
+    enableHoverMode: source.enableHoverMode,
+    hoverModeArea: source.hoverModeArea,
+    buttons: [
+      ordered[0] as AlertDialogButtonOptions,
+      ordered[1] as AlertDialogButtonOptions
+    ],
+    buttonDirection: DialogButtonDirection.VERTICAL
+  };
+  return stacked;
+}
+
+function applyAlertActionChrome(params: CenteredAlertDialogParams): CenteredAlertDialogParams {
+  const stacked = stackPairedAlertButtons(params);
+  if (stacked !== undefined) {
+    return stacked;
+  }
   const options = params as AlertDialogParamWithOptions;
   if (options.buttons !== undefined) {
     const labels: string[] = [];
@@ -119,7 +260,7 @@ function applyAlertActionChrome(params: CenteredAlertDialogParams): void {
       labels, contentWidthVp, windowWidthVp);
     options.buttonDirection = actionLayout === 'stack' ?
       DialogButtonDirection.VERTICAL : DialogButtonDirection.HORIZONTAL;
-    return;
+    return params;
   }
   const paired = params as AlertDialogParamWithButtons;
   if (paired.primaryButton !== undefined) {
@@ -128,6 +269,7 @@ function applyAlertActionChrome(params: CenteredAlertDialogParams): void {
   if (paired.secondaryButton !== undefined) {
     styleDestructiveAlertButton(paired.secondaryButton);
   }
+  return params;
 }
 
 function shouldUseDesktopDialogWidth(windowWidthVp: number): boolean {
@@ -204,8 +346,7 @@ export function configureCenteredAlertDialog(params: CenteredAlertDialogParams):
   params.backgroundColor = resolveCenteredDialogSurfaceColor();
   params.backgroundBlurStyle = BlurStyle.NONE;
   params.alignment = DialogAlignment.Center;
-  applyAlertActionChrome(params);
-  return params;
+  return applyAlertActionChrome(params);
 }
 
 /** Applies the shared solid surface while retaining AlertDialog's native behavior. */
@@ -257,7 +398,9 @@ class CenteredDialogSurfaceModifier implements AttributeModifier<CommonAttribute
         instance.constraintSize({ maxHeight: maxHeightVp })
       }
     } else {
-      instance.width(this.definiteWidth ? resolveCenteredWideDialogWidth() : CENTERED_DIALOG_WIDTH)
+      // The controller already sizes the card. A second calc() inset here sat
+      // outside the shared padding and made custom dialogs looser than alerts.
+      instance.width(this.definiteWidth ? resolveCenteredWideDialogWidth() : '100%')
       if (this.fillHeight) {
         instance.height(CENTERED_DIALOG_TALL_HEIGHT)
         instance.constraintSize({

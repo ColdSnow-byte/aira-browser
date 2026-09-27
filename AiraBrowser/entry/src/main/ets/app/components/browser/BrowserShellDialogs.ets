@@ -154,10 +154,11 @@ export struct HomeShortcutEditDialog {
           this.draft = nextDraft;
         })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '保存',
           emphasis: 'primary',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -168,6 +169,8 @@ export struct HomeShortcutEditDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -262,10 +265,11 @@ export struct SiteReportDialog {
           this.remark = value;
         })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '确定',
           emphasis: 'primary',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -276,6 +280,8 @@ export struct SiteReportDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -436,10 +442,11 @@ export struct DesktopShortcutNameDialog {
         .backgroundColor(this.storedControlBackgroundColor)
         .borderRadius(14)
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '安装',
           emphasis: 'primary',
+          stacked: true,
           actionEnabled: !this.snapshot.iconProcessing,
           buttonHeight: 44,
           fontSize: 15,
@@ -451,6 +458,8 @@ export struct DesktopShortcutNameDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -512,10 +521,11 @@ export struct BrowserShellWebPromptDialog {
           };
         })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '确定',
           emphasis: 'primary',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -526,6 +536,8 @@ export struct BrowserShellWebPromptDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -611,10 +623,11 @@ export struct BrowserShellHttpAuthDialog {
           };
         })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '登录',
           emphasis: 'primary',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -625,6 +638,8 @@ export struct BrowserShellHttpAuthDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -638,3 +653,4 @@ export struct BrowserShellHttpAuthDialog {
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
+

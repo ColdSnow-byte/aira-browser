@@ -37,10 +37,11 @@ export struct CustomHomepageRemoteUrlDialog {
         }
       })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '添加',
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.accentColor,
           buttonHeight: 44,
           fontSize: 15,
@@ -53,6 +54,8 @@ export struct CustomHomepageRemoteUrlDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -65,3 +68,4 @@ export struct CustomHomepageRemoteUrlDialog {
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
+

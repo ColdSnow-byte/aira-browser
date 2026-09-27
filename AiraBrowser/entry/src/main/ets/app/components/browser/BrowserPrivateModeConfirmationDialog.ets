@@ -47,10 +47,11 @@ export struct BrowserPrivateModeConfirmationDialog {
         this.buildClearPrivateDataRow()
       }
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: this.confirmation.confirmLabel,
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.storedAccentColor,
           buttonHeight: 44,
           fontSize: 15,
@@ -62,6 +63,8 @@ export struct BrowserPrivateModeConfirmationDialog {
 
         BrowserSheetActionButton({
           label: this.confirmation.cancelLabel,
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: () => {
@@ -102,3 +105,4 @@ export struct BrowserPrivateModeConfirmationDialog {
     })
   }
 }
+

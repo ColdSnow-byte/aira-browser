@@ -69,10 +69,11 @@ export struct FeatureGateSheet {
           this.buildRenewalBody(this.state.renewal)
         }
 
-        Row({ space: 12 }) {
+        Column({ space: 8 }) {
           BrowserSheetActionButton({
             label: this.state.primaryActionTitle,
             emphasis: 'primary',
+            stacked: true,
             accentColor: this.storedAccentColor,
             onAction: () => {
               this.onAction(this.state.primaryAction);
@@ -81,6 +82,8 @@ export struct FeatureGateSheet {
 
           BrowserSheetActionButton({
             label: this.state.secondaryActionTitle,
+            emphasis: 'ghost',
+            stacked: true,
             onAction: () => {
               this.onAction(this.state.secondaryAction);
             }
@@ -200,3 +203,4 @@ export struct FeatureGateSheet {
     })
   }
 }
+

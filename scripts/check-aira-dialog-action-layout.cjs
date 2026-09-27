@@ -1,13 +1,15 @@
 #!/usr/bin/env node
 'use strict';
 
-// One or two dialog actions sit side by side and share the row. Three or more stack,
-// primary action first, and a stacked action must opt out of the Row width weight.
+// Dialog actions stack. A pair is a primary action on top and a ghost action
+// underneath; three or more also stack, primary first. A stacked action must
+// pass stacked: true so Column layoutWeight does not stretch its height.
 //
-// Why this exists: BrowserSheetActionButton uses layoutWeight to split a Row's width,
-// and that weight is the main axis. The same weight inside a Column stretches the
-// button vertically. A later rule put 1–2 actions back in a Row and kept 3+ stacked.
-// Both the stretch and a 3-across row are cheap to reintroduce, so they are scanned here.
+// Why this exists: BrowserSheetActionButton uses layoutWeight to split a Row's
+// width, and that weight is the main axis. The same weight inside a Column
+// stretches the button vertically. Side-by-side secondary fills also made the
+// lower-emphasis label hard to read in dark mode, so a pair now uses a ghost
+// button that only shows its label until it is pressed.
 //
 // The scan is textual and conservative: it only inspects a container whose whole body is
 // action buttons (or a single builder call that renders them), so two-column rows that
@@ -119,6 +121,17 @@ function firstButtonIndexWithPrimary(body) {
   return -1;
 }
 
+function pairSecondaryIsGhost(body) {
+  const calls = [...body.matchAll(BUTTON_CALL)].map((match) => match[0]);
+  if (calls.length !== 2) {
+    return true;
+  }
+  if (/emphasis:\s*'destructive'/.test(calls[1])) {
+    return true;
+  }
+  return /emphasis:\s*'ghost'/.test(calls[1]);
+}
+
 function stackedMissing(body) {
   const starts = [];
   let at = body.indexOf(BUTTON);
@@ -147,17 +160,13 @@ for (const file of listEtsFiles(ROOT)) {
   const builders = readBuilders(source);
 
   for (const block of collectBlocks(lines, 'Row')) {
-    if (isPureActionBody(block.body) && buttonCount(block.body) >= 3) {
-      sideBySide.push(`${relative}:${block.line}`);
-      continue;
-    }
-    if (isPureActionBody(block.body) && /stacked: true/.test(block.body)) {
-      notStacked.push(`${relative}:${block.line} a side-by-side pair must not pass stacked: true`);
+    if (isPureActionBody(block.body) && buttonCount(block.body) >= 2) {
+      sideBySide.push(`${relative}:${block.line} actions must stack, primary above a ghost action`);
       continue;
     }
     const builder = wrappedBuilder(block.lines);
     const builderBody = builder === undefined ? '' : (builders.get(builder) ?? '');
-    if (builder !== undefined && buttonCount(builderBody) >= 3) {
+    if (builder !== undefined && buttonCount(builderBody) >= 2) {
       builderSideBySide.push(`${relative}:${block.line} this.${builder}()`);
     }
   }
@@ -172,9 +181,9 @@ for (const file of listEtsFiles(ROOT)) {
   }
 
   for (const block of collectBlocks(lines, 'Column')) {
-    if (isPureActionBody(block.body) && buttonCount(block.body) === 2) {
-      sideBySide.push(`${relative}:${block.line} two actions must sit side by side`);
-      continue;
+    if (isPureActionBody(block.body) && buttonCount(block.body) === 2 &&
+      !pairSecondaryIsGhost(block.body)) {
+      sideBySide.push(`${relative}:${block.line} the lower action must be a ghost button`);
     }
     if (isPureActionBody(block.body)) {
       if (stackedMissing(block.body)) {
@@ -273,5 +282,5 @@ if (sideBySide.length + builderSideBySide.length + notStacked.length + wrongOrde
   presentationViolations.length + builderParamViolations.length > 0) {
   process.exitCode = 1;
 } else {
-  console.log('Dialog action layout passed: one or two actions sit side by side; three or more stack.');
+  console.log('Dialog action layout passed: actions stack, and a pair keeps a ghost action under the primary.');
 }

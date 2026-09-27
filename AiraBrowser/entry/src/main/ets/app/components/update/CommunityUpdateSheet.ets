@@ -112,10 +112,11 @@ export struct CommunityUpdateSheet {
           .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
         }
 
-        Row({ space: 12 }) {
+        Column({ space: 8 }) {
           BrowserSheetActionButton({
             label: '前往下载',
             emphasis: 'primary',
+            stacked: true,
             accentColor: this.storedAccentColor,
             onAction: () => {
               this.onAction('open_release_page');
@@ -124,6 +125,8 @@ export struct CommunityUpdateSheet {
 
           BrowserSheetActionButton({
             label: '稍后再说',
+            emphasis: 'ghost',
+            stacked: true,
             onAction: () => {
               this.onAction('dismiss');
             }
@@ -147,3 +150,4 @@ export struct CommunityUpdateSheet {
     return this.state.versionName;
   }
 }
+

@@ -61,10 +61,11 @@ export struct AiraProComplimentaryClaimDialog {
             .textOverflow({ overflow: TextOverflow.Ellipsis })
         }
 
-        Row({ space: 12 }) {
+        Column({ space: 8 }) {
           BrowserSheetActionButton({
             label: this.resolveActionText(),
             emphasis: 'primary',
+            stacked: true,
             actionEnabled: this.state.complimentaryClaim.actionEnabled,
             accentColor: this.storedAccentColor,
             textColor: this.storedOnAccentColor,
@@ -80,6 +81,8 @@ export struct AiraProComplimentaryClaimDialog {
 
           BrowserSheetActionButton({
             label: '取消',
+            emphasis: 'ghost',
+            stacked: true,
             buttonHeight: 44,
             fontSize: 15,
             onAction: () => {
@@ -133,3 +136,4 @@ export struct AiraProComplimentaryClaimDialog {
     return `${days > 0 ? days : 15}`;
   }
 }
+

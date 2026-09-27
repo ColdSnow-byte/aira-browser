@@ -70,10 +70,11 @@ struct BrowserDownloadConfirmDialog {
     .width('100%')
     .alignItems(HorizontalAlign.Start)
 
-    Row({ space: 12 }) {
+    Column({ space: 8 }) {
       BrowserSheetActionButton({
         label: prompt.confirmLabel,
         emphasis: 'primary',
+        stacked: true,
         actionEnabled: this.fileNameDraft.trim().length > 0,
         accentColor: this.storedAccentColor,
         buttonHeight: 44,
@@ -89,6 +90,8 @@ struct BrowserDownloadConfirmDialog {
 
       BrowserSheetActionButton({
         label: prompt.cancelLabel,
+        emphasis: 'ghost',
+        stacked: true,
         buttonHeight: 44,
         fontSize: 15,
         onAction: () => {
@@ -98,7 +101,7 @@ struct BrowserDownloadConfirmDialog {
     }
     .width('100%')
     .margin({ top: 16 })
-    .alignItems(VerticalAlign.Center)
+    .alignItems(HorizontalAlign.Center)
   }
 
   @Builder

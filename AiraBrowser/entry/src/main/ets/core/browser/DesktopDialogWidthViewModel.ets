@@ -8,7 +8,6 @@ import {
   DESKTOP_DIALOG_NARROW_PADDING_VP,
   DESKTOP_DIALOG_NARROW_WINDOW_VP,
   DESKTOP_DIALOG_PADDING_VP,
-  DESKTOP_DIALOG_STACK_ACTIONS_WINDOW_VP,
   DESKTOP_DIALOG_STEP_DOWN_WINDOW_VP,
   DesktopDialogTier,
   desktopDialogTierSpec
@@ -72,21 +71,13 @@ export class DesktopDialogWidthViewModel {
   }
 
   /**
-   * 1–2 actions sit side by side unless a label would wrap or the window is
-   * narrower than the stack breakpoint. Three or more always stack.
+   * Two or more actions stack, with the primary action above the other.
+   * A single action stays on one row. Width is unused; stacking no longer
+   * depends on whether the labels fit side by side.
    */
-  resolveActionLayout(labels: string[], contentWidthVp: number, windowWidthVp: number): DesktopDialogActionLayout {
-    if (labels.length >= 3 || this.shouldStackForWindow(windowWidthVp)) {
+  resolveActionLayout(labels: string[], _contentWidthVp: number, _windowWidthVp: number): DesktopDialogActionLayout {
+    if (labels.length >= 2) {
       return 'stack';
-    }
-    if (labels.length <= 1) {
-      return 'row';
-    }
-    const slot = contentWidthVp / labels.length;
-    for (let index = 0; index < labels.length; index++) {
-      if (this.estimateLabelWidthVp(labels[index]) > slot) {
-        return 'stack';
-      }
     }
     return 'row';
   }
@@ -112,11 +103,6 @@ export class DesktopDialogWidthViewModel {
   private isNarrow(windowWidthVp: number): boolean {
     return Number.isFinite(windowWidthVp) && windowWidthVp > 0 &&
       windowWidthVp < DESKTOP_DIALOG_NARROW_WINDOW_VP;
-  }
-
-  private shouldStackForWindow(windowWidthVp: number): boolean {
-    return Number.isFinite(windowWidthVp) && windowWidthVp > 0 &&
-      windowWidthVp < DESKTOP_DIALOG_STACK_ACTIONS_WINDOW_VP;
   }
 
   private usableExtent(windowExtentVp: number, edgeVp: number): number {

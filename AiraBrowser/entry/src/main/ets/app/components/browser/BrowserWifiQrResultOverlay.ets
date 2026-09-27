@@ -122,10 +122,11 @@ export struct BrowserWifiQrResultOverlay {
             )
           }
 
-          Row({ space: 12 }) {
+          Column({ space: 8 }) {
             BrowserSheetActionButton({
               label: '复制密码',
               emphasis: 'primary',
+              stacked: true,
               actionEnabled: this.credentials.password.length > 0,
               accentColor: this.accentColor,
               onAction: () => {
@@ -135,7 +136,8 @@ export struct BrowserWifiQrResultOverlay {
 
             BrowserSheetActionButton({
               label: '关闭',
-              emphasis: 'secondary',
+              emphasis: 'ghost',
+              stacked: true,
               onAction: () => {
                 this.requestClose();
               }
@@ -198,3 +200,4 @@ export struct BrowserWifiQrResultOverlay {
     }
   }
 }
+

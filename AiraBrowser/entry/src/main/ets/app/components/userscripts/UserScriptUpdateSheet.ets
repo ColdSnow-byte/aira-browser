@@ -178,21 +178,23 @@ export struct UserScriptUpdateSheet {
       .width('100%')
       .layoutWeight(this.fillAvailableHeight ? 1 : 0)
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
+        if (this.availableCount() > 0) {
+          this.buildUpdateButton()
+        }
+
         BrowserSheetActionButton({
           label: '关闭',
+          emphasis: 'ghost',
+          stacked: true,
           actionEnabled: !this.updating,
           onAction: () => {
             this.onClose();
           }
         })
-
-        if (this.availableCount() > 0) {
-          this.buildUpdateButton()
-        }
       }
       .width('100%')
-      .alignItems(VerticalAlign.Center)
+      .alignItems(HorizontalAlign.Center)
     }
     .width('100%')
     .height(this.fillAvailableHeight ? '100%' : '')
@@ -203,6 +205,7 @@ export struct UserScriptUpdateSheet {
     BrowserSheetActionButton({
       label: this.updating ? '正在更新…' : `更新 ${this.availableCount()} 个`,
       emphasis: 'primary',
+      stacked: true,
       actionEnabled: !this.checking && !this.updating,
       accentColor: this.storedAccentColor,
       onAction: () => {

@@ -45,10 +45,11 @@ export struct SiteControlsManualOriginDialog {
         }
       })
 
-      Row({ space: 12 }) {
+      Column({ space: 8 }) {
         BrowserSheetActionButton({
           label: '继续',
           emphasis: 'primary',
+          stacked: true,
           accentColor: this.storedAccentColor,
           buttonHeight: 44,
           fontSize: 15,
@@ -61,6 +62,8 @@ export struct SiteControlsManualOriginDialog {
 
         BrowserSheetActionButton({
           label: '取消',
+          emphasis: 'ghost',
+          stacked: true,
           buttonHeight: 44,
           fontSize: 15,
           onAction: (): void => {
@@ -73,3 +76,4 @@ export struct SiteControlsManualOriginDialog {
     .attributeModifier(CENTERED_DIALOG_SYSTEM_SURFACE_MODIFIER)
   }
 }
+
