@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { image } from '@kit.ImageKit';
 import {
   BrowserTabOverviewCardPresentation,
@@ -79,7 +78,6 @@ export struct BrowserTabOverviewCard {
   @State private renderSnapshotImageWidth: number = 0;
   @State private renderSnapshotImageHeight: number = 0;
   private tabsOverlayViewModel: BrowserTabsOverlayViewModel = new BrowserTabsOverlayViewModel();
-  private blankDiagKey: string = '';
 
   onCloseTab: (tabId: string) => void = (_tabId: string) => {};
   onPreviewRectChange: (
@@ -470,21 +468,6 @@ export struct BrowserTabOverviewCard {
       this.renderSnapshotImageUri = '';
       this.renderSnapshotPixelMap = undefined;
     }
-    const source = this.renderSnapshotImageUri.length > 0 ? 'uri' :
-      (cachedPixelMap !== undefined ? 'cache' : 'none');
-    const uriMark = this.renderSnapshotImageUri.length > 24 ?
-      this.renderSnapshotImageUri.slice(this.renderSnapshotImageUri.length - 24) : this.renderSnapshotImageUri;
-    const diagKey = `${this.tab.id}:${source}:${uriMark}:${this.thumbnailVersion}`
-    if (this.blankDiagKey === diagKey) {
-      return;
-    }
-    this.blankDiagKey = diagKey;
-    hilog.info(0xB00A, 'TAB-BLANK',
-      'card tab=%{public}s draw=%{public}s offeredPm=%{public}s image=%{public}s card=%{public}s uri=%{public}s',
-      this.tab.id, source, `${cachedPixelMap !== undefined}`,
-      `${this.renderSnapshotImageWidth}x${this.renderSnapshotImageHeight}`,
-      `${Math.round(this.cardWidth)}x${Math.round(this.previewHeight)}`,
-      uriMark.length > 0 ? uriMark : 'empty');
   }
 
   private resolveRenderableSnapshotImageUri(): string {

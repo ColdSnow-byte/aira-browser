@@ -5932,7 +5932,6 @@ struct BrowserShellPage {
   @State hostedWebLayerMeasured: boolean = false;
   private restoredWebLayerGeometry?: BrowserWebLayerGeometrySnapshot;
   private livePageFrameReleased: boolean = false;
-  private liveMorphCoverDiagKey: string = '';
   @State tabPreviewRenderVersion: number = 0;
   // Cached gallery preview states. Refreshed only when previews change
   // (`notifyTabPreviewChanged`), the sheet is (re)opened, the tabs change, or the
@@ -7516,16 +7515,8 @@ struct BrowserShellPage {
   }
 
   private shouldShowLivePageDuringCardMorph(): boolean {
-    const state = this.tabsSharedSnapshotState;
     // Shrink and expand are both the saved picture. The live page stays hidden
     // until the expand finishes, so it cannot cover that picture.
-    const diagKey = `${state.tabId}:${state.phase}:${state.direction}`;
-    if (this.liveMorphCoverDiagKey !== diagKey && this.isCardPictureMorphPlaying()) {
-      this.liveMorphCoverDiagKey = diagKey;
-      hilog.info(0xB00A, 'TAB-BLANK',
-        'live-cover tab=%{public}s phase=%{public}s dir=%{public}s released=%{public}s showLive=false',
-        state.tabId, state.phase, state.direction, `${this.livePageFrameReleased}`);
-    }
     return false;
   }
 
@@ -10418,7 +10409,6 @@ struct BrowserShellPage {
 
 
   private async openTabsOverview(activeSection: BrowserTabsOverviewSessionSection = 'tabs'): Promise<void> {
-    this.dumpTabPreviewDiagnostics('overview-open');
     this.dispatchTabsOverviewSession({ type: 'request_open', section: activeSection });
   }
 
@@ -10455,35 +10445,6 @@ struct BrowserShellPage {
     const tabId = this.lastOutgoingPreviewCaptureTabId.trim();
     if (tabId.length > 0) {
       this.browserTabPreviewCoordinator.invalidateActiveCaptureRun(tabId);
-    }
-  }
-
-  // Temporary THUMB-DIAG instrumentation: dump what each tab's card would show
-  // right before the overview opens (remove after the thumbnail bug is closed).
-  private dumpTabPreviewDiagnostics(reason: string): void {
-    try {
-      hilog.info(0x0000, 'ThumbDiag',
-        '[THUMB-DIAG] dump reason=%{public}s active=%{public}s home=%{public}s viewport=%{public}s webLayer=%{public}s',
-        reason,
-        this.activeTabId,
-        `${this.showHomePage}`,
-        `${this.rootViewportWidth}x${this.rootViewportHeight}`,
-        `${this.hostedWebLayerMeasured}:${this.hostedWebLayerWidth}x${this.hostedWebLayerHeight}`);
-      this.tabs.forEach((tab: BrowserTabState): void => {
-        const preview = this.browserTabPreviewCoordinator.getSharedSnapshotState(tab.id);
-        hilog.info(0x0000, 'ThumbDiag',
-          '[THUMB-DIAG] tab=%{public}s isHome=%{public}s url=%{public}s preview=%{public}s src=%{public}s age=%{public}s',
-          tab.id,
-          `${tab.isHome}`,
-          tab.url.slice(0, 48),
-          preview === undefined
-            ? 'none'
-            : `uri:${(preview.sharedSnapshotImageUri?.trim().length ?? 0) > 0} pm:${preview.sharedSnapshotPixelMap !== undefined} ${preview.sharedSnapshotImageWidth}x${preview.sharedSnapshotImageHeight}`,
-          `${preview?.captureSource ?? preview?.transitionSource?.captureSource ?? ''}`,
-          preview === undefined ? '-' : `${Math.round((Date.now() - preview.capturedAt) / 1000)}s`);
-      });
-    } catch (_error) {
-      // diagnostics must never break the overview flow
     }
   }
 

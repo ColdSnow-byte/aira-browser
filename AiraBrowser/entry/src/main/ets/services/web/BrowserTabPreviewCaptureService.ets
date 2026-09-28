@@ -500,13 +500,6 @@ export class BrowserTabPreviewCaptureService {
     result: BrowserTabPreviewCaptureResult,
     startedAt: number
   ): void {
-    hilog.info(LOG_DOMAIN, LOG_TAG,
-      '[THUMB-DIAG] capture-final tab=%{public}s source=%{public}s ok=%{public}s shared=%{public}s fail=%{public}s',
-      tabId,
-      result.source,
-      `${result.snapshot !== undefined}`,
-      `${(result.sharedSnapshotImageUri?.trim().length ?? 0) > 0}:${result.sharedSnapshotWidth ?? 0}x${result.sharedSnapshotHeight ?? 0}`,
-      result.failureReason);
     sharedBrowserTabPreviewMetrics.recordCapture({
       tabId: tabId,
       source: result.source,
@@ -785,8 +778,6 @@ export class BrowserTabPreviewCaptureService {
     // Probing reads phone defaults (390-wide) while the tab is detached, which
     // makes webPageSnapshot render a mobile-layout thumbnail on large screens.
     if (preferredSize !== undefined && preferredSize.width > 1 && preferredSize.height > 1) {
-      hilog.info(LOG_DOMAIN, LOG_TAG, '[THUMB-DIAG] viewport-size tab=%{public}s used=preferred %{public}s',
-        tabId, `${Math.round(preferredSize.width)}x${Math.round(preferredSize.height)}`);
       return {
         width: Math.min(16000, Math.max(1, Math.round(preferredSize.width))),
         height: Math.min(16000, Math.max(1, Math.round(preferredSize.height)))
@@ -796,11 +787,6 @@ export class BrowserTabPreviewCaptureService {
       width: BROWSER_TAB_PREVIEW_PIXEL_WIDTH,
       height: Math.max(BROWSER_TAB_PREVIEW_PIXEL_HEIGHT, Math.round(BROWSER_TAB_PREVIEW_PIXEL_WIDTH * 2.15))
     };
-    hilog.info(LOG_DOMAIN, LOG_TAG,
-      '[THUMB-DIAG] viewport-size tab=%{public}s preferred=%{public}s probing-js fallback=%{public}s',
-      tabId,
-      preferredSize === undefined ? 'none' : `${preferredSize.width}x${preferredSize.height}`,
-      `${fallbackSize.width}x${fallbackSize.height}`);
     const script = `JSON.stringify({
       width: Math.max(1, Math.round(window.innerWidth || document.documentElement.clientWidth || 390)),
       height: Math.max(1, Math.round(window.innerHeight || document.documentElement.clientHeight || 844))
@@ -811,8 +797,6 @@ export class BrowserTabPreviewCaptureService {
       const width = Math.round(parsedValue.width);
       const height = Math.round(parsedValue.height);
       if (Number.isFinite(width) && Number.isFinite(height) && width > 0 && height > 0) {
-        hilog.info(LOG_DOMAIN, LOG_TAG, '[THUMB-DIAG] viewport-size tab=%{public}s used=js-probe %{public}s',
-          tabId, `${width}x${height}`);
         return {
           width: Math.min(16000, Math.max(1, width)),
           height: Math.min(16000, Math.max(1, height))
@@ -822,8 +806,6 @@ export class BrowserTabPreviewCaptureService {
       hilog.warn(LOG_DOMAIN, LOG_TAG, 'web viewport size fallback tab=%{public}s error=%{public}s',
         tabId, JSON.stringify(error));
     }
-    hilog.warn(LOG_DOMAIN, LOG_TAG, '[THUMB-DIAG] viewport-size tab=%{public}s used=fallback %{public}s',
-      tabId, `${fallbackSize.width}x${fallbackSize.height}`);
     return fallbackSize;
   }
 

@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { image } from '@kit.ImageKit';
 import { BrowserTabPreviewState } from './BrowserTabPreviewCoordinator';
 import { BrowserTabPreviewTransitionSource } from '../../services/web/BrowserTabPreviewTypes';
@@ -61,11 +60,6 @@ export class BrowserTabsOverviewEntrySnapshotSessionCoordinator {
     if (state.tabId.length <= 0 || state.pixelMap === undefined) {
       return persistedState;
     }
-    hilog.info(0x0000, 'ThumbDiag',
-      '[THUMB-DIAG] entry-snapshot tab=%{public}s size=%{public}s source=%{public}s',
-      state.tabId,
-      `${state.width}x${state.height}`,
-      state.transitionSource?.captureSource ?? 'none');
     const freshImageUri = this.resolveFreshPersistedImageUri(state, persistedState);
     // The persisted copy of this same capture is written a few ms after the entry
     // session was installed, so its timestamp is later. Publishing the session time

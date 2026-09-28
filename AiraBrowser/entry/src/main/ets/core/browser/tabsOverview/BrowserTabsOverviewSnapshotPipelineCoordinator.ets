@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { UIContext } from '@kit.ArkUI';
 import { image } from '@kit.ImageKit';
 import {
@@ -429,32 +428,20 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
   ): Promise<boolean> {
     const tabId = input.tab.id;
     if (tabId.trim().length <= 0 || !input.shouldKeepPixelMap()) {
-      hilog.info(0xB00A, 'TAB-BLANK',
-        'entry-capture skip tab=%{public}s keep=%{public}s id=%{public}s',
-        tabId, `${input.shouldKeepPixelMap()}`, input.componentSnapshotId);
       return false;
     }
     try {
-      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture start tab=%{public}s id=%{public}s scale=%{public}s',
-        tabId, input.componentSnapshotId, `${input.componentSnapshotScale}`);
       const pixelMap = await input.uiContext.getComponentSnapshot().get(input.componentSnapshotId, {
         scale: input.componentSnapshotScale,
         waitUntilRenderFinished: false
       });
-      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture got tab=%{public}s size=%{public}s',
-        tabId, this.describePixelMap(pixelMap));
       if (!input.shouldKeepPixelMap()) {
-        hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture dropped tab=%{public}s reason=keep-false', tabId);
         this.dependencies.releasePixelMap(pixelMap);
         return false;
       }
       await this.handleCapturedEntryPixelMap(input, pixelMap, input.transitionSource);
-      const kept = this.hasEntryPixelMap(this.dependencies.readState(), tabId);
-      hilog.info(0xB00A, 'TAB-BLANK', 'entry-capture installed tab=%{public}s kept=%{public}s', tabId, `${kept}`);
-      return kept;
+      return this.hasEntryPixelMap(this.dependencies.readState(), tabId);
     } catch (error) {
-      hilog.error(0xB00A, 'TAB-BLANK', 'entry-capture failed tab=%{public}s id=%{public}s error=%{public}s',
-        tabId, input.componentSnapshotId, JSON.stringify(error));
       this.dependencies.recordFailure('tabs_entry_snapshot_capture_failed', error as Error, tabId);
       return false;
     }
@@ -577,11 +564,8 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
         });
         this.dependencies.notifyChanged();
       }
-      hilog.info(0xB00A, 'TAB-BLANK', 'entry-cache tab=%{public}s size=%{public}s',
-        tabId, this.describePixelMap(copy));
-    } catch (error) {
-      hilog.error(0xB00A, 'TAB-BLANK', 'entry-cache failed tab=%{public}s error=%{public}s',
-        tabId, JSON.stringify(error));
+    } catch (_error) {
+      return;
     }
   }
 
@@ -611,29 +595,13 @@ export class BrowserTabsOverviewSnapshotPipelineCoordinator {
         transitionSource
       );
       const previewState = this.dependencies.previewCoordinator.getPreviewState(input.tab.id);
-      hilog.info(0xB00A, 'TAB-BLANK',
-        'entry-persist tab=%{public}s ok=%{public}s uri=%{public}s pm=%{public}s size=%{public}s',
-        input.tab.id, `${persisted}`, `${(previewState?.sharedSnapshotImageUri?.trim().length ?? 0) > 0}`,
-        `${previewState?.sharedSnapshotPixelMap !== undefined}`,
-        `${previewState?.sharedSnapshotImageWidth ?? 0}x${previewState?.sharedSnapshotImageHeight ?? 0}`);
       if (persisted && this.rememberPersistedPreviewState(previewState)) {
         this.dependencies.notifyChanged();
       }
     } catch (error) {
-      hilog.error(0xB00A, 'TAB-BLANK', 'entry-persist failed tab=%{public}s error=%{public}s',
-        input.tab.id, JSON.stringify(error));
       this.dependencies.recordFailure('tabs_entry_snapshot_persist_failed', error as Error, input.tab.id);
     } finally {
       this.finishPersistLease(lease);
-    }
-  }
-
-  private describePixelMap(pixelMap: image.PixelMap): string {
-    try {
-      const info = pixelMap.getImageInfoSync();
-      return `${Math.floor(info.size.width)}x${Math.floor(info.size.height)}`;
-    } catch (_error) {
-      return 'unreadable';
     }
   }
 

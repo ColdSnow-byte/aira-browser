@@ -510,19 +510,8 @@ export class BrowserTabPreviewCoordinator {
       // The restore path index may predate a capture completed during hydration. Once the
       // in-memory asset is transition-ready, keep its image and semantics as one generation.
       if (this.isTransitionSnapshotReady(existing)) {
-        hilog.info(LOG_DOMAIN, LOG_TAG,
-          '[THUMB-DIAG] preview-restore-ignored tab=%{public}s currentSource=%{public}s restoredSource=%{public}s reason=%{public}s',
-          tab.id,
-          `${existing.transitionSource?.captureSource ?? 'untyped'}`,
-          `${restoredTransitionSource?.captureSource ?? 'untyped'}`,
-          'live-transition-authoritative');
         return false;
       }
-      hilog.info(LOG_DOMAIN, LOG_TAG,
-        '[THUMB-DIAG] preview-restored tab=%{public}s size=%{public}s source=%{public}s',
-        tab.id,
-        `${sharedSnapshotImageInfo?.width ?? existing.sharedSnapshotImageWidth}x${sharedSnapshotImageInfo?.height ?? existing.sharedSnapshotImageHeight}`,
-        `${restoredTransitionSource?.captureSource ?? 'untyped'}`);
       this.previewEntries[tab.id] = this.copyEntry(existing, {
         sharedSnapshotImageUri: restoredUri,
         sharedSnapshotImageWidth: sharedSnapshotImageInfo?.width ?? existing.sharedSnapshotImageWidth,
@@ -1000,7 +989,6 @@ export class BrowserTabPreviewCoordinator {
   // cannot store a stale/wrong-surface image for that tab.
   invalidateActiveCaptureRun(tabId: string): void {
     if (this.activeCaptureRunIds[tabId] !== undefined) {
-      hilog.info(LOG_DOMAIN, LOG_TAG, '[THUMB-DIAG] capture-invalidated tab=%{public}s', tabId);
       this.activeCaptureRunIds[tabId] = undefined;
     }
   }
@@ -1025,10 +1013,6 @@ export class BrowserTabPreviewCoordinator {
     const now = Date.now();
     const signature = this.buildSignature(tab);
     const imageSize = this.resolvePixelMapSize(pixelMap);
-    hilog.info(LOG_DOMAIN, LOG_TAG,
-      '[THUMB-DIAG] preview-adopted tab=%{public}s source=%{public}s scope=%{public}s pm=%{public}s',
-      tab.id, normalizedTransitionSource.captureSource, normalizedTransitionSource.captureScope,
-      `${imageSize.width}x${imageSize.height}`);
     this.previewEntries[tab.id] = {
       tabId: tab.id,
       sharedSnapshotImageUri: '',
@@ -1096,15 +1080,6 @@ export class BrowserTabPreviewCoordinator {
     signature: string,
     runId: number
   ): Promise<boolean> {
-    const diagViewport = this.surfaceHost.resolveWebViewportSnapshotSize();
-    hilog.info(LOG_DOMAIN, LOG_TAG,
-      '[THUMB-DIAG] capture-start tab=%{public}s url=%{public}s compOnly=%{public}s preferVisible=%{public}s force=%{public}s hostViewport=%{public}s',
-      request.tab.id,
-      request.tab.url.slice(0, 64),
-      `${request.componentSnapshotOnly === true}`,
-      `${request.preferVisibleSnapshot === true}`,
-      `${request.force === true}`,
-      `${diagViewport.width}x${diagViewport.height}`);
     const captureResult = await this.captureService.captureWebPage(request.controller, request.tab.id, {
       uiContext: request.uiContext,
       componentSnapshotId: request.componentSnapshotId,
@@ -1157,13 +1132,6 @@ export class BrowserTabPreviewCoordinator {
         existing.captureSource ?? 'replaced-memory');
     }
     const imageSize = this.resolvePixelMapSize(captureResult.snapshot);
-    hilog.info(LOG_DOMAIN, LOG_TAG,
-      '[THUMB-DIAG] preview-stored tab=%{public}s source=%{public}s pm=%{public}s stored=%{public}s uri=%{public}s',
-      request.tab.id,
-      captureResult.source,
-      `${imageSize.width}x${imageSize.height}`,
-      `${captureResult.sharedSnapshotWidth ?? imageSize.width}x${captureResult.sharedSnapshotHeight ?? imageSize.height}`,
-      `${freshSharedUri.length > 0}`);
     this.previewEntries[request.tab.id] = {
       tabId: request.tab.id,
       sharedSnapshotImageUri: freshSharedUri,
