@@ -105,6 +105,9 @@ const FLOATING_TABS_ENTRY_TARGET_READY_DELAY_MS: number = 0;
 const FLOATING_TABS_ENTRY_TARGET_READY_RETRY_MS: number = 16;
 const FLOATING_TABS_ENTRY_TARGET_READY_MAX_ATTEMPTS: number = 24;
 const FLOATING_TABS_CARDS_Z_INDEX: number = 10;
+// Above the shared-snapshot layer (340) so a flattened shrink cannot paint through
+// the cards stacked in front of the one that is settling.
+const FLOATING_TABS_DECK_FRONT_CARD_Z_INDEX: number = 400;
 const FLOATING_TABS_SHARED_SNAPSHOT_Z_INDEX: number = 20;
 const FLOATING_TABS_SHARED_SNAPSHOT_DECORATION_Z_INDEX: number = 25;
 const FLOATING_TABS_BOTTOM_CHROME_Z_INDEX: number = 31;
@@ -433,8 +436,11 @@ export struct BrowserTabsFloatingOverlay {
 
       // The entering morph is stacked inside the deck instead of above the cards layer, so the
       // cards that trail the covered one keep the slot they own at rest. The grid, the large card
-      // strip and the exit back to the page all paint it from here.
-      if (this.entrySharedSnapshotMounted && !this.shouldMountSharedSnapshotInDeck()) {
+      // strip and the exit back to the page all paint it from here. A stack entry that has not
+      // found its slot yet must not fall back to this layer: that paints the shrink through the
+      // cards in front of it.
+      if (this.entrySharedSnapshotMounted && !this.shouldMountSharedSnapshotInDeck() &&
+        !this.isStackEntryMorph()) {
         this.buildSharedSnapshotOverlay()
       }
 
@@ -824,7 +830,14 @@ export struct BrowserTabsFloatingOverlay {
     if (item.id === this.deckDismissGhostTabId) {
       return (this.deckItems.length + 1) * 2;
     }
-    return this.resolveDeckIndex(item) * 2;
+    const slot = this.resolveDeckIndex(item);
+    // The shrinking picture can flatten above the deck. Cards in front of the covered
+    // card have to stay above that picture, or it shows through the right neighbour.
+    const morphSlot = this.resolveDeckEntryMorphSlot();
+    if (morphSlot >= 0 && slot > morphSlot) {
+      return FLOATING_TABS_DECK_FRONT_CARD_Z_INDEX + slot;
+    }
+    return slot * 2;
   }
 
   /**
@@ -1924,6 +1937,12 @@ export struct BrowserTabsFloatingOverlay {
    * Only an entering morph settles into a deck card and therefore has to interleave with the deck's
    * own draw order. The exit morph grows back out to the page and stays above every card.
    */
+  private isStackEntryMorph(): boolean {
+    return (this.isStackLayout() || this.storedTabsOverviewLayoutStyle === 'stack') &&
+      this.entrySharedSnapshotMounted &&
+      this.entrySharedSnapshotState.direction === 'enter';
+  }
+
   private shouldMountSharedSnapshotInDeck(): boolean {
     return this.entrySharedSnapshotMounted &&
       this.entrySharedSnapshotState.direction === 'enter' &&
@@ -1937,7 +1956,7 @@ export struct BrowserTabsFloatingOverlay {
    * it, so the morph holds a stacking slot that belongs to no other card.
    */
   private resolveDeckEntryMorphSlot(): number {
-    if (!this.isStackLayout()) {
+    if (!this.isStackLayout() && this.storedTabsOverviewLayoutStyle !== 'stack') {
       return -1;
     }
     const coveredTabId = this.resolveMorphCoveredTabId();
