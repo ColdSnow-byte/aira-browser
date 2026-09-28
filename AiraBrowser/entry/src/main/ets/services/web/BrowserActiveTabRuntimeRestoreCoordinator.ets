@@ -189,11 +189,10 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
       resolution.restorePlan.targetUrl
     );
     this.dependencies.tabSwitchCoordinator.applyTabPatch(activeTab.id, resolution.patch);
-    const executionError = this.issueLoadUrl(
+    const executionError = this.issuePageReload(
+      reason,
       activeTab.id,
-      resolution.restorePlan.targetUrl,
-      '刷新下发失败',
-      '刷新下发异常'
+      resolution.restorePlan.targetUrl
     );
     if (activeFacts.controllerAttached && executionError.length > 0) {
       this.host.applyState({
@@ -476,6 +475,27 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
       facts.selectedSearchEngine,
       facts.availableSearchEngines
     ).trim();
+  }
+
+  private issuePageReload(
+    reason: BrowserPageReloadReason,
+    tabId: string,
+    targetUrl: string
+  ): string {
+    if (reason !== 'user_manual_reload') {
+      return this.issueLoadUrl(tabId, targetUrl, '刷新下发失败', '刷新下发异常');
+    }
+    // refresh() reloads the current document and keeps the back-forward list.
+    // loadUrl + clearHistory makes the next Back look terminal and jump home.
+    AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestoreRefresh', tabId, targetUrl, false);
+    try {
+      if (this.dependencies.runtimeLifecyclePort.refreshControllerPage(tabId)) {
+        return '';
+      }
+      return `刷新下发失败：${targetUrl}`;
+    } catch (error) {
+      return `刷新下发异常：${JSON.stringify(error)}`;
+    }
   }
 
   private issueLoadUrl(

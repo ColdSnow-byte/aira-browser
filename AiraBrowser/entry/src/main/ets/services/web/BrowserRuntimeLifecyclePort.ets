@@ -587,6 +587,19 @@ export class BrowserRuntimeLifecyclePort implements BrowserRuntimeControllerReso
     }
   }
 
+  refreshControllerPage(tabId: string): boolean {
+    const controller = this.resolveController(tabId);
+    if (controller === undefined) {
+      return false;
+    }
+    try {
+      controller.refresh();
+      return true;
+    } catch (_error) {
+      return false;
+    }
+  }
+
   loadData(
     tabId: string,
     payload: BrowserWebLoadDataPayload,
