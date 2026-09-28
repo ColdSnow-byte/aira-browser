@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { image } from '@kit.ImageKit';
 import { BrowserTabsOverlayAnimationViewModel } from '../../../core/browser/BrowserTabsOverlayAnimationViewModel';
 import { BrowserTabsOverlayRect } from '../../../core/browser/BrowserTabsOverlayViewModel';
@@ -114,20 +113,6 @@ export struct BrowserTabsSharedSnapshotOverlay {
       .syncLoad(true)
       .interpolation(ImageInterpolation.Medium)
       .blur(this.imageBlurRadius())
-      .onComplete((event) => {
-        hilog.info(0xB00A, 'TAB-BLANK',
-          'morph-image ok tab=%{public}s dir=%{public}s size=%{public}s uri=%{public}s',
-          this.state.tabId, this.state.direction,
-          `${event?.width ?? 0}x${event?.height ?? 0}`,
-          this.describeMorphUri());
-      })
-      .onError((event) => {
-        hilog.error(0xB00A, 'TAB-BLANK',
-          'morph-image fail tab=%{public}s dir=%{public}s msg=%{public}s uri=%{public}s',
-          this.state.tabId, this.state.direction,
-          `${event?.message ?? ''}`,
-          this.describeMorphUri());
-      })
   }
 
   @Builder
@@ -178,23 +163,6 @@ export struct BrowserTabsSharedSnapshotOverlay {
     this.renderSnapshotImageUri = nextImageUri;
     this.renderSnapshotPixelMap = renderPixelMap;
     this.renderSnapshotImageRevision = nextImageRevision;
-    const frame = this.resolvePresentationState().frame;
-    const source = nextImageUri.length > 0 ? 'uri' : (renderPixelMap !== undefined ? 'cache' : 'none');
-    const imageFrame = this.resolvePresentationState().imageFrame;
-    hilog.info(0xB00A, 'TAB-BLANK',
-      'morph tab=%{public}s dir=%{public}s phase=%{public}s source=%{public}s frame=%{public}s image=%{public}s uri=%{public}s',
-      this.state.tabId, this.state.direction, this.state.phase, source,
-      `${Math.round(frame.width)}x${Math.round(frame.height)}`,
-      `${Math.round(imageFrame.width)}x${Math.round(imageFrame.height)}`,
-      this.describeMorphUri());
-  }
-
-  private describeMorphUri(): string {
-    const uri = this.state.imageUri.trim();
-    if (uri.length === 0) {
-      return 'empty';
-    }
-    return uri.length > 48 ? uri.slice(uri.length - 48) : uri;
   }
 
   @Builder

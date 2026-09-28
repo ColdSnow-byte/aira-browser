@@ -406,7 +406,7 @@ test('the middle bar\'s swipe-up is a second trigger for the same open, not a se
   // The shell opens the overview through the same call the 标签页 button uses, and passes no finger
   // state to the overlay at all.
   assert.match(page, /private handleTabsOverviewEntryGesture\(\): void \{\s*void this\.openTabsOverview\(\);\s*\}/);
-  assert.match(page, /private async openTabsOverview\(activeSection: BrowserTabsOverviewSessionSection = 'tabs'\): Promise<void> \{\s*this\.dumpTabPreviewDiagnostics\('overview-open'\);\s*this\.dispatchTabsOverviewSession\(\{ type: 'request_open', section: activeSection \}\);/);
+  assert.match(page, /private async openTabsOverview\(activeSection: BrowserTabsOverviewSessionSection = 'tabs'\): Promise<void> \{\s*this\.dispatchTabsOverviewSession\(\{ type: 'request_open', section: activeSection \}\);/);
   // Both triggers have to reach that one call: the button through the shell action, the gesture
   // through `handleTabsOverviewEntryGesture`.
   assert.match(page, /onOpenTabsOverview: \(\) => \{\s*this\.handleTabsOverviewEntryGesture\(\);/);
@@ -455,7 +455,7 @@ test('the middle bar\'s swipe-up is a second trigger for the same open, not a se
   // The shell opens the overview through the same call the 标签页 button uses, and passes no finger
   // state to the overlay at all.
   assert.match(page, /private handleTabsOverviewEntryGesture\(\): void \{\s*void this\.openTabsOverview\(\);\s*\}/);
-  assert.match(page, /private async openTabsOverview\(activeSection: BrowserTabsOverviewSessionSection = 'tabs'\): Promise<void> \{\s*this\.dumpTabPreviewDiagnostics\('overview-open'\);\s*this\.dispatchTabsOverviewSession\(\{ type: 'request_open', section: activeSection \}\);/);
+  assert.match(page, /private async openTabsOverview\(activeSection: BrowserTabsOverviewSessionSection = 'tabs'\): Promise<void> \{\s*this\.dispatchTabsOverviewSession\(\{ type: 'request_open', section: activeSection \}\);/);
   // Both triggers have to reach that one call: the button through the shell action, the gesture
   // through `handleTabsOverviewEntryGesture`.
   assert.match(page, /onOpenTabsOverview: \(\) => \{\s*this\.handleTabsOverviewEntryGesture\(\);/);

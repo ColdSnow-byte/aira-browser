@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import { BrowserTabPreviewState } from '../BrowserTabPreviewCoordinator';
 import { BrowserTabState } from '../../tabs/TabManager';
 import {
@@ -36,11 +35,6 @@ export class BrowserTabsOverviewThumbnailCoordinator {
       if (thumbnail === undefined || thumbnail.imageUri.trim().length <= 0) {
         return;
       }
-      hilog.info(0x0000, 'ThumbDiag',
-        '[THUMB-DIAG] thumb-store-fallback tab=%{public}s size=%{public}s age=%{public}s',
-        tab.id,
-        `${thumbnail.imageWidth}x${thumbnail.imageHeight}`,
-        `${Math.round((Date.now() - thumbnail.capturedAt) / 1000)}s`);
       previewByTabId[tab.id] = {
         tabId: tab.id,
         sharedSnapshotImageUri: thumbnail.imageUri,

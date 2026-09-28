@@ -1,4 +1,3 @@
-import { hilog } from '@kit.PerformanceAnalysisKit';
 import {
   SearchEngineId,
   SearchEngineRecord,
@@ -229,11 +228,6 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
         `source=${restoreStart.trace.source} target=${restoreStart.restorePlan.targetUrl}`,
       activeTab.id
     );
-    hilog.info(0xB00A, 'PAGE-RELOAD',
-      'restore tab=%{public}s reason=%{public}s type=%{public}s source=%{public}s snapshot=%{public}s url=%{public}s',
-      activeTab.id, reason, restoreStart.trace.restoreType, restoreStart.trace.source,
-      `${restoreStart.restorePlan.attemptSnapshotRestore}`,
-      restoreStart.restorePlan.targetUrl.slice(0, 80));
     this.dependencies.tabSwitchCoordinator.applyTabPatch(activeTab.id, restoreStart.patch, {
       persistTabs: false
     });
@@ -491,7 +485,6 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
     exceptionPrefix: string
   ): string {
     AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestore', tabId, targetUrl, true);
-    hilog.info(0xB00A, 'PAGE-RELOAD', 'loadUrl tab=%{public}s url=%{public}s', tabId, targetUrl.slice(0, 80));
     try {
       if (this.dependencies.webLoadRuntimeCoordinator.loadUrlForTab(tabId, targetUrl, true, true, true, 'ActiveTabRuntimeRestore')) {
         return '';
