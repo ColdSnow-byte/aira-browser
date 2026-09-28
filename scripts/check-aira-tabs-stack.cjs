@@ -569,7 +569,7 @@ test('the overlay deck wires the policy, per-frame motion and the reference visu
   assert.match(overlay, /return slot < 0 \? 0 : slot \* 2 \+ 1;/);
   // The entering morph is the only overlay there is: the deck paints it from its own slot, and every
   // other layout paints it from the root.
-  assert.match(overlay, /if \(this\.entrySharedSnapshotMounted && !this\.shouldMountSharedSnapshotInDeck\(\)\) \{\s*this\.buildSharedSnapshotOverlay\(\)/);
+  assert.match(overlay, /if \(this\.entrySharedSnapshotMounted && !this\.shouldMountSharedSnapshotInDeck\(\) &&\s*!this\.isStackEntryMorph\(\)\) \{\s*this\.buildSharedSnapshotOverlay\(\)/);
   // In-deck morph must not reuse the overlay-root 20/25 z-index; the slot wrapper owns stacking.
   assert.match(overlay, /snapshotLayerZIndex: inDeck \? 0 : FLOATING_TABS_SHARED_SNAPSHOT_Z_INDEX/);
   assert.match(overlay, /this\.buildSharedSnapshotOverlay\(true\)/);
