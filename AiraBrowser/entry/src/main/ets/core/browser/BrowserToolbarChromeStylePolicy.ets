@@ -264,8 +264,9 @@ export function resolveSplitToolbarCanGoForward(
 
 /**
  * Homepage bars follow the painted home backdrop. A theme-color home blends the bars into that
- * color. A wallpaper or a custom web home keeps the neutral light/dark surface, because those
- * backdrops are not a single theme color.
+ * color. A classic-frame wallpaper or a custom web home keeps the neutral light/dark surface,
+ * because those backdrops are not a single theme color. Centered and minimal homes clear the
+ * bars over an image wallpaper instead; see shouldClearSplitToolbarOverWallpaper.
  */
 export type SplitToolbarHomeBackdrop = 'theme_color' | 'wallpaper' | 'web_home';
 
@@ -295,4 +296,33 @@ export function resolveSplitToolbarBarBackgroundColor(input: SplitToolbarBarBack
   }
   const homeColor = input.homeBackgroundColor.trim();
   return homeColor.length > 0 ? homeColor : input.surfaceBackgroundColor;
+}
+
+/** Fully clear fill. The wallpaper behind the bars stays visible. */
+export const SPLIT_TOOLBAR_CLEARED_BAR_COLOR: string = '#00000000';
+
+/**
+ * 简约 and 极简 paint an image wallpaper edge to edge. Their split bars drop the fill so that
+ * wallpaper shows through, and their icons follow the same black-or-white tone as the wordmark.
+ * A theme-color home, the classic frame, and any web page keep the normal bar fill.
+ */
+export function shouldClearSplitToolbarOverWallpaper(
+  homeScene: boolean,
+  centeredHomeFrame: boolean,
+  wallpaperKind: HomeWallpaperPresentationKind
+): boolean {
+  return homeScene && centeredHomeFrame && wallpaperKind === 'image';
+}
+
+/**
+ * 简约 and 极简 keep a center search field. With the floating toolbar selected, that field
+ * opens the toolbar's own search instead of the split search page. Large screens type
+ * into the field itself, and the split toolbar keeps its search page.
+ */
+export function shouldRouteCenteredHomeSearchToFloatingToolbar(
+  style: BrowserToolbarChromeStyle,
+  centeredHomeFrame: boolean,
+  largeScreenShellActive: boolean
+): boolean {
+  return centeredHomeFrame && !largeScreenShellActive && style !== 'split';
 }

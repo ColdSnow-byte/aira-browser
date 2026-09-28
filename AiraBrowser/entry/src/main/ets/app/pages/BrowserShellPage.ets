@@ -235,12 +235,15 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  shouldClearSplitToolbarOverWallpaper,
+  SPLIT_TOOLBAR_CLEARED_BAR_COLOR,
   canCollapseSplitAddressBarForTopImmersion,
   resolveSplitToolbarScrollBehavior,
   shouldApplyAlwaysTopImmersion,
   shouldCollapseSplitToolbarForScroll,
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
+  shouldRouteCenteredHomeSearchToFloatingToolbar,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
@@ -511,6 +514,7 @@ import {
   BrowserTabRecoveryCoordinator
 } from '../../core/browser/BrowserTabRecoveryCoordinator';
 import { BrowserTabHomeCoordinator, BrowserTabHomeShell } from '../../core/browser/BrowserTabHomeCoordinator';
+import { HomeContentThemePresentationState } from '../../core/browser/HomeContentPresentationState';
 import {
   BROWSER_BOTTOM_ADDRESS_PANEL_FLOATING_LOW_HEIGHT,
   BROWSER_BOTTOM_ADDRESS_PANEL_LOW_HEIGHT
@@ -6063,6 +6067,7 @@ struct BrowserShellPage {
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY) @Watch('syncGestureOnboardingForHomePageStyle')
   private storedHomePageStyle: string = 'classic';
   @State private topSearchOpenRequestVersion: number = 0;
+  @State private floatingToolbarSearchOpenRequestVersion: number = 0;
   @State private centeredHomeSearchSessionMounted: boolean = false;
   @State private centeredHomeSearchGeometryOpen: boolean = false;
   /** 0 keeps the search-page field. 1 has already faded it toward the homepage field. */
@@ -7658,6 +7663,7 @@ struct BrowserShellPage {
       currentTabSuggestionRefId: this.activeTabId,
       toolbarSystemSheetRequested: this.rootBottomPanelToolbarSystemSheetRequested,
       toolbarSystemSheetRequestVersion: this.rootBottomPanelToolbarSystemSheetRequestVersion,
+      floatingToolbarSearchOpenRequestVersion: this.floatingToolbarSearchOpenRequestVersion,
       responsiveState: renderContext.responsiveState,
       topSafeInsetVp: this.homeTopSafeInsetVp,
       onPanelDetentChange: (detent: HomeSearchPanelDetent) => {
@@ -8773,6 +8779,10 @@ struct BrowserShellPage {
       pressedBackgroundColor: this.themedHomePressedBackground,
       textColor: this.themedHomeTextPrimaryColor,
       secondaryTextColor: this.themedHomeTextSecondaryColor,
+      wallpaperIconsActive: this.usesWallpaperSplitToolbarChrome(),
+      wallpaperIconColor: this.readWallpaperSplitToolbarIconColor(),
+      wallpaperSecondaryIconColor: this.readWallpaperSplitToolbarSecondaryIconColor(),
+      wallpaperPressedColor: this.readWallpaperSplitToolbarPressedColor(),
       onSearchSessionChange: (active: boolean, query: string): void => {
         this.handleSplitToolbarSearchSession(active, query);
       },
@@ -8828,6 +8838,9 @@ struct BrowserShellPage {
   }
 
   private readSplitToolbarBarBackgroundColor(): string {
+    if (this.usesWallpaperSplitToolbarChrome()) {
+      return SPLIT_TOOLBAR_CLEARED_BAR_COLOR;
+    }
     const profile = this.browserTabHomeCoordinator.buildHomeSurfaceProfile();
     const wallpaper = this.resolveHomeWallpaperPresentationState();
     return resolveSplitToolbarBarBackgroundColor({
@@ -8835,6 +8848,38 @@ struct BrowserShellPage {
       backdrop: resolveSplitToolbarHomeBackdrop(wallpaper.kind, profile.foregroundBackdropSource),
       homeBackgroundColor: this.themedHomeBackground,
       surfaceBackgroundColor: this.themedHomeSurfaceBackground
+    });
+  }
+
+  private usesWallpaperSplitToolbarChrome(): boolean {
+    return shouldClearSplitToolbarOverWallpaper(
+      this.showHomePage,
+      this.isCenteredHomePageStyleActive(),
+      this.resolveHomeWallpaperPresentationState().kind
+    );
+  }
+
+  private readWallpaperSplitToolbarIconColor(): ResourceColor {
+    return this.readHomeContentThemePresentation().primaryTextColor;
+  }
+
+  private readWallpaperSplitToolbarSecondaryIconColor(): ResourceColor {
+    return this.readHomeContentThemePresentation().secondaryTextColor;
+  }
+
+  private readWallpaperSplitToolbarPressedColor(): ResourceColor {
+    return this.readHomeContentThemePresentation().pressedBackgroundColor;
+  }
+
+  private readHomeContentThemePresentation(): HomeContentThemePresentationState {
+    return this.browserTabHomeCoordinator.buildContentThemePresentation({
+      wallpaperState: this.resolveHomeWallpaperPresentationState(),
+      themeBackgroundColor: this.themedHomeBackground,
+      themedPrimaryTextColor: this.themedHomeTextPrimaryColor,
+      themedSecondaryTextColor: this.themedHomeTextSecondaryColor,
+      themedPressedBackgroundColor: this.themedHomePressedBackground,
+      controlBackgroundColor: this.themedHomeControlBackground,
+      accentColor: this.themedHomeAccentColor
     });
   }
 
@@ -9281,6 +9326,7 @@ struct BrowserShellPage {
       centeredScanButtonVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
       softenCenteredSearchBorder: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
       centeredSearchMatchesToolbar: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
+      centeredWordmarkOpensSettings: this.isCenteredHomePageStyleActive(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       inlineSearch: this.isLargeScreenShellFamilyActive(),
       inlineSearchActive: this.isCenteredHomeInlineSearchActive(),
@@ -9728,6 +9774,15 @@ struct BrowserShellPage {
 
   private openCenteredHomeSearch(): void {
     if (this.isLargeScreenShellFamilyActive()) {
+      return;
+    }
+    // 简约 and 极简 with the floating toolbar open that toolbar's search, not the split search page.
+    if (shouldRouteCenteredHomeSearchToFloatingToolbar(
+      this.toolbarChromeStyle,
+      this.isCenteredHomePageStyleActive(),
+      this.isLargeScreenShellFamilyActive()
+    )) {
+      this.floatingToolbarSearchOpenRequestVersion += 1;
       return;
     }
     this.centeredHomeSearchChromeFade = 0;

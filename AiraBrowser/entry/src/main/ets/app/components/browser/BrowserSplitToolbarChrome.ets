@@ -116,6 +116,14 @@ export struct BrowserSplitToolbarChrome {
   @Prop pressedBackgroundColor: ResourceColor = '#14000000';
   @Prop textColor: ResourceColor = '#111111';
   @Prop secondaryTextColor: ResourceColor = '#8A8A8E';
+  /**
+   * Resting home icons follow the wallpaper tone. The search sheet keeps the theme colors, because
+   * it paints its own opaque page background.
+   */
+  @Prop wallpaperIconsActive: boolean = false;
+  @Prop wallpaperIconColor: ResourceColor = '#111111';
+  @Prop wallpaperSecondaryIconColor: ResourceColor = '#8A8A8E';
+  @Prop wallpaperPressedColor: ResourceColor = '#14000000';
   onSearchSessionChange: (active: boolean, query: string) => void =
     (_active: boolean, _query: string) => {};
   onCenteredSearchGeometryReverse: () => void = () => {};
@@ -251,11 +259,11 @@ export struct BrowserSplitToolbarChrome {
           AiraIcon({
             airaIconId: 'browser.toolbar.search',
             iconSize: 20,
-            iconColor: this.textColor
+            iconColor: this.resolveHomeChromeIconColor()
           })
           Text('主页')
             .fontSize(18)
-            .fontColor(this.textColor)
+            .fontColor(this.resolveHomeChromeIconColor())
             .maxLines(1)
             .textAlign(TextAlign.Start)
         }
@@ -269,7 +277,7 @@ export struct BrowserSplitToolbarChrome {
           AiraIcon({
             airaIconId: 'browser.toolbar.scanQr',
             iconSize: 20,
-            iconColor: this.textColor
+            iconColor: this.resolveHomeChromeIconColor()
           })
         }
         .width(32)
@@ -604,9 +612,9 @@ export struct BrowserSplitToolbarChrome {
         buttons: this.buttons,
         homeScene: this.homeScene,
         tabCount: this.tabCount,
-        textColor: this.textColor,
-        secondaryTextColor: this.secondaryTextColor,
-        pressedBackgroundColor: this.pressedBackgroundColor,
+        textColor: this.resolveHomeChromeIconColor(),
+        secondaryTextColor: this.resolveHomeChromeSecondaryIconColor(),
+        pressedBackgroundColor: this.resolveHomeChromePressedColor(),
         onTap: (slotId: string): void => {
           this.onButtonTap(slotId);
         },
@@ -791,6 +799,18 @@ export struct BrowserSplitToolbarChrome {
 
   private resolveBarBackground(): ResourceColor {
     return this.searching ? this.pageBackgroundColor : this.barBackgroundColor;
+  }
+
+  private resolveHomeChromeIconColor(): ResourceColor {
+    return this.wallpaperIconsActive ? this.wallpaperIconColor : this.textColor;
+  }
+
+  private resolveHomeChromeSecondaryIconColor(): ResourceColor {
+    return this.wallpaperIconsActive ? this.wallpaperSecondaryIconColor : this.secondaryTextColor;
+  }
+
+  private resolveHomeChromePressedColor(): ResourceColor {
+    return this.wallpaperIconsActive ? this.wallpaperPressedColor : this.pressedBackgroundColor;
   }
 
   private shouldShowBottomBar(): boolean {

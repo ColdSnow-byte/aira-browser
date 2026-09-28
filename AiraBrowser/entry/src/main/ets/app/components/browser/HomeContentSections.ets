@@ -47,6 +47,8 @@ export struct HomeContentSections {
   @Prop softenCenteredSearchBorder: boolean = false;
   /** Minimal's field uses the same side inset as the search-page pill. */
   @Prop centeredSearchMatchesToolbar: boolean = false;
+  /** Centered and minimal open homepage settings from the wordmark above the search field. */
+  @Prop centeredWordmarkOpensSettings: boolean = false;
   @Prop centeredSearchPresented: boolean = false;
   @Prop inlineSearch: boolean = false;
   @Prop inlineSearchActive: boolean = false;
@@ -236,6 +238,10 @@ export struct HomeContentSections {
         showScanButton: this.centeredScanButtonVisible,
         softenSearchBorder: this.softenCenteredSearchBorder,
         searchSideInset: this.resolveCenteredSearchSideInset(),
+        wordmarkOpensSettings: this.centeredWordmarkOpensSettings,
+        onOpenSettings: () => {
+          this.onAction({ type: 'open_home_settings' });
+        },
         onScan: () => {
           this.onScan();
         },
@@ -270,8 +276,7 @@ export struct HomeContentSections {
 
   @Builder
   private buildFavoritesSection() {
-    if ((!this.centeredStyle && this.showShortcuts) ||
-      (this.centeredStyle && this.centeredFavoritesVisible)) {
+    if (this.showShortcuts && (!this.centeredStyle || this.centeredFavoritesVisible)) {
       HomeFavoritesSection({
         expanded: this.favoritesExpanded,
         showTitle: this.centeredStyle ? false : this.storedShowFavoritesTitle,
@@ -279,7 +284,7 @@ export struct HomeContentSections {
         minimumWidth: this.resolveSectionRailWidth(),
         alignPartialRowsToStart: !this.centeredStyle && this.presentation.useSharedSectionWidth,
         centerPartialRows: this.centeredStyle,
-        showPinnedSettingsEntry: this.centeredStyle,
+        showPinnedSettingsEntry: false,
         shortcuts: this.resolveFavoritesShortcuts(),
         theme: this.theme,
         contextMenuShortcutId: $contextMenuShortcutId,
@@ -349,32 +354,14 @@ export struct HomeContentSections {
     });
   }
 
-  /**
-   * The centered frame still shows its pinned settings tile when favorites are hidden,
-   * so hiding favorites drops the record tiles instead of the whole section.
-   */
   private resolveFavoritesShortcuts(): HomeShortcutPresentationState {
-    const shortcuts = this.presentation.shortcuts;
-    if (!this.centeredStyle || this.showShortcuts) {
-      return shortcuts;
-    }
-    return {
-      shortcuts: [],
-      showAddEntry: false,
-      gridWidth: shortcuts.gridWidth,
-      gridTopInset: shortcuts.gridTopInset,
-      layoutVersion: shortcuts.layoutVersion,
-      iconsVersion: shortcuts.iconsVersion,
-      icons: [],
-      metrics: shortcuts.metrics
-    };
+    return this.presentation.shortcuts;
   }
 
   private resolveFavoritesSectionWidth(): number {
     const shortcuts = this.resolveFavoritesShortcuts();
     const itemCount = shortcuts.shortcuts.length +
-      (shortcuts.showAddEntry ? 1 : 0) +
-      (this.centeredStyle ? 1 : 0);
+      (shortcuts.showAddEntry ? 1 : 0);
     const gridWidth = Math.max(1, shortcuts.gridWidth);
     const occupiedContentWidth = this.homeShortcutViewModel.getOccupiedGridContentWidth(
       itemCount,

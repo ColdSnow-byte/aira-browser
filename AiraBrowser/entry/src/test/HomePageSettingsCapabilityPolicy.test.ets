@@ -33,8 +33,7 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
       expect(capabilities.systemSearch).assertFalse();
       expect(capabilities.settingsButton).assertFalse();
       expect(resolveHomePageRecoveryEntries('centered').length).assertEqual(0);
-      expect(resolveHomePageSettingsRecoveryFooter('centered'))
-        .assertEqual('主页设置入口固定显示，不可移除。');
+      expect(resolveHomePageSettingsRecoveryFooter('centered')).assertEqual('');
     });
 
     it('leaves_the_minimal_frame_with_wallpaper_only', 0, () => {
@@ -50,7 +49,7 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
       expect(resolveHomePageSettingsRecoveryFooter('minimal')).assertEqual('');
     });
 
-    it('keeps_the_pinned_centered_settings_tile_out_of_recovery', 0, () => {
+    it('keeps_the_centered_wordmark_entry_out_of_recovery', 0, () => {
       const policy = new HomePageRecoveryEntryPolicyService();
       const centeredEntries = resolveHomePageRecoveryEntries('centered');
       const current = {
@@ -58,7 +57,7 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
         showRecentlyClosed: true,
         showSettingsButton: false
       };
-      // The pinned tile always exists on that frame, so hiding favorites stays allowed.
+      // The wordmark always opens settings, so hiding favorites stays allowed.
       expect(policy.resolveChange('favorites', false, current, centeredEntries).allowed).assertTrue();
       // ...and the frame never rewrites the stored classic settings-button flag.
       expect(policy.resolveSettingsButtonVisibility({

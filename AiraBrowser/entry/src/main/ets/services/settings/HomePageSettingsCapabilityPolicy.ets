@@ -10,9 +10,8 @@ import { HomePageRecoveryEntry } from './HomePageRecoveryEntryPolicyService';
  * Compact layout, section titles, icon radius, recently closed, system search, and the
  * settings button are classic-only.
  *
- * The centered frame does not offer a toggleable settings entry: it pins an undeletable
- * `主页设置` tile into the favorites grid, so `settingsButton` is false there. Minimal has
- * no on-page entry at all.
+ * Centered and minimal open this sheet from the wordmark above the search field, so neither
+ * frame has a stored settings-button toggle. `settingsButton` stays false there.
  */
 export interface HomePageSettingsCapabilities {
   wallpaper: boolean;
@@ -76,9 +75,8 @@ export function resolveHomePageSettingsCapabilities(
  * Entries that can still open homepage settings on the active frame.
  *
  * The classic frame must keep at least one of favorites, recently closed, or its settings button.
- * The centered frame pins an undeletable `主页设置` tile into the grid, so a visible entry always
- * exists and no stored flag has to be kept or repaired on that frame. Minimal has no shortcut
- * grid and no on-page entry, and it must not rewrite the stored classic flags either.
+ * Centered and minimal always open the sheet from the wordmark, so neither frame rewrites the
+ * stored classic flags.
  */
 export function resolveHomePageRecoveryEntries(style: BrowserHomePageStyle): HomePageRecoveryEntry[] {
   if (style === 'centered' || style === 'minimal') {
@@ -88,11 +86,8 @@ export function resolveHomePageRecoveryEntries(style: BrowserHomePageStyle): Hom
 }
 
 export function resolveHomePageSettingsRecoveryFooter(style: BrowserHomePageStyle): string {
-  if (style === 'minimal') {
+  if (style === 'centered' || style === 'minimal') {
     return '';
-  }
-  if (style === 'centered') {
-    return '主页设置入口固定显示，不可移除。';
   }
   return '收藏、最近关闭和主页设置按钮至少保留一项。';
 }

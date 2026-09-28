@@ -6,6 +6,8 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  shouldClearSplitToolbarOverWallpaper,
+  SPLIT_TOOLBAR_CLEARED_BAR_COLOR,
   canCollapseSplitAddressBarForTopImmersion,
   resolveScrollTopImmersionFooter,
   resolveSplitToolbarScrollBehavior,
@@ -16,6 +18,7 @@ import {
   shouldCollapseSplitToolbarForScroll,
   SplitAddressBarImmersionScrollCoordinator,
   shouldReserveSplitToolbarHomeInsets,
+  shouldRouteCenteredHomeSearchToFloatingToolbar,
   shouldSuppressLegacyFloatingToolbar,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP
@@ -59,6 +62,10 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(shouldSuppressLegacyFloatingToolbar('floating', false)).assertFalse();
     expect(shouldReserveSplitToolbarHomeInsets('split', false)).assertTrue();
     expect(shouldReserveSplitToolbarHomeInsets('floating', false)).assertFalse();
+    expect(shouldRouteCenteredHomeSearchToFloatingToolbar('floating', true, false)).assertTrue();
+    expect(shouldRouteCenteredHomeSearchToFloatingToolbar('split', true, false)).assertFalse();
+    expect(shouldRouteCenteredHomeSearchToFloatingToolbar('floating', false, false)).assertFalse();
+    expect(shouldRouteCenteredHomeSearchToFloatingToolbar('floating', true, true)).assertFalse();
     expect(SPLIT_TOOLBAR_ADDRESS_BLOCK_VP).assertLarger(0);
     expect(SPLIT_TOOLBAR_BOTTOM_BAR_VP).assertLarger(0);
   });
@@ -109,6 +116,14 @@ describe('BrowserToolbarChromeStylePolicy', () => {
       homeBackgroundColor: '   ',
       surfaceBackgroundColor: '#FFFFFF'
     })).assertEqual('#FFFFFF');
+  });
+
+  it('clears centered and minimal bars only over an image wallpaper', 0, () => {
+    expect(shouldClearSplitToolbarOverWallpaper(true, true, 'image')).assertTrue();
+    expect(SPLIT_TOOLBAR_CLEARED_BAR_COLOR).assertEqual('#00000000');
+    expect(shouldClearSplitToolbarOverWallpaper(true, true, 'default')).assertFalse();
+    expect(shouldClearSplitToolbarOverWallpaper(true, false, 'image')).assertFalse();
+    expect(shouldClearSplitToolbarOverWallpaper(false, true, 'image')).assertFalse();
   });
 
   it('keeps split scroll fixed unless the user chose hide, then collapses both bars together', 0, () => {

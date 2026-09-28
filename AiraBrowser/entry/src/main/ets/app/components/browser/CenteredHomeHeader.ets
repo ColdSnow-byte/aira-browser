@@ -41,11 +41,14 @@ export struct CenteredHomeHeader {
   @Prop softenSearchBorder: boolean = false;
   /** Extra inset so this field's edges match the search-page pill. */
   @Prop searchSideInset: number = 0;
+  /** Centered and minimal open homepage settings from this wordmark. */
+  @Prop wordmarkOpensSettings: boolean = false;
   @Prop searchSuggestions: SearchSuggestion[] = [];
   @Prop searchViewportHeight: number = 0;
   @Prop searchPopupReservedTop: number = 0;
   @Prop @Watch('applyInlineSearchDismiss') searchDismissVersion: number = 0;
   onOpenSearch: () => void = () => {};
+  onOpenSettings: () => void = () => {};
   onScan: () => void = () => {};
   onInlineSearchSession: (active: boolean, query: string) => void =
     (_active: boolean, _query: string) => {};
@@ -74,6 +77,12 @@ export struct CenteredHomeHeader {
         .objectFit(ImageFit.Contain)
         .fillColor(this.textColor)
         .draggable(false)
+        .accessibilityText(this.wordmarkOpensSettings ? '主页设置' : 'Aira')
+        .onClick(() => {
+          if (this.wordmarkOpensSettings) {
+            this.onOpenSettings();
+          }
+        })
 
       this.buildSearchSlot()
     }

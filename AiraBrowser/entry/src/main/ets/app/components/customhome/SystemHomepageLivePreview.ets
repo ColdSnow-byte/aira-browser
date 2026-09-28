@@ -929,7 +929,7 @@ export struct SystemHomepageLivePreview {
     .width('100%')
     .height(this.unit(64))
     .justifyContent(FlexAlign.Center)
-    .backgroundColor(this.storedPageBackgroundColor)
+    .backgroundColor(this.resolveSplitBarBackground())
   }
 
   @Builder
@@ -937,12 +937,12 @@ export struct SystemHomepageLivePreview {
     Text('1')
       .fontSize(this.unit(13))
       .fontWeight(FontWeight.Medium)
-      .fontColor(this.storedPrimaryTextColor)
+      .fontColor(this.resolvePrimaryText())
       .textAlign(TextAlign.Center)
       .width(this.unit(21))
       .height(this.unit(21))
       .borderRadius(this.unit(5))
-      .border({ width: Math.max(1, this.unit(2)), color: this.storedPrimaryTextColor })
+      .border({ width: Math.max(1, this.unit(2)), color: this.resolvePrimaryText() })
   }
 
   @Builder
@@ -965,7 +965,7 @@ export struct SystemHomepageLivePreview {
     AiraIcon({
       airaIconId: iconId,
       iconSize: this.unit(25),
-      iconColor: this.storedPrimaryTextColor
+      iconColor: this.resolvePrimaryText()
     })
   }
 
@@ -979,7 +979,6 @@ export struct SystemHomepageLivePreview {
 
   private buildCenteredTiles(): HomepagePreviewTile[] {
     const tiles: HomepagePreviewTile[] = this.buildShortcutTiles();
-    tiles.push(this.buildChromeTile('settings', '主页设置', 'browser.home.settings'));
     tiles.push(this.buildChromeTile('add', '添加', 'browser.tabs.add'));
     return tiles;
   }
@@ -1013,6 +1012,14 @@ export struct SystemHomepageLivePreview {
   }
 
   private resolveContentBackground(): ResourceColor {
+    return this.hasImageWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
+  }
+
+  /**
+   * 简约 and 极简 clear the split bar over an image wallpaper, same as the live homepage.
+   * A theme-color card keeps the page fill, which already matches the content behind it.
+   */
+  private resolveSplitBarBackground(): ResourceColor {
     return this.hasImageWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
   }
 

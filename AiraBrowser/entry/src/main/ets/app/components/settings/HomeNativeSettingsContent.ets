@@ -648,12 +648,12 @@ export struct HomeNativeSettingsContent {
     return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).systemSearch;
   }
 
-  /** Centered pins an undeletable settings tile, so its sheet has no settings-button switch. */
+  /** Centered and minimal open settings from the wordmark, so their sheets have no switch. */
   private showsSettingsButtonControl(): boolean {
     return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).settingsButton;
   }
 
-  /** Minimal has neither a settings switch nor a recovery footnote. */
+  /** Centered and minimal have neither a settings switch nor a recovery footnote. */
   private showsRecoverySettings(): boolean {
     return this.showsSettingsButtonControl() ||
       resolveHomePageSettingsRecoveryFooter(this.resolveHomePageStyle()).length > 0;

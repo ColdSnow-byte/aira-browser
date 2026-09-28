@@ -372,6 +372,8 @@ export struct BrowserBottomAddressPanel {
   private pendingToolbarSystemSheetAction: BrowserBottomAddressPanelAction | undefined = undefined;
   private handledImmediateLowDetentRequestVersion: number = 0;
   private handledToolbarSystemSheetRequestVersion: number = 0;
+  private handledFloatingToolbarSearchOpenRequestVersion: number = 0;
+  private floatingToolbarSearchRequestReady: boolean = false;
   private toolbarSystemSheetInstanceToken: number = allocateToolbarSystemSheetInstanceToken();
   private dragConsumedQuickActionId: BrowserBottomAddressPanelActionId | undefined = undefined;
   private quickActionDragClickGuardTimeout: number = -1;
@@ -448,6 +450,13 @@ export struct BrowserBottomAddressPanel {
   @Watch('syncToolbarSystemSheetRequest')
   toolbarSystemSheetRequestVersion: number = 0;
   /**
+   * One-shot open of the floating toolbar search, same as tapping its address field.
+   * A centered or minimal homepage uses this when that toolbar is the selected chrome.
+   */
+  @Prop
+  @Watch('syncFloatingToolbarSearchOpenRequest')
+  floatingToolbarSearchOpenRequestVersion: number = 0;
+  /**
    * The middle bar's upward drag asked for the tab overview.
    *
    * The overview is opened exactly as the toolbar's own 标签页 button opens it; only the way it was
@@ -513,6 +522,8 @@ export struct BrowserBottomAddressPanel {
   onKeyboardResizeSessionEnd: () => void = () => {};
 
   aboutToAppear(): void {
+    this.handledFloatingToolbarSearchOpenRequestVersion = this.floatingToolbarSearchOpenRequestVersion;
+    this.floatingToolbarSearchRequestReady = true;
     this.requestedAddressFocused = false;
     this.addressInputActuallyFocused = false;
     let retainedAddressFocused = false;
@@ -551,6 +562,7 @@ export struct BrowserBottomAddressPanel {
   }
 
   aboutToDisappear(): void {
+    this.floatingToolbarSearchRequestReady = false;
     this.onPresentationHostDisconnected();
     const ownsLivePresentation = this.disconnectPresentationChannel();
     this.disconnectPresentationChannel = (): boolean => false;
@@ -2762,6 +2774,16 @@ export struct BrowserBottomAddressPanel {
   // should be open, so a layout-driven panel remount reopens it instead of
   // dropping it, and a request version re-opens it even when the requested flag was
   // already true across a fast close-then-reopen.
+  private syncFloatingToolbarSearchOpenRequest(): void {
+    const requestVersion = this.floatingToolbarSearchOpenRequestVersion;
+    if (!this.floatingToolbarSearchRequestReady ||
+      requestVersion <= this.handledFloatingToolbarSearchOpenRequestVersion) {
+      return;
+    }
+    this.handledFloatingToolbarSearchOpenRequestVersion = requestVersion;
+    this.enterAddressFocus(true);
+  }
+
   private syncToolbarSystemSheetRequest(): void {
     const requestVersion = this.toolbarSystemSheetRequestVersion;
     const isNewRequest = requestVersion > this.handledToolbarSystemSheetRequestVersion;
