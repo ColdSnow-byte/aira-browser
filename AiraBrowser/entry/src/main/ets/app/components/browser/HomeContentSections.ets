@@ -38,6 +38,12 @@ export struct HomeContentSections {
   private storedShowSettingsButton: boolean = true;
   @Prop showShortcuts: boolean = true;
   @Prop centeredStyle: boolean = false;
+  /** Centered shows the shortcut grid. Minimal keeps the same header and leaves this off. */
+  @Prop centeredFavoritesVisible: boolean = true;
+  /** Minimal drops the scan button inside the shared search field. */
+  @Prop centeredScanButtonVisible: boolean = true;
+  /** Minimal keeps the field, but its border is not the near-black primary text color. */
+  @Prop softenCenteredSearchBorder: boolean = false;
   @Prop centeredSearchPresented: boolean = false;
   @Prop inlineSearch: boolean = false;
   @Prop inlineSearchActive: boolean = false;
@@ -94,6 +100,7 @@ export struct HomeContentSections {
       // Scroll defaults to Alignment.Center, which floats a short icon block in the middle.
       // Icons must pack from the top of this region and continue downward.
       Stack() {
+        if (this.centeredFavoritesVisible) {
         Scroll(this.homeContentScroller) {
           Column({ space: this.presentation.sectionVerticalGap }) {
             this.buildFavoritesSection()
@@ -122,6 +129,7 @@ export struct HomeContentSections {
         .onScrollStop(() => {
           this.onAction({ type: 'scroll_stop', scrollSource: 'system' });
         })
+        }
 
         if (this.inlineSearch && this.inlineSearchActive) {
           Column()
@@ -222,6 +230,8 @@ export struct HomeContentSections {
         onOpenSearch: () => {
           this.onOpenSearch();
         },
+        showScanButton: this.centeredScanButtonVisible,
+        softenSearchBorder: this.softenCenteredSearchBorder,
         onScan: () => {
           this.onScan();
         },
@@ -256,7 +266,8 @@ export struct HomeContentSections {
 
   @Builder
   private buildFavoritesSection() {
-    if (this.showShortcuts || this.centeredStyle) {
+    if ((!this.centeredStyle && this.showShortcuts) ||
+      (this.centeredStyle && this.centeredFavoritesVisible)) {
       HomeFavoritesSection({
         expanded: this.favoritesExpanded,
         showTitle: this.centeredStyle ? false : this.storedShowFavoritesTitle,

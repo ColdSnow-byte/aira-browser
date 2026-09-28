@@ -106,14 +106,18 @@ export struct HomeNativeSettingsContent {
   build() {
     Column({ space: 16 }) {
       this.buildWallpaperSection()
-      this.buildFavoritesSection()
+      if (this.showsFavoritesSettings()) {
+        this.buildFavoritesSection()
+      }
       if (this.showsRecentlyClosedSettings()) {
         this.buildRecentlyClosedSection()
       }
       if (this.showsSystemSearchSettings()) {
         this.buildSystemSearchSection()
       }
-      this.buildSettingsButtonSection()
+      if (this.showsRecoverySettings()) {
+        this.buildSettingsButtonSection()
+      }
     }
     .width('100%')
     .alignItems(HorizontalAlign.Start)
@@ -632,6 +636,10 @@ export struct HomeNativeSettingsContent {
     return normalizeBrowserHomePageStyle(this.storedHomePageStyle);
   }
 
+  private showsFavoritesSettings(): boolean {
+    return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).favorites;
+  }
+
   private showsRecentlyClosedSettings(): boolean {
     return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).recentlyClosed;
   }
@@ -643,6 +651,12 @@ export struct HomeNativeSettingsContent {
   /** Centered pins an undeletable settings tile, so its sheet has no settings-button switch. */
   private showsSettingsButtonControl(): boolean {
     return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).settingsButton;
+  }
+
+  /** Minimal has neither a settings switch nor a recovery footnote. */
+  private showsRecoverySettings(): boolean {
+    return this.showsSettingsButtonControl() ||
+      resolveHomePageSettingsRecoveryFooter(this.resolveHomePageStyle()).length > 0;
   }
 
   private resolveControlEnabled(): boolean {

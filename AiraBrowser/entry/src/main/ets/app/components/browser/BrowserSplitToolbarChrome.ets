@@ -76,10 +76,15 @@ export struct BrowserSplitToolbarChrome {
   @Prop @Watch('handleSearchOpenRequest') searchOpenRequestVersion: number = 0;
   @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
   /**
-   * Centered homepage already has a search field. Hide this address row on that home so the two
-   * do not stack. Search still uses the row; web pages keep it.
+   * The centered homepage already has a search field, so that home hides this row. Minimal keeps
+   * the row: the line opens search, and the scan button stays on the right. Web pages keep it too.
    */
   @Prop suppressHomeAddressBar: boolean = false;
+  /**
+   * Centered and minimal home share the field flight. Minimal still shows the resting top row;
+   * that row is not the flight target, or the two search nodes share one geometry id.
+   */
+  @Prop homeSearchGeometry: boolean = false;
   /**
    * Shell-owned shared-element flag. The centered-home field and this search field swap inside
    * one animateTo, so this prop — not the local searching flag — decides which copy is on screen.
@@ -172,9 +177,9 @@ export struct BrowserSplitToolbarChrome {
   private buildCenteredSearchGeometryHost() {
     Column() {
       if (this.shouldShowCenteredSearchGeometryPill()) {
-        this.buildSearchPill()
+        this.buildSearchPill(true)
       }
-      if (this.engineMenuOpen) {
+      if (this.engineMenuOpen && !this.shouldShowTopBar()) {
         this.buildEngineMenu()
       }
     }
@@ -192,7 +197,9 @@ export struct BrowserSplitToolbarChrome {
   private buildTopBar() {
     Column() {
       Stack() {
-        this.buildSearchPill()
+        if (this.searching || this.sessionMode === 'search_only' || !this.homeScene) {
+          this.buildSearchPill(false)
+        }
         if (!this.searching && this.sessionMode !== 'search_only') {
           if (this.homeScene) {
             this.buildHomePill()
@@ -245,7 +252,7 @@ export struct BrowserSplitToolbarChrome {
             iconSize: 18,
             iconColor: this.textColor
           })
-          Text('首页')
+          Text('主页')
             .fontSize(16)
             .fontColor(this.textColor)
             .maxLines(1)
@@ -283,7 +290,6 @@ export struct BrowserSplitToolbarChrome {
     }
     .width('100%')
     .height(SPLIT_TOOLBAR_PILL_HEIGHT)
-    .border({ width: 1.5, color: this.textColor })
     .borderRadius(23)
     .backgroundColor(this.resolveBarBackground())
     .clip(true)
@@ -381,7 +387,7 @@ export struct BrowserSplitToolbarChrome {
   }
 
   @Builder
-  private buildSearchPill() {
+  private buildSearchPill(bindHomeGeometry: boolean) {
     Stack() {
       Row()
         .width('100%')
@@ -485,13 +491,16 @@ export struct BrowserSplitToolbarChrome {
     .width('100%')
     .height(SPLIT_TOOLBAR_PILL_HEIGHT)
     .alignContent(Alignment.Center)
-    .border({ width: SPLIT_TOOLBAR_SEARCH_PILL_BORDER, color: this.textColor })
+    .border({
+      width: bindHomeGeometry && !this.suppressHomeAddressBar ? 1.5 : SPLIT_TOOLBAR_SEARCH_PILL_BORDER,
+      color: bindHomeGeometry && !this.suppressHomeAddressBar ? this.secondaryTextColor : this.textColor
+    })
     .borderRadius(23)
     .clip(true)
     .backgroundColor(Color.Transparent)
-    .id(this.shouldBindCenteredSearchGeometry() ? 'centered-home-search-target' : 'split-toolbar-search-pill')
-    .geometryTransition(this.shouldBindCenteredSearchGeometry() ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
-    .transition(this.resolveSearchPillTransition())
+    .id(bindHomeGeometry ? 'centered-home-search-target' : 'split-toolbar-search-pill')
+    .geometryTransition(bindHomeGeometry ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
+    .transition(bindHomeGeometry ? this.resolveSearchPillTransition() : TransitionEffect.IDENTITY)
   }
 
   @Builder
@@ -787,30 +796,44 @@ export struct BrowserSplitToolbarChrome {
     return this.sessionMode !== 'search_only' && !this.searching && !this.centeredSearchPresented;
   }
 
+  private usesHomeSearchGeometry(): boolean {
+    return this.homeSearchGeometry && this.homeScene;
+  }
+
   private shouldShowTopBar(): boolean {
     if (this.homeScene && this.suppressHomeAddressBar) {
+      return false;
+    }
+    // The middle field flies into the geometry pill. The resting row would cover that landing spot.
+    if (this.usesHomeSearchGeometry() && this.centeredSearchPresented) {
       return false;
     }
     return true;
   }
 
   private shouldShowSearchSheet(): boolean {
-    if (this.suppressHomeAddressBar && this.homeScene) {
+    if (this.usesHomeSearchGeometry() && (this.suppressHomeAddressBar || this.centeredSearchPresented)) {
       return this.searching || this.centeredSearchPresented;
     }
     return this.searching || this.sessionMode === 'search_only';
   }
 
   private shouldMountCenteredSearchGeometryHost(): boolean {
-    return this.suppressHomeAddressBar && this.homeScene;
+    return this.usesHomeSearchGeometry();
   }
 
   private shouldShowCenteredSearchGeometryPill(): boolean {
+    if (!this.usesHomeSearchGeometry()) {
+      return false;
+    }
+    if (!this.suppressHomeAddressBar && !this.centeredSearchPresented) {
+      return false;
+    }
     return this.centeredSearchPresented || this.searching;
   }
 
   private shouldBindCenteredSearchGeometry(): boolean {
-    return this.suppressHomeAddressBar && this.homeScene;
+    return this.usesHomeSearchGeometry();
   }
 
   private shouldReverseCenteredSearchGeometry(): boolean {

@@ -22,6 +22,7 @@ export default function browserGestureOnboardingPromptPolicyTest(): void {
     it('shows the bottom gesture hint only on the classic homepage', 0, () => {
       expect(shouldShowBrowserGestureOnboardingPrompt(eligibleInput('classic'), false)).assertTrue();
       expect(shouldShowBrowserGestureOnboardingPrompt(eligibleInput('centered'), false)).assertFalse();
+      expect(shouldShowBrowserGestureOnboardingPrompt(eligibleInput('minimal'), false)).assertFalse();
     });
 
     it('does not show the hint again after it has been dismissed', 0, () => {

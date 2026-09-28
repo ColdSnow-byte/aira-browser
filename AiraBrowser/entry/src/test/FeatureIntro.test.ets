@@ -181,7 +181,7 @@ export default function featureIntroTest(): void {
   });
 
   describe('featureIntroHomepage', () => {
-    it('offers the two built-in homepage cards, with classic selected by default', 0, () => {
+    it('offers the built-in homepage cards, with classic selected by default', 0, () => {
       const viewModel = new FeatureIntroHomepageViewModel();
       const choices = viewModel.choices(viewModel.defaultStyle());
 
@@ -190,17 +190,22 @@ export default function featureIntroTest(): void {
       expect(viewModel.previousLabel()).assertEqual('上一步');
       expect(viewModel.skipLabel()).assertEqual('跳过');
       expect(viewModel.defaultStyle()).assertEqual('classic');
-      expect(choices.length).assertEqual(2);
+      expect(choices.length).assertEqual(3);
       expect(choices[0].style).assertEqual('classic');
       expect(choices[0].title).assertEqual('经典主页');
       expect(choices[0].isActive).assertTrue();
       expect(choices[1].style).assertEqual('centered');
       expect(choices[1].title).assertEqual('简约主页');
       expect(choices[1].isActive).assertFalse();
-      expect(viewModel.cards('classic').length).assertEqual(2);
+      expect(choices[2].style).assertEqual('minimal');
+      expect(choices[2].title).assertEqual('极简主页');
+      expect(choices[2].isActive).assertFalse();
+      expect(viewModel.cards('classic').length).assertEqual(3);
       expect(viewModel.cards('classic')[0].kind).assertEqual('system');
       expect(viewModel.cards('centered')[1].isCurrent).assertTrue();
+      expect(viewModel.cards('minimal')[2].isCurrent).assertTrue();
       expect(resolveFeatureIntroHomepageStyle('centered')).assertEqual('centered');
+      expect(resolveFeatureIntroHomepageStyle('minimal')).assertEqual('minimal');
       expect(resolveFeatureIntroHomepageStyle('other')).assertEqual('classic');
     });
   });

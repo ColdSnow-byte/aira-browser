@@ -37,6 +37,19 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
         .assertEqual('主页设置入口固定显示，不可移除。');
     });
 
+    it('leaves_the_minimal_frame_with_wallpaper_only', 0, () => {
+      const capabilities = resolveHomePageSettingsCapabilities('minimal');
+      expect(capabilities.wallpaper).assertTrue();
+      expect(capabilities.favorites).assertFalse();
+      expect(capabilities.shortcutNames).assertFalse();
+      expect(capabilities.iconSize).assertFalse();
+      expect(capabilities.recentlyClosed).assertFalse();
+      expect(capabilities.systemSearch).assertFalse();
+      expect(capabilities.settingsButton).assertFalse();
+      expect(resolveHomePageRecoveryEntries('minimal').length).assertEqual(0);
+      expect(resolveHomePageSettingsRecoveryFooter('minimal')).assertEqual('');
+    });
+
     it('keeps_the_pinned_centered_settings_tile_out_of_recovery', 0, () => {
       const policy = new HomePageRecoveryEntryPolicyService();
       const centeredEntries = resolveHomePageRecoveryEntries('centered');

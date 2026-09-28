@@ -1084,6 +1084,10 @@ import { CustomHomepageSurface } from '../components/customhome/CustomHomepageSu
 import { HomeContentSections } from '../components/browser/HomeContentSections';
 import { HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY } from '../../common/constants/HomePagePresentationStorageKeys';
 import {
+  normalizeBrowserHomePageStyle,
+  usesCenteredHomeFrame
+} from '../../common/models/HomePagePresentationSettingsModels';
+import {
   applyCenteredHomeShortcutLayout,
   CENTERED_HOME_ICON_CORNER_RADIUS_RATIO
 } from '../../features/newtab/CenteredHomeShortcutLayoutPolicy';
@@ -3897,7 +3901,7 @@ struct BrowserShellPage {
       blockingSurfaceVisible: this.browserTransientSurfaceCoordinator.isGestureOnboardingPromptBlocked(
         this.buildTransientPromptBlockingFacts()
       ),
-      homePageStyle: this.storedHomePageStyle === 'centered' ? 'centered' : 'classic',
+      homePageStyle: normalizeBrowserHomePageStyle(this.storedHomePageStyle),
       topOffsetVp: this.browserTopFloatingPromptCoordinator.resolveBackgroundOpenTopOffsetVp({
         showHomePage: this.showHomePage,
         topInsetVp: this.resolveStoredEffectiveTopChromeInsetVp(),
@@ -8733,7 +8737,8 @@ struct BrowserShellPage {
   private buildSplitToolbarSearchHost(sessionMode: BrowserSplitToolbarSessionMode) {
     BrowserSplitToolbarChrome({
       sessionMode: sessionMode,
-      suppressHomeAddressBar: this.isCenteredHomePageStyleActive(),
+      suppressHomeAddressBar: this.shouldSuppressSplitHomeAddressBar(),
+      homeSearchGeometry: this.isCenteredHomePageStyleActive(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       centeredSearchChromeFade: this.centeredHomeSearchChromeFade,
       searchOpenRequestVersion: this.topSearchOpenRequestVersion,
@@ -9272,6 +9277,9 @@ struct BrowserShellPage {
       }),
       contextMenuShortcutId: $contextMenuHomeShortcutId,
       centeredStyle: this.isCenteredHomePageStyleActive(),
+      centeredFavoritesVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
+      centeredScanButtonVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
+      softenCenteredSearchBorder: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       inlineSearch: this.isLargeScreenShellFamilyActive(),
       inlineSearchActive: this.isCenteredHomeInlineSearchActive(),
@@ -9670,7 +9678,7 @@ struct BrowserShellPage {
   }
 
   private isCenteredHomePageStyleActive(): boolean {
-    return this.storedHomePageStyle === 'centered';
+    return usesCenteredHomeFrame(normalizeBrowserHomePageStyle(this.storedHomePageStyle));
   }
 
   private isCenteredHomeInlineSearchActive(): boolean {
@@ -9766,10 +9774,16 @@ struct BrowserShellPage {
   }
 
   private resolveHomeContentTopSafeInsetVp(): number {
-    if (!this.shouldReserveSplitToolbarHomeInsets() || this.isCenteredHomePageStyleActive()) {
+    if (!this.shouldReserveSplitToolbarHomeInsets() || this.shouldSuppressSplitHomeAddressBar()) {
       return this.homeTopSafeInsetVp;
     }
     return this.homeTopSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
+  }
+
+  /** Minimal shows the top search row. The centered homepage keeps its own field and hides this one. */
+  private shouldSuppressSplitHomeAddressBar(): boolean {
+    return this.isCenteredHomePageStyleActive() &&
+      normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal';
   }
 
   private shouldReserveSplitToolbarHomeInsets(): boolean {
@@ -11822,7 +11836,7 @@ struct BrowserShellPage {
   }
 
   private scheduleGestureOnboardingPromptForHome(): void {
-    if (this.storedHomePageStyle === 'centered') {
+    if (usesCenteredHomeFrame(normalizeBrowserHomePageStyle(this.storedHomePageStyle))) {
       this.gestureOnboardingPromptState =
         this.browserTopFloatingPromptCoordinator.suppressGestureOnboardingForCenteredHome();
       return;

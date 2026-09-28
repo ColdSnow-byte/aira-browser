@@ -35,6 +35,10 @@ export struct CenteredHomeHeader {
   @Prop searchPresented: boolean = false;
   /** Large-screen home types into this field instead of opening the phone search page. */
   @Prop inlineSearch: boolean = false;
+  /** Minimal home keeps the field and drops the scan button. */
+  @Prop showScanButton: boolean = true;
+  /** Minimal uses the secondary text color so the field is not a near-black ring. */
+  @Prop softenSearchBorder: boolean = false;
   @Prop searchSuggestions: SearchSuggestion[] = [];
   @Prop searchViewportHeight: number = 0;
   @Prop searchPopupReservedTop: number = 0;
@@ -145,17 +149,22 @@ export struct CenteredHomeHeader {
           .textAlign(TextAlign.Start)
           .hitTestBehavior(HitTestMode.None)
 
-        this.buildScanButton()
+        if (this.showScanButton) {
+          this.buildScanButton()
+        }
       }
       .width('100%')
       .height('100%')
-      .padding({ left: 18, right: 6 })
+      .padding({ left: 18, right: this.showScanButton ? 6 : 18 })
       .alignItems(VerticalAlign.Center)
       .hitTestBehavior(HitTestMode.Transparent)
     }
     .width('100%')
     .height(CENTERED_HOME_SEARCH_HEIGHT)
-    .border({ width: CENTERED_HOME_SEARCH_BORDER_WIDTH, color: this.textColor })
+    .border({
+      width: this.softenSearchBorder ? 1.5 : CENTERED_HOME_SEARCH_BORDER_WIDTH,
+      color: this.softenSearchBorder ? this.secondaryTextColor : this.textColor
+    })
     .borderRadius(CENTERED_HOME_SEARCH_RADIUS)
     .backgroundColor(this.fieldBackgroundColor)
     .clip(true)
@@ -218,12 +227,17 @@ export struct CenteredHomeHeader {
           return true;
         })
 
-      this.buildScanButton()
+      if (this.showScanButton) {
+        this.buildScanButton()
+      }
     }
     .width('100%')
     .height(CENTERED_HOME_SEARCH_HEIGHT)
-    .padding({ left: 18, right: 6 })
-    .border({ width: CENTERED_HOME_SEARCH_BORDER_WIDTH, color: this.textColor })
+    .padding({ left: 18, right: this.showScanButton ? 6 : 18 })
+    .border({
+      width: this.softenSearchBorder ? 1.5 : CENTERED_HOME_SEARCH_BORDER_WIDTH,
+      color: this.softenSearchBorder ? this.secondaryTextColor : this.textColor
+    })
     .borderRadius(CENTERED_HOME_SEARCH_RADIUS)
     .backgroundColor(this.fieldBackgroundColor)
     .clip(true)

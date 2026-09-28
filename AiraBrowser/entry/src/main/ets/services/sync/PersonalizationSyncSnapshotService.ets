@@ -15,6 +15,10 @@ import {
 } from '../../common/models/BrowserModels';
 import { WallpaperMode } from '../../common/models/WallpaperModels';
 import {
+  BrowserHomePageStyle,
+  readBrowserHomePageStyle
+} from '../../common/models/HomePagePresentationSettingsModels';
+import {
   AiraActivityDailyAggregate,
   AiraActivityStoreState
 } from '../../common/models/ActivityModels';
@@ -699,8 +703,8 @@ export class PersonalizationSyncSnapshotService {
     return BUILT_IN_THEME_PALETTES.some((palette): boolean => palette.id === value) ? value : undefined;
   }
 
-  private sanitizeHomePageStyle(value: string | undefined): 'classic' | 'centered' | undefined {
-    return value === 'classic' || value === 'centered' ? value : undefined;
+  private sanitizeHomePageStyle(value: string | undefined): BrowserHomePageStyle | undefined {
+    return readBrowserHomePageStyle(value);
   }
 
   private sanitizeTabsOverviewLayoutStyle(
@@ -1363,9 +1367,9 @@ export class PersonalizationSyncSnapshotService {
       }, 'sync');
     }
     const presentation = this.dependencies.homePagePresentationSettingsRepository.getSettings();
-    const incomingHomePageStyle = incomingAppearance?.homePageStyle;
-    const hasIncomingHomePageStyle = incomingHomePageStyle === 'classic' || incomingHomePageStyle === 'centered';
-    if (hasIncomingHomePageStyle) {
+    const incomingHomePageStyle = readBrowserHomePageStyle(incomingAppearance?.homePageStyle);
+    const hasIncomingHomePageStyle = incomingHomePageStyle !== undefined;
+    if (incomingHomePageStyle !== undefined) {
       presentation.homePageStyle = incomingHomePageStyle;
     }
     const requestedShowSettingsButton =

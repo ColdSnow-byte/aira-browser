@@ -5,11 +5,14 @@ import { HomePageRecoveryEntry } from './HomePageRecoveryEntryPolicyService';
  * Which homepage-settings controls a frame actually honors.
  *
  * Classic owns the full sheet. Centered keeps only controls that change that frame:
- * wallpaper, favorites visibility, icon names, and icon size. Compact layout, section titles,
- * icon radius, recently closed, system search, and the settings button are classic-only.
+ * wallpaper, favorites visibility, icon names, and icon size. Minimal keeps the centered
+ * wordmark and search field but has no shortcut grid, so only wallpaper remains.
+ * Compact layout, section titles, icon radius, recently closed, system search, and the
+ * settings button are classic-only.
  *
  * The centered frame does not offer a toggleable settings entry: it pins an undeletable
- * `主页设置` tile into the favorites grid, so `settingsButton` is false there.
+ * `主页设置` tile into the favorites grid, so `settingsButton` is false there. Minimal has
+ * no on-page entry at all.
  */
 export interface HomePageSettingsCapabilities {
   wallpaper: boolean;
@@ -27,6 +30,20 @@ export interface HomePageSettingsCapabilities {
 export function resolveHomePageSettingsCapabilities(
   style: BrowserHomePageStyle
 ): HomePageSettingsCapabilities {
+  if (style === 'minimal') {
+    return {
+      wallpaper: true,
+      favorites: false,
+      compactFavorites: false,
+      favoritesTitle: false,
+      shortcutNames: false,
+      iconSize: false,
+      iconCornerRadius: false,
+      recentlyClosed: false,
+      systemSearch: false,
+      settingsButton: false
+    };
+  }
   if (style === 'centered') {
     return {
       wallpaper: true,
@@ -60,16 +77,20 @@ export function resolveHomePageSettingsCapabilities(
  *
  * The classic frame must keep at least one of favorites, recently closed, or its settings button.
  * The centered frame pins an undeletable `主页设置` tile into the grid, so a visible entry always
- * exists and no stored flag has to be kept or repaired on that frame.
+ * exists and no stored flag has to be kept or repaired on that frame. Minimal has no shortcut
+ * grid and no on-page entry, and it must not rewrite the stored classic flags either.
  */
 export function resolveHomePageRecoveryEntries(style: BrowserHomePageStyle): HomePageRecoveryEntry[] {
-  if (style === 'centered') {
+  if (style === 'centered' || style === 'minimal') {
     return [];
   }
   return ['favorites', 'recently_closed', 'settings_button'];
 }
 
 export function resolveHomePageSettingsRecoveryFooter(style: BrowserHomePageStyle): string {
+  if (style === 'minimal') {
+    return '';
+  }
   if (style === 'centered') {
     return '主页设置入口固定显示，不可移除。';
   }

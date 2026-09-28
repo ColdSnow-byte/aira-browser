@@ -10,9 +10,9 @@ import { resolveSystemHomepageToolbarChrome } from './SystemHomepageStyleCatalog
  * Personalization Sync. An imported custom homepage stays on this device, because its files
  * are not in the snapshot.
  *
- * The recovery-entry guard runs last, so the chosen frame never ends up without a way back
- * to homepage settings: the centered frame pins its settings tile, and the classic frame
- * forces its bottom settings button on when favorites and recently closed are both off.
+ * The recovery-entry guard runs last. The centered frame pins its settings tile, the
+ * minimal frame has no on-page entry and must not rewrite stored flags, and the classic
+ * frame forces its bottom settings button on when favorites and recently closed are both off.
  */
 export class SystemHomepageSelectionService {
   private customHomepageCoordinator: CustomHomepageSettingsCoordinator;

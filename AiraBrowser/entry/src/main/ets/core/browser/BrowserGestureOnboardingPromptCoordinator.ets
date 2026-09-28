@@ -14,8 +14,8 @@ export interface BrowserGestureOnboardingPromptEligibilityInput {
 }
 
 /**
- * The bottom swipe hint only matches the classic homepage. The centered frame uses
- * split chrome and does not have that gesture, so it must not consume the prompt.
+ * The bottom swipe hint only matches the classic homepage. Centered and minimal use
+ * split chrome and do not have that gesture, so they must not consume the prompt.
  */
 export function shouldShowBrowserGestureOnboardingPrompt(
   input: BrowserGestureOnboardingPromptEligibilityInput,

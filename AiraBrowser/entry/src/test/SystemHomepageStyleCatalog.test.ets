@@ -27,11 +27,13 @@ function buildSnapshot(mode: 'system' | 'custom_html', selectedItemId: string): 
 export default function systemHomepageStyleCatalogTest(): void {
   describe('SystemHomepageStyleCatalog', () => {
     it('lists_every_built_in_homepage_style', 0, () => {
-      expect(SYSTEM_HOMEPAGE_STYLE_CATALOG.length).assertEqual(2);
+      expect(SYSTEM_HOMEPAGE_STYLE_CATALOG.length).assertEqual(3);
       expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[0].style).assertEqual('classic');
       expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[0].title).assertEqual('经典主页');
       expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[1].style).assertEqual('centered');
       expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[1].title).assertEqual('简约主页');
+      expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[2].style).assertEqual('minimal');
+      expect(SYSTEM_HOMEPAGE_STYLE_CATALOG[2].title).assertEqual('极简主页');
     });
 
     it('marks_only_the_style_the_new_tab_renders', 0, () => {
@@ -44,6 +46,11 @@ export default function systemHomepageStyleCatalogTest(): void {
       const classic = viewModel.buildState(buildSnapshot('system', ''), 'light', 'classic');
       expect(classic.systemChoices[0].isActive).assertTrue();
       expect(classic.systemChoices[1].isActive).assertFalse();
+      expect(classic.systemChoices[2].isActive).assertFalse();
+
+      const minimal = viewModel.buildState(buildSnapshot('system', ''), 'light', 'minimal');
+      expect(minimal.systemChoices[2].isActive).assertTrue();
+      expect(minimal.systemChoices[1].isActive).assertFalse();
     });
 
     it('leaves_every_built_in_card_off_while_a_third_party_homepage_is_selected', 0, () => {
@@ -58,6 +65,7 @@ export default function systemHomepageStyleCatalogTest(): void {
     it('pairs_classic_with_floating_chrome_and_centered_with_split_chrome', 0, () => {
       expect(resolveSystemHomepageToolbarChrome('classic')).assertEqual('floating');
       expect(resolveSystemHomepageToolbarChrome('centered')).assertEqual('split');
+      expect(resolveSystemHomepageToolbarChrome('minimal')).assertEqual('split');
     });
 
     it('orders_system_cards_before_third_party_and_focuses_the_current_one', 0, () => {
@@ -65,12 +73,15 @@ export default function systemHomepageStyleCatalogTest(): void {
       const cards = viewModel.buildCarouselCards(
         viewModel.buildState(buildSnapshot('system', ''), 'light', 'centered')
       );
-      expect(cards.length).assertEqual(2);
+      expect(cards.length).assertEqual(3);
       expect(cards[0].kind).assertEqual('system');
       expect(cards[0].systemStyle).assertEqual('classic');
       expect(cards[0].isCurrent).assertFalse();
       expect(cards[1].systemStyle).assertEqual('centered');
       expect(cards[1].isCurrent).assertTrue();
+      expect(cards[2].systemStyle).assertEqual('minimal');
+      expect(cards[2].title).assertEqual('极简主页');
+      expect(cards[2].isCurrent).assertFalse();
       expect(viewModel.resolveCarouselIndex(cards, '')).assertEqual(1);
       expect(viewModel.resolveCarouselIndex(cards, 'system:classic')).assertEqual(0);
     });

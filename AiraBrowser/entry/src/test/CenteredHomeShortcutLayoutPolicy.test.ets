@@ -46,6 +46,7 @@ export default function centeredHomeShortcutLayoutPolicyTest(): void {
       expect(normalizeBrowserHomePageStyle('')).assertEqual('classic');
       expect(normalizeBrowserHomePageStyle('split')).assertEqual('classic');
       expect(normalizeBrowserHomePageStyle('centered')).assertEqual('centered');
+      expect(normalizeBrowserHomePageStyle('minimal')).assertEqual('minimal');
     });
 
     it('shrinks the same shortcut grid without rewriting its column count', 0, () => {

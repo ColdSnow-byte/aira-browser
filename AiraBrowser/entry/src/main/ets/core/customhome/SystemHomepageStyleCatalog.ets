@@ -1,4 +1,7 @@
-import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
+import {
+  BrowserHomePageStyle,
+  usesCenteredHomeFrame
+} from '../../common/models/HomePagePresentationSettingsModels';
 import { BrowserToolbarChromeStyle } from '../../common/models/BrowserModels';
 
 /**
@@ -16,14 +19,18 @@ export interface SystemHomepageStyleEntry {
 
 export const SYSTEM_HOMEPAGE_STYLE_CATALOG: SystemHomepageStyleEntry[] = [
   { style: 'classic', title: '经典主页' },
-  { style: 'centered', title: '简约主页' }
+  { style: 'centered', title: '简约主页' },
+  { style: 'minimal', title: '极简主页' }
 ];
 
 /**
- * Packaged card preview for a built-in frame. Both assets are transparent wireframes
+ * Packaged card preview for a built-in frame. The assets are transparent wireframes
  * sharing one neutral palette, so they read on light and dark surfaces alike.
  */
 export function resolveSystemHomepagePreviewResource(style: BrowserHomePageStyle): Resource {
+  if (style === 'minimal') {
+    return $rawfile('home_preview_minimal.svg');
+  }
   if (style === 'centered') {
     return $rawfile('home_preview_centered.svg');
   }
@@ -31,9 +38,9 @@ export function resolveSystemHomepagePreviewResource(style: BrowserHomePageStyle
 }
 
 /**
- * Built-in frames ship with a matching toolbar. Classic keeps the floating capsule;
- * centered uses the split top search and bottom navigation.
+ * Built-in frames ship with a matching toolbar. Classic keeps the floating capsule.
+ * Centered and minimal use the split top search and bottom navigation.
  */
 export function resolveSystemHomepageToolbarChrome(style: BrowserHomePageStyle): BrowserToolbarChromeStyle {
-  return style === 'centered' ? 'split' : 'floating';
+  return usesCenteredHomeFrame(style) ? 'split' : 'floating';
 }

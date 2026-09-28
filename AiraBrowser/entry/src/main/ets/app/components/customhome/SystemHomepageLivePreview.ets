@@ -1,4 +1,7 @@
-import { BrowserHomePageStyle } from '../../../common/models/HomePagePresentationSettingsModels';
+import {
+  BrowserHomePageStyle,
+  usesCenteredHomeFrame
+} from '../../../common/models/HomePagePresentationSettingsModels';
 import {
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
@@ -146,12 +149,12 @@ export struct SystemHomepageLivePreview {
 
   build() {
     if (this.usesDesktopPreview()) {
-      if (this.style === 'centered') {
+      if (usesCenteredHomeFrame(this.style)) {
         this.buildDesktopCenteredFrame()
       } else {
         this.buildDesktopClassicFrame()
       }
-    } else if (this.style === 'centered') {
+    } else if (usesCenteredHomeFrame(this.style)) {
       this.buildCenteredFrame()
     } else {
       this.buildClassicFrame()
@@ -216,14 +219,19 @@ export struct SystemHomepageLivePreview {
           .objectFit(ImageFit.Contain)
           .fillColor(this.resolvePrimaryText())
         this.buildDesktopSearch()
-        Column() {
-          this.buildDesktopShortcutGrid(this.buildCenteredTiles(), true)
+        if (this.style === 'centered') {
+          Column() {
+            this.buildDesktopShortcutGrid(this.buildCenteredTiles(), true)
+          }
+          .width(this.desktopRailWidth())
+          .layoutWeight(1)
+          .margin({ top: this.desktopUnit(CENTERED_HOME_HEADER_BOTTOM_GAP) })
+          .alignItems(HorizontalAlign.Center)
+          .clip(true)
+        } else {
+          Column()
+            .layoutWeight(1)
         }
-        .width(this.desktopRailWidth())
-        .layoutWeight(1)
-        .margin({ top: this.desktopUnit(CENTERED_HOME_HEADER_BOTTOM_GAP) })
-        .alignItems(HorizontalAlign.Center)
-        .clip(true)
       }
       .width('100%')
       .height('100%')
@@ -419,17 +427,22 @@ export struct SystemHomepageLivePreview {
         .fontColor(this.resolveSecondaryText())
         .maxLines(1)
         .layoutWeight(1)
-      AiraIcon({
-        airaIconId: 'browser.toolbar.scanQr',
-        iconSize: this.desktopUnit(20),
-        iconColor: this.resolvePrimaryText()
-      })
+      if (this.style !== 'minimal') {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.scanQr',
+          iconSize: this.desktopUnit(20),
+          iconColor: this.resolvePrimaryText()
+        })
+      }
     }
     .width(this.desktopSearchWidth())
     .height(this.desktopUnit(CENTERED_HOME_SEARCH_HEIGHT))
     .margin({ top: this.desktopUnit(CENTERED_HOME_WORDMARK_SEARCH_GAP) })
     .padding({ left: this.desktopUnit(18), right: this.desktopUnit(8) })
-    .border({ width: Math.max(1, this.desktopUnit(DESKTOP_SEARCH_BORDER)), color: this.resolvePrimaryText() })
+    .border({
+      width: Math.max(1, this.desktopUnit(DESKTOP_SEARCH_BORDER)),
+      color: this.style === 'minimal' ? this.resolveSecondaryText() : this.resolvePrimaryText()
+    })
     .borderRadius(this.desktopUnit(DESKTOP_SEARCH_RADIUS))
     .backgroundColor(Color.Transparent)
     .alignItems(VerticalAlign.Center)
@@ -488,41 +501,83 @@ export struct SystemHomepageLivePreview {
 
   @Builder
   private buildCenteredFrame() {
-    Stack() {
+    Stack({ alignContent: Alignment.Top }) {
       this.buildWallpaperLayer()
       Column() {
         Column()
           .width('100%')
-          .height(this.resolveCenteredHeaderTop())
+          .height(this.style === 'minimal' ?
+            Math.max(this.resolveCenteredHeaderTop(), this.unit(44)) : this.resolveCenteredHeaderTop())
         Image($rawfile('home_centered_wordmark.svg'))
           .width(this.unit(150))
           .height(this.unit(45))
           .objectFit(ImageFit.Contain)
           .fillColor(this.resolvePrimaryText())
         this.buildOutlinedSearch('搜索或输入网址')
-        Column() {
-          this.buildShortcutGrid(this.buildCenteredTiles(), CENTERED_COLUMNS, 0.5, true)
+        if (this.style === 'centered') {
+          Column() {
+            this.buildShortcutGrid(this.buildCenteredTiles(), CENTERED_COLUMNS, 0.5, true)
+          }
+          .width('100%')
+          .layoutWeight(1)
+          .padding({
+            left: this.unit(8),
+            right: this.unit(8),
+            top: this.unit(16)
+          })
+          .alignItems(HorizontalAlign.Start)
+          .justifyContent(FlexAlign.Start)
+          .clip(true)
+        } else {
+          Column()
+            .layoutWeight(1)
         }
-        .width('100%')
-        .layoutWeight(1)
-        .padding({
-          left: this.unit(8),
-          right: this.unit(8),
-          top: this.unit(16)
-        })
-        .alignItems(HorizontalAlign.Start)
-        .justifyContent(FlexAlign.Start)
-        .clip(true)
         this.buildSplitBottomBar()
       }
       .width('100%')
       .height('100%')
       .backgroundColor(this.resolveContentBackground())
       .alignItems(HorizontalAlign.Center)
+
+      if (this.style === 'minimal') {
+        this.buildMinimalTopSearchRow()
+      }
     }
     .width('100%')
     .height('100%')
     .clip(true)
+  }
+
+  @Builder
+  private buildMinimalTopSearchRow() {
+    Row() {
+      Row({ space: this.unit(6) }) {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.search',
+          iconSize: this.unit(12),
+          iconColor: this.resolvePrimaryText()
+        })
+        Text('主页')
+          .fontSize(this.unit(11))
+          .fontColor(this.resolvePrimaryText())
+          .maxLines(1)
+      }
+      .layoutWeight(1)
+      .alignItems(VerticalAlign.Center)
+
+      AiraIcon({
+        airaIconId: 'browser.toolbar.scanQr',
+        iconSize: this.unit(12),
+        iconColor: this.resolvePrimaryText()
+      })
+    }
+    .width('88%')
+    .height(this.unit(28))
+    .margin({ top: this.unit(8) })
+    .padding({ left: this.unit(10), right: this.unit(8) })
+    .borderRadius(this.unit(14))
+    .alignSelf(ItemAlign.Center)
+    .alignItems(VerticalAlign.Center)
   }
 
   @Builder
@@ -836,17 +891,22 @@ export struct SystemHomepageLivePreview {
         .fontColor(this.resolveSecondaryText())
         .maxLines(1)
         .layoutWeight(1)
-      AiraIcon({
-        airaIconId: 'browser.toolbar.scanQr',
-        iconSize: this.unit(14),
-        iconColor: this.resolvePrimaryText()
-      })
+      if (this.style !== 'minimal') {
+        AiraIcon({
+          airaIconId: 'browser.toolbar.scanQr',
+          iconSize: this.unit(14),
+          iconColor: this.resolvePrimaryText()
+        })
+      }
     }
     .width('88%')
     .height(this.unit(36))
     .margin({ top: this.unit(18) })
     .padding({ left: this.unit(14), right: this.unit(8) })
-    .border({ width: 1.5, color: this.resolvePrimaryText() })
+    .border({
+      width: 1.5,
+      color: this.style === 'minimal' ? this.resolveSecondaryText() : this.resolvePrimaryText()
+    })
     .borderRadius(this.unit(18))
     .backgroundColor(Color.Transparent)
     .alignItems(VerticalAlign.Center)
@@ -1077,11 +1137,11 @@ export struct SystemHomepageLivePreview {
       viewportWidth: this.viewportWidth,
       viewportHeight: this.viewportHeight
     }, this.desktopShortcutDensity());
-    return this.style === 'centered' ? applyCenteredHomeShortcutLayout(state) : state;
+    return usesCenteredHomeFrame(this.style) ? applyCenteredHomeShortcutLayout(state) : state;
   }
 
   private desktopShortcutDensity(): BrowserHomeShortcutLayoutDensity {
-    return this.style === 'centered' || this.classicUsesCompactLayout() ? 'compact' : 'standard';
+    return usesCenteredHomeFrame(this.style) || this.classicUsesCompactLayout() ? 'compact' : 'standard';
   }
 
   private desktopMetrics(): HomeShortcutLayoutMetrics {

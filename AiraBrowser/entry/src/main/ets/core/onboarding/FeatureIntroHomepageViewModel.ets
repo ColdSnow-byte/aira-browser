@@ -1,4 +1,7 @@
-import { BrowserHomePageStyle } from '../../common/models/HomePagePresentationSettingsModels';
+import {
+  BrowserHomePageStyle,
+  normalizeBrowserHomePageStyle
+} from '../../common/models/HomePagePresentationSettingsModels';
 import {
   CustomHomepageCarouselCard,
   CustomHomepageSystemChoiceViewState
@@ -12,7 +15,7 @@ const FEATURE_INTRO_HOMEPAGE_PREVIOUS_LABEL: string = '上一步';
 const FEATURE_INTRO_HOMEPAGE_SKIP_LABEL: string = '跳过';
 const FEATURE_INTRO_HOMEPAGE_DEFAULT_STYLE: BrowserHomePageStyle = 'classic';
 export function resolveFeatureIntroHomepageStyle(value: string): BrowserHomePageStyle {
-  return value === 'centered' ? 'centered' : 'classic';
+  return normalizeBrowserHomePageStyle(value);
 }
 
 export class FeatureIntroHomepageViewModel {
