@@ -166,14 +166,27 @@ export class HuaweiIapPurchaseService {
     } catch (error) {
       subscriptionError = error as BusinessError;
     }
-    try {
-      const oneTimeResult = await iap.queryPurchases(context, {
-        productType: iap.ProductType.NONCONSUMABLE,
-        queryType: iap.PurchaseQueryType.CURRENT_ENTITLEMENT
-      });
-      oneTimeDataList = oneTimeResult.purchaseDataList;
-    } catch (error) {
-      oneTimeError = error as BusinessError;
+    // A failed verification never calls finishPurchase, so Huawei keeps the
+    // lifetime order unfinished. CURRENT_ENTITLEMENT does not return it.
+    const oneTimeQueries: iap.PurchaseQueryType[] = [
+      iap.PurchaseQueryType.CURRENT_ENTITLEMENT,
+      iap.PurchaseQueryType.UNFINISHED
+    ];
+    let oneTimeFailureCount = 0;
+    for (let index = 0; index < oneTimeQueries.length; index++) {
+      try {
+        const oneTimeResult = await iap.queryPurchases(context, {
+          productType: iap.ProductType.NONCONSUMABLE,
+          queryType: oneTimeQueries[index]
+        });
+        oneTimeDataList = oneTimeDataList.concat(oneTimeResult.purchaseDataList);
+      } catch (error) {
+        oneTimeFailureCount++;
+        oneTimeError = error as BusinessError;
+      }
+    }
+    if (oneTimeFailureCount < oneTimeQueries.length) {
+      oneTimeError = undefined;
     }
     if (subscriptionError !== undefined && oneTimeError !== undefined) {
       return this.buildFailureResult('restore_purchase', '恢复购买失败', subscriptionError);
