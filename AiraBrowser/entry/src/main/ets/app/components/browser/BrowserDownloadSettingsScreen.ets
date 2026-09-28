@@ -104,8 +104,13 @@ export struct BrowserDownloadSettingsScreen {
   @Prop revealRevision: number = 0;
   @Prop @Watch('reloadVisibleSettings') refreshRevision: number = 0;
   @Prop embeddedInDialog: boolean = false;
+  /**
+   * The download-management dialog must close before the system folder picker
+   * can appear. Only that host sets this; the settings page opens the picker
+   * itself. An omitted callback must not be treated as ownership.
+   */
+  @Prop delegateFolderPicker: boolean = false;
   onOpenEmbeddedSubpage?: (subpage: BrowserDownloadSettingsSubpage) => void;
-  /** Lets an embedded host own the folder picker, since the picker cannot run over the dialog. */
   onFolderChangeRequested?: () => void = undefined;
   private downloadSettingsViewModel: DownloadSettingsViewModel = new DownloadSettingsViewModel();
   private navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
@@ -290,7 +295,7 @@ export struct BrowserDownloadSettingsScreen {
       this.showToast('当前设备不支持选择文件夹。');
       return;
     }
-    if (this.onFolderChangeRequested !== undefined) {
+    if (this.delegateFolderPicker && this.onFolderChangeRequested !== undefined) {
       this.onFolderChangeRequested();
       return;
     }

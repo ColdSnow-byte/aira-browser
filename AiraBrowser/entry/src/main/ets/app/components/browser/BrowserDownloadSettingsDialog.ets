@@ -61,6 +61,7 @@ export struct BrowserDownloadSettingsDialog {
             onOpenEmbeddedSubpage: (subpage: BrowserDownloadSettingsSubpage): void => {
               this.activeSubpage = subpage;
             },
+            delegateFolderPicker: true,
             onFolderChangeRequested: (): void => {
               this.onChooseCustomLocation();
             }

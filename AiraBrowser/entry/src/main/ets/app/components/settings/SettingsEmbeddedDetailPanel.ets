@@ -105,6 +105,7 @@ import { CustomHomepageSettingsScreen } from '../customhome/CustomHomepageSettin
 import { AiraProScreen } from '../membership/AiraProScreen';
 import { AppProxySettingsScreen } from './AppProxySettingsScreen';
 import { BrowserToolbarCustomizationScreen } from './BrowserToolbarCustomizationScreen';
+import { DownloadLocationDirectoryService } from '../../../services/download/DownloadLocationDirectoryService';
 import {
   CustomHomepageSettingsPageBinding
 } from '../../../core/customhome/CustomHomepageSettingsPageBinding';
@@ -599,8 +600,75 @@ export struct SettingsEmbeddedDetailPanel {
         },
         onOpenSubpage: (subpage: BrowserDownloadSettingsSubpage) => {
           this.openDownloadSettingsOption(subpage);
+        },
+        onRequestFolderChange: (): void => {
+          this.requestCustomDownloadLocation();
+        },
+        onResetToSystemDownloadLocation: (): void => {
+          this.resetToSystemDownloadLocation();
         }
       })
+    }
+  }
+
+  /**
+   * Same folder picker as the download-management settings dialog. The settings
+   * pane is not a dialog, so the picker can open in place.
+   */
+  private requestCustomDownloadLocation(): void {
+    if (!new DownloadLocationDirectoryService().isFolderSelectionSupported()) {
+      this.showToast('当前设备不支持选择文件夹。');
+      return;
+    }
+    void this.chooseCustomDownloadLocation();
+  }
+
+  private async chooseCustomDownloadLocation(): Promise<void> {
+    const directoryService = new DownloadLocationDirectoryService();
+    try {
+      const result = await directoryService.selectDirectory(this.getPickerContext());
+      if (result.status === 'unusable_folder') {
+        this.showToast('这个文件夹不可用，请换一个再试。');
+        return;
+      }
+      if (result.status !== 'selected' || result.selection === undefined) {
+        return;
+      }
+      const selection = result.selection;
+      const isWritable = await directoryService.verifyDirectoryWritable(selection.uri);
+      const currentSettings = sharedPreferencesRepository.getPreferences().downloads;
+      const previousUri = currentSettings.customLocationUri;
+      this.updateDownloadSettings({
+        defaultLocation: 'custom',
+        customLocationUri: selection.uri,
+        customLocationLabel: selection.label
+      });
+      if (previousUri.length > 0 && previousUri !== selection.uri) {
+        void directoryService.releaseDirectory(previousUri);
+      }
+      if (!isWritable) {
+        this.showToast('已选择该文件夹。若下载时无法写入，将回退到系统下载目录。');
+      } else if (!result.isPersisted) {
+        this.showToast('已选择该文件夹。重启应用后需要重新授权。');
+      }
+    } catch (_error) {
+      this.showToast('选择下载位置失败');
+    }
+  }
+
+  private resetToSystemDownloadLocation(): void {
+    const currentSettings = sharedPreferencesRepository.getPreferences().downloads;
+    if (currentSettings.defaultLocation !== 'custom') {
+      return;
+    }
+    const previousUri = currentSettings.customLocationUri;
+    this.updateDownloadSettings({
+      defaultLocation: 'system_downloads',
+      customLocationUri: '',
+      customLocationLabel: ''
+    });
+    if (previousUri.length > 0) {
+      void new DownloadLocationDirectoryService().releaseDirectory(previousUri);
     }
   }
 
