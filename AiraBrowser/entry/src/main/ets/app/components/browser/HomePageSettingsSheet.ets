@@ -149,7 +149,8 @@ export struct HomePageSettingsContent {
   @State private wallpaperState: WallpaperSettingsViewState = this.wallpaperCoordinator.getCurrentState();
   @State private sheetPage: HomePageSettingsSheetPage = 'main';
   @State private contentMaxHeightVp: number = HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP;
-  @State private settingsBodyHeightVp: number = 0;
+  @State private mainBodyHeightVp: number = 0;
+  @State private wallpaperBodyHeightVp: number = 0;
   private mainSheetScroller: Scroller = new Scroller();
   private wallpaperSheetScroller: Scroller = new Scroller();
   private sheetNavigationPopGuardUntilMs: number = 0;
@@ -187,7 +188,11 @@ export struct HomePageSettingsContent {
         onClose: this.onClose
       })
 
-      this.buildHuggingScroll(10, 32)
+      if (this.sheetPage === 'wallpaper') {
+        this.buildWallpaperScroll()
+      } else {
+        this.buildMainScroll()
+      }
     }
     .width('100%')
     .backgroundColor(this.resolveSheetNavigationBackground())
@@ -199,7 +204,11 @@ export struct HomePageSettingsContent {
     Stack({ alignContent: Alignment.TopEnd }) {
       Column({ space: 0 }) {
         this.buildPhoneHeader()
-        this.buildHuggingScroll(4, BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING)
+        if (this.sheetPage === 'wallpaper') {
+          this.buildWallpaperScroll()
+        } else {
+          this.buildMainScroll()
+        }
       }
       .width('100%')
       .padding({ top: 8 })
@@ -226,26 +235,62 @@ export struct HomePageSettingsContent {
     .zIndex(3)
   }
 
+  /**
+   * Wallpaper uses a definite height. The short centered and minimal sheets are
+   * FIT_CONTENT, and clearing the scroll height collapses the next page.
+   */
   @Builder
-  private buildHuggingScroll(topPadding: number, bottomPadding: number) {
-    Scroll(this.resolveSheetScroller(this.sheetPage)) {
+  private buildMainScroll() {
+    Scroll(this.mainSheetScroller) {
       Column({ space: 16 }) {
-        this.buildSettingsBody(this.sheetPage)
+        HomeNativeSettingsContent({
+          isEnabled: true,
+          iconAppearanceEnabled: !this.privateModeVisible,
+          wallpaperLabel: this.wallpaperState.modeTitle,
+          dialogPresentation: this.layoutMode === 'large_screen',
+          onOpenWallpaperSettings: () => {
+            this.openWallpaperSettings();
+          }
+        })
       }
       .width('100%')
-      .padding({
-        left: 16,
-        right: 16,
-        top: topPadding,
-        bottom: bottomPadding
-      })
+      .padding(this.resolveScrollPadding())
       .alignItems(HorizontalAlign.Start)
       .onAreaChange((_oldArea: Area, newArea: Area) => {
-        this.updateSettingsBodyHeight(newArea.height);
+        this.updatePageBodyHeight('main', newArea.height);
       })
     }
     .width('100%')
-    .height(this.resolveHuggingScrollHeight())
+    .height(this.resolveMainScrollHeight())
+    .constraintSize({ maxHeight: this.contentMaxHeightVp })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
+    .clip(this.layoutMode === 'large_screen')
+  }
+
+  @Builder
+  private buildWallpaperScroll() {
+    Scroll(this.wallpaperSheetScroller) {
+      Column({ space: 16 }) {
+        WallpaperSettingsContent({
+          state: this.wallpaperState,
+          onModeSelect: (mode: WallpaperMode) => {
+            this.applyWallpaperMode(mode);
+          },
+          onBingRetry: () => {
+            this.retryBingPreview();
+          }
+        })
+      }
+      .width('100%')
+      .padding(this.resolveScrollPadding())
+      .alignItems(HorizontalAlign.Start)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updatePageBodyHeight('wallpaper', newArea.height);
+      })
+    }
+    .width('100%')
+    .height(this.resolveWallpaperScrollHeight())
     .constraintSize({ maxHeight: this.contentMaxHeightVp })
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
@@ -264,33 +309,13 @@ export struct HomePageSettingsContent {
     })
   }
 
-  @Builder
-  private buildSettingsBody(page: HomePageSettingsSheetPage) {
-    if (page === 'wallpaper') {
-      WallpaperSettingsContent({
-        state: this.wallpaperState,
-        onModeSelect: (mode: WallpaperMode) => {
-          this.applyWallpaperMode(mode);
-        },
-        onBingRetry: () => {
-          this.retryBingPreview();
-        }
-      })
-    } else {
-      HomeNativeSettingsContent({
-        isEnabled: true,
-        iconAppearanceEnabled: !this.privateModeVisible,
-        wallpaperLabel: this.wallpaperState.modeTitle,
-        dialogPresentation: this.layoutMode === 'large_screen',
-        onOpenWallpaperSettings: () => {
-          this.openWallpaperSettings();
-        }
-      })
-    }
-  }
-
-  private resolveSheetScroller(page: HomePageSettingsSheetPage): Scroller {
-    return page === 'wallpaper' ? this.wallpaperSheetScroller : this.mainSheetScroller;
+  private resolveScrollPadding(): Padding {
+    return {
+      left: 16,
+      right: 16,
+      top: this.layoutMode === 'large_screen' ? 10 : 4,
+      bottom: this.layoutMode === 'large_screen' ? 32 : BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING
+    };
   }
 
   private resolveSheetNavigationBackground(): ResourceColor {
@@ -303,7 +328,6 @@ export struct HomePageSettingsContent {
     if (this.sheetPage === 'wallpaper') {
       return;
     }
-    this.settingsBodyHeightVp = 0;
     this.sheetPage = 'wallpaper';
   }
 
@@ -316,33 +340,43 @@ export struct HomePageSettingsContent {
       return false;
     }
     this.sheetNavigationPopGuardUntilMs = now + HOME_PAGE_SHEET_POP_GUARD_MS;
-    this.settingsBodyHeightVp = 0;
     this.sheetPage = 'main';
     return true;
   }
 
   private resetSheetNavigation(): void {
     this.sheetNavigationPopGuardUntilMs = 0;
-    this.settingsBodyHeightVp = 0;
     this.sheetPage = 'main';
   }
 
-  private updateSettingsBodyHeight(height: Length): void {
+  private updatePageBodyHeight(page: HomePageSettingsSheetPage, height: Length): void {
     const parsed = Number.parseFloat(`${height}`);
     if (!Number.isFinite(parsed) || parsed <= 0) {
       return;
     }
     const next = Math.ceil(parsed);
-    if (next !== this.settingsBodyHeightVp) {
-      this.settingsBodyHeightVp = next;
+    if (page === 'wallpaper') {
+      if (next !== this.wallpaperBodyHeightVp) {
+        this.wallpaperBodyHeightVp = next;
+      }
+      return;
+    }
+    if (next !== this.mainBodyHeightVp) {
+      this.mainBodyHeightVp = next;
     }
   }
 
-  private resolveHuggingScrollHeight(): Length {
-    if (this.settingsBodyHeightVp <= 0) {
+  private resolveMainScrollHeight(): Length {
+    if (this.mainBodyHeightVp <= 0) {
       return '';
     }
-    return Math.min(this.settingsBodyHeightVp, this.contentMaxHeightVp);
+    return Math.min(this.mainBodyHeightVp, this.contentMaxHeightVp);
+  }
+
+  /** Definite height so FIT_CONTENT can grow from a short homepage sheet into wallpaper. */
+  private resolveWallpaperScrollHeight(): number {
+    const measured = this.wallpaperBodyHeightVp > 0 ? this.wallpaperBodyHeightVp : this.contentMaxHeightVp;
+    return Math.min(measured, this.contentMaxHeightVp);
   }
 
   private refreshWallpaperState(): void {
