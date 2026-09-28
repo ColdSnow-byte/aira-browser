@@ -9670,6 +9670,7 @@ struct BrowserShellPage {
       }),
       contextMenuShortcutId: $contextMenuHomeShortcutId,
       centeredStyle: this.isCenteredHomePageStyleActive(),
+      largeScreenShell: this.isLargeScreenShellFamilyActive(),
       centeredFavoritesVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
       centeredScanButtonVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
       softenCenteredSearchBorder: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',

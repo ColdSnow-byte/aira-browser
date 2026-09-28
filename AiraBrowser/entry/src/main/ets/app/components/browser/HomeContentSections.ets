@@ -14,7 +14,8 @@ import { SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP } from '../../../core/browse
 import {
   CenteredHomeFrame,
   CENTERED_HOME_WORDMARK_HEIGHT,
-  resolveCenteredHomeFrame
+  resolveCenteredHomeFrame,
+  shouldCenterCenteredHomePartialRows
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { CenteredHomeHeader } from './CenteredHomeHeader';
 import { HomeFavoritesSection } from './HomeFavoritesSection';
@@ -47,6 +48,8 @@ export struct HomeContentSections {
   private storedLogoScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
   @Prop showShortcuts: boolean = true;
   @Prop centeredStyle: boolean = false;
+  /** PC shell keeps the centered last-row growth. Touch shell packs that row left to right. */
+  @Prop largeScreenShell: boolean = false;
   /** Centered shows the shortcut grid. Minimal keeps the same header and leaves this off. */
   @Prop centeredFavoritesVisible: boolean = true;
   /** Minimal drops the scan button inside the shared search field. */
@@ -294,7 +297,8 @@ export struct HomeContentSections {
         iconCornerRadiusRatio: this.shortcutIconCornerRadiusRatio,
         minimumWidth: this.resolveSectionRailWidth(),
         alignPartialRowsToStart: !this.centeredStyle && this.presentation.useSharedSectionWidth,
-        centerPartialRows: this.centeredStyle,
+        centerPartialRows: this.centeredStyle &&
+          shouldCenterCenteredHomePartialRows(this.largeScreenShell),
         showPinnedSettingsEntry: false,
         shortcuts: this.resolveFavoritesShortcuts(),
         theme: this.theme,

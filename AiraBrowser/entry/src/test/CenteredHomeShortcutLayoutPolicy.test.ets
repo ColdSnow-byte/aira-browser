@@ -8,7 +8,8 @@ import {
   CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH,
   CENTERED_HOME_SEARCH_CENTER_LIFT_VP,
   resolveCenteredHomeFrame,
-  resolveCenteredHomeSearchFieldWidth
+  resolveCenteredHomeSearchFieldWidth,
+  shouldCenterCenteredHomePartialRows
 } from '../main/ets/features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { HomeResponsiveLayoutState } from '../main/ets/features/newtab/HomeResponsiveLayoutViewModel';
 
@@ -73,6 +74,11 @@ export default function centeredHomeShortcutLayoutPolicyTest(): void {
       expect(CENTERED_HOME_SEARCH_CENTER_LIFT_VP > 0).assertTrue();
       expect(frame.headerTop > 47).assertTrue();
       expect(frame.iconRegionHeight > 0).assertTrue();
+    });
+
+    it('packs an incomplete shortcut row from the leading edge in touch mode', 0, () => {
+      expect(shouldCenterCenteredHomePartialRows(false)).assertFalse();
+      expect(shouldCenterCenteredHomePartialRows(true)).assertTrue();
     });
 
     it('caps the centered search field on a large screen', 0, () => {

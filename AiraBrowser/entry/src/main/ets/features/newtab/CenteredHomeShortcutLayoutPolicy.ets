@@ -50,6 +50,14 @@ export interface CenteredHomeFrame {
  * Phone search uses the full content width. On a large screen the same field
  * is capped, and a narrow window still shrinks it to the space it actually has.
  */
+/**
+ * An incomplete shortcut row grows outward from the middle only on the PC shell.
+ * Touch mode packs that row from the leading edge, left to right.
+ */
+export function shouldCenterCenteredHomePartialRows(largeScreenShell: boolean): boolean {
+  return largeScreenShell;
+}
+
 export function resolveCenteredHomeSearchFieldWidth(largeScreen: boolean, availableWidth: number): number {
   const available = Math.max(0, availableWidth);
   if (!largeScreen) {
