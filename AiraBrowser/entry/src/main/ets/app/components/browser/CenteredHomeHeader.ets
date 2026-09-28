@@ -39,6 +39,8 @@ export struct CenteredHomeHeader {
   @Prop showScanButton: boolean = true;
   /** Minimal uses the secondary text color so the field is not a near-black ring. */
   @Prop softenSearchBorder: boolean = false;
+  /** Extra inset so this field's edges match the search-page pill. */
+  @Prop searchSideInset: number = 0;
   @Prop searchSuggestions: SearchSuggestion[] = [];
   @Prop searchViewportHeight: number = 0;
   @Prop searchPopupReservedTop: number = 0;
@@ -128,6 +130,7 @@ export struct CenteredHomeHeader {
     .width(this.inlineSearch ? CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH : '100%')
     .constraintSize({ maxWidth: '100%' })
     .alignItems(HorizontalAlign.Center)
+    .padding({ left: this.searchSideInset, right: this.searchSideInset })
   }
 
   @Builder

@@ -8,6 +8,7 @@ import {
 import { BrowserSearchEnginePresentationViewModel } from '../../../core/browser/BrowserSearchEnginePresentationViewModel';
 import {
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
+  SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
   SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
@@ -31,7 +32,7 @@ import { sharedExternalAppSearchPreferencesRepository } from '../../bootstrap/Br
 
 const SPLIT_TOOLBAR_PILL_HEIGHT: number = 46;
 const SPLIT_TOOLBAR_SEARCH_PILL_BORDER: number = 2;
-const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = 16;
+const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP;
 const SPLIT_TOOLBAR_TAB_COUNT_LIMIT: number = 99;
 const SPLIT_TOOLBAR_NAV_BUTTON_WIDTH: number = 48;
 const SPLIT_TOOLBAR_NAV_BUTTON_HEIGHT: number = 44;
@@ -249,11 +250,11 @@ export struct BrowserSplitToolbarChrome {
         Row({ space: 8 }) {
           AiraIcon({
             airaIconId: 'browser.toolbar.search',
-            iconSize: 18,
+            iconSize: 20,
             iconColor: this.textColor
           })
           Text('主页')
-            .fontSize(16)
+            .fontSize(18)
             .fontColor(this.textColor)
             .maxLines(1)
             .textAlign(TextAlign.Start)
@@ -267,7 +268,7 @@ export struct BrowserSplitToolbarChrome {
         Button() {
           AiraIcon({
             airaIconId: 'browser.toolbar.scanQr',
-            iconSize: 18,
+            iconSize: 20,
             iconColor: this.textColor
           })
         }

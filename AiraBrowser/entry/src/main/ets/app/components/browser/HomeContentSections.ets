@@ -10,6 +10,7 @@ import { HomeShortcutUserAction } from '../../../features/newtab/HomeShortcutTyp
 import { HomeShortcutViewModel } from '../../../features/newtab/HomeShortcutViewModel';
 import { BrowserRecentlyClosedUserAction } from '../../../core/browser/BrowserRecentlyClosedApplicationCoordinator';
 import { BrowserTabHomeContentAction } from '../../../core/browser/BrowserTabHomeCoordinator';
+import { SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import {
   CenteredHomeFrame,
   resolveCenteredHomeFrame
@@ -44,6 +45,8 @@ export struct HomeContentSections {
   @Prop centeredScanButtonVisible: boolean = true;
   /** Minimal keeps the field, but its border is not the near-black primary text color. */
   @Prop softenCenteredSearchBorder: boolean = false;
+  /** Minimal's field uses the same side inset as the search-page pill. */
+  @Prop centeredSearchMatchesToolbar: boolean = false;
   @Prop centeredSearchPresented: boolean = false;
   @Prop inlineSearch: boolean = false;
   @Prop inlineSearchActive: boolean = false;
@@ -232,6 +235,7 @@ export struct HomeContentSections {
         },
         showScanButton: this.centeredScanButtonVisible,
         softenSearchBorder: this.softenCenteredSearchBorder,
+        searchSideInset: this.resolveCenteredSearchSideInset(),
         onScan: () => {
           this.onScan();
         },
@@ -308,6 +312,13 @@ export struct HomeContentSections {
         }
       })
     }
+  }
+
+  private resolveCenteredSearchSideInset(): number {
+    if (!this.centeredSearchMatchesToolbar) {
+      return 0;
+    }
+    return Math.max(0, SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP - this.presentation.horizontalPadding);
   }
 
   private resolveCenteredSurfaceHeight(): number {

@@ -9280,6 +9280,7 @@ struct BrowserShellPage {
       centeredFavoritesVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
       centeredScanButtonVisible: normalizeBrowserHomePageStyle(this.storedHomePageStyle) !== 'minimal',
       softenCenteredSearchBorder: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
+      centeredSearchMatchesToolbar: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       inlineSearch: this.isLargeScreenShellFamilyActive(),
       inlineSearchActive: this.isCenteredHomeInlineSearchActive(),

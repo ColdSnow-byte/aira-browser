@@ -7,6 +7,8 @@ import { BrowserHomeForegroundBackdropSource } from './BrowserHomeSurfaceProfile
 
 /** Height of the address pill row under the status bar, in vp. */
 export const SPLIT_TOOLBAR_ADDRESS_BLOCK_VP: number = 62;
+/** Side inset of the split address and search pills, in vp. */
+export const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP: number = 16;
 /** Height of the bottom navigation row above the system gesture inset, in vp. */
 export const SPLIT_TOOLBAR_BOTTOM_BAR_VP: number = 56;
 /** Matches the floating toolbar's scroll transition, so both bars leave and return together. */

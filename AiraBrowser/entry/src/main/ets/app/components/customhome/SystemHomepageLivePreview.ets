@@ -480,7 +480,7 @@ export struct SystemHomepageLivePreview {
         .width('100%')
         .layoutWeight(1)
         .padding({
-          top: this.unit(CLASSIC_PAGE_PADDING),
+          top: this.unit(CLASSIC_PAGE_PADDING) + 22,
           left: this.unit(CLASSIC_PAGE_PADDING),
           right: this.unit(CLASSIC_PAGE_PADDING)
         })
@@ -507,7 +507,7 @@ export struct SystemHomepageLivePreview {
         Column()
           .width('100%')
           .height(this.style === 'minimal' ?
-            Math.max(this.resolveCenteredHeaderTop(), this.unit(44)) : this.resolveCenteredHeaderTop())
+            Math.max(this.resolveCenteredHeaderTop(), this.unit(104)) : this.resolveCenteredHeaderTop())
         Image($rawfile('home_centered_wordmark.svg'))
           .width(this.unit(150))
           .height(this.unit(45))
@@ -554,11 +554,11 @@ export struct SystemHomepageLivePreview {
       Row({ space: this.unit(6) }) {
         AiraIcon({
           airaIconId: 'browser.toolbar.search',
-          iconSize: this.unit(12),
+          iconSize: this.unit(22),
           iconColor: this.resolvePrimaryText()
         })
         Text('主页')
-          .fontSize(this.unit(11))
+          .fontSize(this.unit(18))
           .fontColor(this.resolvePrimaryText())
           .maxLines(1)
       }
@@ -567,15 +567,15 @@ export struct SystemHomepageLivePreview {
 
       AiraIcon({
         airaIconId: 'browser.toolbar.scanQr',
-        iconSize: this.unit(12),
+        iconSize: this.unit(22),
         iconColor: this.resolvePrimaryText()
       })
     }
     .width('88%')
-    .height(this.unit(28))
-    .margin({ top: this.unit(8) })
-    .padding({ left: this.unit(10), right: this.unit(8) })
-    .borderRadius(this.unit(14))
+    .height(this.unit(52))
+    .margin({ top: this.unit(16) })
+    .padding({ left: this.unit(12), right: this.unit(10) })
+    .borderRadius(this.unit(18))
     .alignSelf(ItemAlign.Center)
     .alignItems(VerticalAlign.Center)
   }
