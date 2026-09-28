@@ -38,6 +38,7 @@ struct HuaweiAccountInfoPage {
   private appServiceModeGateService: AppServiceModeGateService =
     new AppServiceModeGateService(sharedPreferencesRepository);
   private themePreferencesListenerKey: string = '';
+  private contentScroller: Scroller = new Scroller();
   @State private dataScope: string = '';
   @State private privacyMode: string = '';
   @State private boundarySource: string = '';
@@ -70,6 +71,7 @@ struct HuaweiAccountInfoPage {
         pageBackground: this.theme.pageBackground,
         headerButtonBackground: this.theme.controlBackground,
         primaryTextColor: this.theme.textPrimary,
+        scrollers: [this.contentScroller],
         onBack: () => {
           router.back();
         }
@@ -77,7 +79,8 @@ struct HuaweiAccountInfoPage {
         SettingsScrollBody({
           contentSpace: 14,
           topPadding: 6,
-          bottomPadding: 24
+          bottomPadding: 24,
+          scroller: this.contentScroller
         }) {
           HuaweiAccountInfoContent({
             state: this.state,
