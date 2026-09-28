@@ -10,8 +10,6 @@ import { BrowserTabState } from '../tabs/TabManager';
 import { BrowserActiveTabRuntimeRestoreCoordinator } from '../../services/web/BrowserActiveTabRuntimeRestoreCoordinator';
 import { resolveCurrentSiteUrl } from './AddressDisplayFormatter';
 
-const MIN_PULL_OFFSET_Y: number = 0;
-const MAX_TRACKED_PULL_OFFSET_Y: number = 180;
 const REFRESH_COMPLETION_TIMEOUT_MS: number = 12000;
 
 interface BrowserPullRefreshDecision {
@@ -65,15 +63,6 @@ export class BrowserPullRefreshCoordinator {
     this.publishState(this.createResetState('', this.state.generation + 1));
   }
 
-  handleOffset(offsetY: number): void {
-    const context = this.readContext();
-    if (!this.isEligible(context)) {
-      this.resetForSurfaceChange(context.activeTabId);
-      return;
-    }
-    this.publishState(this.buildOffsetState(offsetY, this.state));
-  }
-
   handleStatus(status: RefreshStatus): void {
     const action = this.mapRefreshStatus(status);
     if (action === BrowserPullRefreshAction.UNKNOWN) {
@@ -116,7 +105,7 @@ export class BrowserPullRefreshCoordinator {
   ): BrowserPullRefreshPresentation {
     const context = this.readContext();
     const enabled = this.isEligible(context) && observedState.activeTabId === context.activeTabId;
-    if (!enabled || !observedState.loadingVisible || observedState.offsetY <= 0) {
+    if (!enabled || !observedState.loadingVisible) {
       return {
         visible: false,
         offsetY: 0,
@@ -237,7 +226,15 @@ export class BrowserPullRefreshCoordinator {
   }
 
   private publishState(state: BrowserPullRefreshState): void {
+    const previous = this.state;
     this.state = state;
+    // Pull distance and in-pull status used to assign @State on the shell for every sample.
+    // That rebuilds the whole page while Refresh is already moving the Web surface. The shell
+    // only needs the refresh lifecycle, which changes when a refresh starts or ends.
+    if (previous.enableLoading === state.enableLoading &&
+      previous.refreshInFlight === state.refreshInFlight) {
+      return;
+    }
     this.shell.publishState(state);
   }
 
@@ -289,24 +286,6 @@ export class BrowserPullRefreshCoordinator {
     };
   }
 
-  private buildOffsetState(offsetY: number, state: BrowserPullRefreshState): BrowserPullRefreshState {
-    const nextOffsetY = this.normalizeOffset(offsetY);
-    if (state.action === BrowserPullRefreshAction.PULL_RESET && nextOffsetY <= 0) {
-      return state;
-    }
-    return {
-      action: nextOffsetY > 0 && state.action === BrowserPullRefreshAction.PULL_RESET
-        ? BrowserPullRefreshAction.PULL_START
-        : state.action,
-      offsetY: nextOffsetY,
-      loadingVisible: nextOffsetY > 0 || state.refreshInFlight,
-      enableLoading: state.enableLoading,
-      refreshInFlight: state.refreshInFlight,
-      activeTabId: state.activeTabId,
-      generation: state.generation
-    };
-  }
-
   private copyForAction(
     action: BrowserPullRefreshAction,
     state: BrowserPullRefreshState,
@@ -324,13 +303,6 @@ export class BrowserPullRefreshCoordinator {
       activeTabId: activeTabId,
       generation: state.generation
     };
-  }
-
-  private normalizeOffset(offsetY: number): number {
-    if (!Number.isFinite(offsetY)) {
-      return MIN_PULL_OFFSET_Y;
-    }
-    return Math.max(MIN_PULL_OFFSET_Y, Math.min(MAX_TRACKED_PULL_OFFSET_Y, offsetY));
   }
 
   private mapRefreshStatus(status: RefreshStatus): BrowserPullRefreshAction {

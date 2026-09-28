@@ -7363,11 +7363,7 @@ struct BrowserShellPage {
       .height('100%')
       .pullToRefresh(this.browserPullRefreshCoordinator.isEnabledForActiveSurface())
       .refreshOffset(48)
-      .pullDownRatio(62)
       .pullUpToCancelRefresh(true)
-      .onOffsetChange((offsetY: number) => {
-        this.browserPullRefreshCoordinator.handleOffset(offsetY);
-      })
       .onStateChange((status: RefreshStatus) => {
         this.browserPullRefreshCoordinator.handleStatus(status);
       })
