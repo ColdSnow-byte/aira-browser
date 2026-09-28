@@ -29,7 +29,6 @@ import {
   BrowserTabsOverviewShadowViewModel
 } from '../../../core/browser/BrowserTabsOverviewShadowViewModel';
 import { BrowserTabsOverviewSection, BrowserTabsOverviewSectionPolicy } from '../../../core/browser/tabsOverview/BrowserTabsOverviewSectionPolicy';
-import { BrowserTabSnapshotPixelMapCache } from '../../../core/browser/tabsOverview/BrowserTabSnapshotPixelMapCache';
 import { sharedBrowserTabsOverviewThumbnailStore } from '../../../core/browser/tabsOverview/BrowserTabsOverviewThumbnailStore';
 import { BrowserTabOverviewCardSelectRect } from './BrowserTabOverviewCard';
 import { BrowserTabOverviewItem } from './BrowserTabOverviewItem';
@@ -252,15 +251,6 @@ export struct BrowserTabsFloatingOverlay {
    * the covered-tab id clears.
    */
   private entryMorphPreviewLatchedTabId: string = '';
-  /**
-   * The image the shrink animation actually painted for this tab.
-   *
-   * The settled card otherwise reads the gallery preview, which can be replaced by a
-   * document-top webPageSnapshot while the morph is still showing the scrolled file.
-   * Keep the morph's URI after the overlay unmounts so the card does not swap images.
-   */
-  private entryMorphImageTabId: string = '';
-  private entryMorphImageUri: string = '';
   /**
    * True only for the cold open, whose cards are mounted as the grid is first built and can
    * fly in as they appear. A resident re-open reuses an already-built grid, so it enters
@@ -877,26 +867,7 @@ export struct BrowserTabsFloatingOverlay {
     .height(this.layoutState.itemHeight)
   }
 
-  private resolveLatchedEntryImageUri(tabId: string): string {
-    const state = this.entrySharedSnapshotState;
-    const liveUri = state.imageUri.trim();
-    if (state.direction === 'enter' && state.tabId === tabId && liveUri.length > 0 &&
-      state.phase !== 'idle' && state.phase !== 'settled') {
-      this.entryMorphImageTabId = tabId;
-      this.entryMorphImageUri = liveUri;
-      return liveUri;
-    }
-    if (this.entryMorphImageTabId === tabId && this.entryMorphImageUri.length > 0) {
-      return this.entryMorphImageUri;
-    }
-    return '';
-  }
-
   private resolveCardSnapshotImageUri(item: BrowserTabsFloatingItem): string {
-    const latchedUri = this.resolveLatchedEntryImageUri(item.tab.id);
-    if (latchedUri.length > 0) {
-      return latchedUri;
-    }
     const previewUri = item.presentation.preview.sharedSnapshotImageUri.trim();
     if (previewUri.length > 0) {
       return previewUri;
@@ -904,11 +875,8 @@ export struct BrowserTabsFloatingOverlay {
     return sharedBrowserTabsOverviewThumbnailStore.getThumbnail(item.tab.id)?.imageUri?.trim() ?? '';
   }
 
-  private resolveCardSnapshotPixelMap(item: BrowserTabsFloatingItem): image.PixelMap | undefined {
-    if (this.resolveCardSnapshotImageUri(item).length > 0) {
-      return undefined;
-    }
-    return BrowserTabSnapshotPixelMapCache.get(item.tab.id);
+  private resolveCardSnapshotPixelMap(_item: BrowserTabsFloatingItem): image.PixelMap | undefined {
+    return undefined;
   }
 
   @Builder
@@ -1357,17 +1325,15 @@ export struct BrowserTabsFloatingOverlay {
     return items;
   }
 
-  // A card is keyed by more than the tab id: while the tab stays the same, the
-  // preview moves from "no image yet" to "snapshot ready" a moment later when the
-  // entry capture lands. ArkUI does not rebuild an item whose key is unchanged, so
-  // keying on the id alone left the already-built card on its pending placeholder
-  // forever. The key must not include the URI itself. The persisted file arrives as
-  // the shrink finishes, and a key that changed from the live PixelMap to that URI
-  // destroyed the card and mounted a blank one in the same moment the morph left.
+  // The persisted URI must not be part of the card key. It arrives as the shrink
+  // finishes, and a key that changed from the live frame to that file destroyed the
+  // card in the handoff frame. A new file reaches the existing card through the
+  // thumbnail store instead of by rebuilding it.
   private resolveCardIdentityKey(item: BrowserTabsFloatingItem): string {
     const preview = item.presentation.preview;
     const hasImage = preview.sharedSnapshotImageUri.trim().length > 0 ||
-      preview.sharedSnapshotPixelMap !== undefined;
+      preview.sharedSnapshotPixelMap !== undefined ||
+      (sharedBrowserTabsOverviewThumbnailStore.getThumbnail(item.id)?.imageUri.trim().length ?? 0) > 0;
     return `${item.id}|${preview.previewKind}|${hasImage ? 'image' : 'none'}`;
   }
 

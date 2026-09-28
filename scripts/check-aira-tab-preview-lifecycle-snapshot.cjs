@@ -254,7 +254,9 @@ async function main() {
   const morphOverlay = fs.readFileSync(path.resolve(__dirname,
     '../AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsSharedSnapshotOverlay.ets'), 'utf8');
   assert.match(overlay, /snapshotImageUri: this\.resolveCardSnapshotImageUri\(item\)/);
-  assert.match(overlay, /this\.entryMorphImageUri = liveUri/);
+  assert.match(overlay, /hasImage \? 'image' : 'none'/);
+  assert.match(overlay, /resolveCardSnapshotPixelMap\(_item: BrowserTabsFloatingItem\): image\.PixelMap \| undefined/);
+  assert.doesNotMatch(overlay, /BrowserTabSnapshotPixelMapCache/);
   assert.match(morphOverlay, /if \(this\.resolveRenderableImageUri\(\)\.length > 0\) \{\s*this\.buildUriImage\(\)/);
   assert.match(morphOverlay, /resolveCachedMorphPixelMap\(\) !== undefined\) \{\s*this\.buildPixelMapImage\(\)/);
   assert.match(morphOverlay, /@Prop imagePixelMap: image\.PixelMap \| undefined = undefined;/);

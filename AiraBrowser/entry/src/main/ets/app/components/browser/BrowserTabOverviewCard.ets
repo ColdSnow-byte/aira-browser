@@ -18,6 +18,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS } from '../../../core/browser/BrowserTabsOverviewVisualTokens';
 import { BrowserTabSnapshotPixelMapCache } from '../../../core/browser/tabsOverview/BrowserTabSnapshotPixelMapCache';
+import { sharedBrowserTabsOverviewThumbnailStore } from '../../../core/browser/tabsOverview/BrowserTabsOverviewThumbnailStore';
 import { AiraIcon } from '../common/AiraIcon';
 
 const TAB_OVERVIEW_PENDING_SKELETON_RADIUS: number = 7;
@@ -55,6 +56,8 @@ export struct BrowserTabOverviewCard {
   @Prop snapshotImageUri: string = '';
   @Watch('syncRenderableSnapshotFromProps')
   @Prop snapshotPixelMap: image.PixelMap | undefined = undefined;
+  @Watch('syncRenderableSnapshotFromProps')
+  @StorageProp('tabsOverviewThumbnailVersion') private thumbnailVersion: number = 0;
   @Prop snapshotAspectFitEnabled: boolean = false;
   @Prop snapshotCoverEnabled: boolean = false;
   @Prop deckShadeOpacity: number = 0;
@@ -450,7 +453,8 @@ export struct BrowserTabOverviewCard {
   }
 
   private syncRenderableSnapshotFromProps(): void {
-    const nextUri = this.snapshotImageUri.trim();
+    const storedUri = sharedBrowserTabsOverviewThumbnailStore.getThumbnail(this.tab.id)?.imageUri?.trim() ?? '';
+    const nextUri = storedUri.length > 0 ? storedUri : this.snapshotImageUri.trim();
     const cachedPixelMap = nextUri.length > 0 ? undefined : BrowserTabSnapshotPixelMapCache.get(this.tab.id);
     this.renderSnapshotImageWidth = Math.max(1, Math.floor(this.presentation.sharedSnapshotImageWidth));
     this.renderSnapshotImageHeight = Math.max(1, Math.floor(this.presentation.sharedSnapshotImageHeight));
@@ -468,16 +472,19 @@ export struct BrowserTabOverviewCard {
     }
     const source = this.renderSnapshotImageUri.length > 0 ? 'uri' :
       (cachedPixelMap !== undefined ? 'cache' : 'none');
-    const diagKey = `${this.tab.id}:${source}:${this.renderSnapshotImageWidth}x${this.renderSnapshotImageHeight}`;
+    const uriMark = this.renderSnapshotImageUri.length > 24 ?
+      this.renderSnapshotImageUri.slice(this.renderSnapshotImageUri.length - 24) : this.renderSnapshotImageUri;
+    const diagKey = `${this.tab.id}:${source}:${uriMark}:${this.thumbnailVersion}`
     if (this.blankDiagKey === diagKey) {
       return;
     }
     this.blankDiagKey = diagKey;
     hilog.info(0xB00A, 'TAB-BLANK',
-      'card tab=%{public}s draw=%{public}s offeredPm=%{public}s image=%{public}s card=%{public}s',
+      'card tab=%{public}s draw=%{public}s offeredPm=%{public}s image=%{public}s card=%{public}s uri=%{public}s',
       this.tab.id, source, `${cachedPixelMap !== undefined}`,
       `${this.renderSnapshotImageWidth}x${this.renderSnapshotImageHeight}`,
-      `${Math.round(this.cardWidth)}x${Math.round(this.previewHeight)}`);
+      `${Math.round(this.cardWidth)}x${Math.round(this.previewHeight)}`,
+      uriMark.length > 0 ? uriMark : 'empty');
   }
 
   private resolveRenderableSnapshotImageUri(): string {

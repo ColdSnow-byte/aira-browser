@@ -58,6 +58,7 @@ export class BrowserTabsOverviewThumbnailStore {
       return this.version;
     }
     this.version += 1;
+    AppStorage.setOrCreate('tabsOverviewThumbnailVersion', this.version);
     this.thumbnailsByTabId[normalizedTabId] = {
       tabId: normalizedTabId,
       version: this.version,

@@ -7489,11 +7489,11 @@ struct BrowserShellPage {
 
   private resolvePrimarySurfaceSceneRenderState(): BrowserTabsOverviewSceneRenderState {
     const state = this.buildTabsOverviewSceneRenderState();
-    if (!this.shouldShowLivePageDuringCardMorph()) {
+    if (!this.isCardPictureMorphPlaying()) {
       return state;
     }
-    // The tab cards stay behind this page. Home must not show through the margins
-    // while the page shrinks into its card.
+    // The moving picture is the saved snapshot. Home must not show through the
+    // margins around it while that picture shrinks or grows.
     return {
       homeLayerMounted: false,
       homeLiveContentMounted: false,
@@ -7508,26 +7508,25 @@ struct BrowserShellPage {
     };
   }
 
+  private isCardPictureMorphPlaying(): boolean {
+    const state = this.tabsSharedSnapshotState;
+    return state.tabId.length > 0 && !this.showHomePage &&
+      (state.phase === 'enterPreparing' || state.phase === 'enterAnimating' ||
+        state.phase === 'exitPreparing' || state.phase === 'exitAnimating');
+  }
+
   private shouldShowLivePageDuringCardMorph(): boolean {
     const state = this.tabsSharedSnapshotState;
-    const released = this.livePageFrameReleased;
-    // Expand is only the saved picture growing. The live page stays underneath and
-    // is revealed after the animation, so a blank web surface cannot cover the image.
-    const expanding = state.direction === 'exit' ||
-      state.phase === 'exitPreparing' || state.phase === 'exitAnimating';
-    const showLive = !expanding && !released && state.tabId.length > 0 &&
-      state.tabId === this.activeTabId && !this.showHomePage &&
-      (state.phase === 'enterPreparing' || state.phase === 'enterAnimating');
-    const diagKey = `${state.tabId}:${state.phase}:${state.direction}:${released}:${showLive}`;
-    if (this.liveMorphCoverDiagKey !== diagKey &&
-      (state.phase === 'enterPreparing' || state.phase === 'enterAnimating' ||
-        state.phase === 'exitPreparing' || state.phase === 'exitAnimating')) {
+    // Shrink and expand are both the saved picture. The live page stays hidden
+    // until the expand finishes, so it cannot cover that picture.
+    const diagKey = `${state.tabId}:${state.phase}:${state.direction}`;
+    if (this.liveMorphCoverDiagKey !== diagKey && this.isCardPictureMorphPlaying()) {
       this.liveMorphCoverDiagKey = diagKey;
       hilog.info(0xB00A, 'TAB-BLANK',
-        'live-cover tab=%{public}s phase=%{public}s dir=%{public}s released=%{public}s showLive=%{public}s',
-        state.tabId, state.phase, state.direction, `${released}`, `${showLive}`);
+        'live-cover tab=%{public}s phase=%{public}s dir=%{public}s released=%{public}s showLive=false',
+        state.tabId, state.phase, state.direction, `${this.livePageFrameReleased}`);
     }
-    return showLive;
+    return false;
   }
 
   private resolveLivePageCardMorphScale(): number {

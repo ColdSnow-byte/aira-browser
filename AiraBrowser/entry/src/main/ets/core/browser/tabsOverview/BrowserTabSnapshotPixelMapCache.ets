@@ -8,6 +8,7 @@ import { image } from '@kit.ImageKit';
  * Image paints.
  */
 let pixelMapsByTabId: Record<string, image.PixelMap> = {};
+let generationByTabId: Record<string, number> = {};
 
 export class BrowserTabSnapshotPixelMapCache {
   static put(tabId: string, pixelMap: image.PixelMap): void {
@@ -16,13 +17,19 @@ export class BrowserTabSnapshotPixelMapCache {
       return;
     }
     pixelMapsByTabId[key] = pixelMap;
+    generationByTabId[key] = (generationByTabId[key] ?? 0) + 1;
   }
 
   static get(tabId: string): image.PixelMap | undefined {
     return pixelMapsByTabId[tabId.trim()];
   }
 
+  static generation(tabId: string): number {
+    return generationByTabId[tabId.trim()] ?? 0;
+  }
+
   static clear(): void {
     pixelMapsByTabId = {};
+    generationByTabId = {};
   }
 }

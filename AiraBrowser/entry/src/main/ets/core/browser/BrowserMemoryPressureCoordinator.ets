@@ -294,10 +294,12 @@ export class BrowserMemoryPressureCoordinator {
   ): BrowserLifecycleRetentionBudget {
     let baseBudget: BrowserLifecycleRetentionBudget;
     if (options.appLifecycle === 'background' || options.windowVisibility === 'hidden') {
+      // The process is still alive. Dropping every background tab to a snapshot
+      // here makes the next open restore that snapshot and reload the page.
       baseBudget = {
-        maxHotBackgroundTabs: 0,
-        maxWarmBackgroundTabs: 0,
-        maxMountedRuntimeTabs: 1
+        maxHotBackgroundTabs: Math.max(1, poolConfig.maxHotBackgroundTabs),
+        maxWarmBackgroundTabs: poolConfig.maxWarmBackgroundTabs,
+        maxMountedRuntimeTabs: this.config.maxMountedRuntimeTabs
       };
     } else if (options.windowVisibility === 'showing' || options.windowVisibility === 'visible') {
       baseBudget = {
