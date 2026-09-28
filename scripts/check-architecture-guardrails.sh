@@ -1210,13 +1210,17 @@ check_file_not_contains_rule "${SEARCH_SUGGESTIONS_PANEL}" "${SEARCH_SUGGESTIONS
 check_file_contains_rule "${SEARCH_SUGGESTIONS_PANEL}" "${SEARCH_SUGGESTIONS_PANEL_REL}" \
   'hitTestBehavior\(this\.blankAreaBackEnabled \? HitTestMode\.Block : HitTestMode\.None\)' \
   "blank Search space must remain an explicit hit target instead of relying on parent click bubbling."
+# The compact trailing region is one fixed-width source-icon slot. The per-row history delete
+# button was removed on purpose, so the region no longer reserves room for it; deleting a single
+# suggestion is no longer offered from this list.
 if ! awk '
-  /airaIconId: .browser\.tabs\.delete./ { in_delete_button = 1 }
-  in_delete_button && /justifyContent\(this\.compactContent \? FlexAlign\.Start : FlexAlign\.End\)/ { found = 1 }
-  in_delete_button && /\.onClick\(\(\) => \{/ { in_delete_button = 0 }
-  END { exit found ? 0 : 1 }
+  /private buildCompactTrailingActionRegion\(\)/ { in_region = 1 }
+  in_region && /this\.buildTrailingIcon\(\)/ { found_icon = 1 }
+  in_region && /\.width\(SUGGESTION_TRAILING_ICON_SIZE\)/ { found_fixed_width = 1 }
+  in_region && /^  private [a-zA-Z]/ && !/buildCompactTrailingActionRegion/ { in_region = 0 }
+  END { exit found_icon && found_fixed_width ? 0 : 1 }
 ' "${SEARCH_SUGGESTIONS_PANEL}"; then
-  report_failure "${SEARCH_SUGGESTIONS_PANEL_REL} delete icon must stay close to the history icon in compact multi-column rows and retain single-column rail alignment without shrinking its touch width."
+  report_failure "${SEARCH_SUGGESTIONS_PANEL_REL} compact rows must reserve one fixed-width trailing source-icon region."
 fi
 check_file_contains_rule "${BOTTOM_ADDRESS_PANEL}" "${BOTTOM_ADDRESS_PANEL_REL}" \
   'suggestions: this\.homeSuggestionsVisible \? this\.homeSuggestions : \[\]' \
@@ -1296,19 +1300,15 @@ if ! awk '
 ' "${SEARCH_SUGGESTIONS_PANEL}"; then
   report_failure "${SEARCH_SUGGESTIONS_PANEL_REL} compact title/open target must flex into remaining row width with layoutWeight(1) and minWidth 0."
 fi
+# Even without the delete action, the trailing region still has to sit on the row's shared
+# visible-content frame height, or the icon rides off the rail.
 if ! awk '
-  /private buildCompactTrailingActionRegion\(\)/ { in_compact_actions = 1 }
-  in_compact_actions && /Row\(\{ space: 4 \}\)/ { found_gap = 1 }
-  in_compact_actions && /this\.buildTrailingIcon\(\)/ { found_trailing_icon = 1 }
-  in_compact_actions && /this\.buildDeleteHistorySuggestionButton\(\)/ { found_delete = 1 }
-  in_compact_actions && /SUGGESTION_TRAILING_ICON_SIZE/ { found_fixed_width = 1 }
-  in_compact_actions && /SUGGESTION_DELETE_BUTTON_SIZE/ { found_delete_width = 1 }
-  in_compact_actions && /private buildDeleteHistorySuggestionButton\(\)/ { in_compact_actions = 0 }
-  END {
-    exit found_gap && found_trailing_icon && found_delete && found_fixed_width && found_delete_width ? 0 : 1
-  }
+  /private buildCompactTrailingActionRegion\(\)/ { in_region_height = 1 }
+  in_region_height && /resolveRowContentFrameHeight\(\)/ { found_frame_height = 1 }
+  in_region_height && /^  private [a-zA-Z]/ && !/buildCompactTrailingActionRegion/ { in_region_height = 0 }
+  END { exit found_frame_height ? 0 : 1 }
 ' "${SEARCH_SUGGESTIONS_PANEL}"; then
-  report_failure "${SEARCH_SUGGESTIONS_PANEL_REL} compact rows must reserve one fixed trailing icon/delete region with a 4vp internal gap."
+  report_failure "${SEARCH_SUGGESTIONS_PANEL_REL} the trailing region must share the row's visible-content frame height."
 fi
 check_file_contains_rule "${SEARCH_SUGGESTIONS_PANEL}" "${SEARCH_SUGGESTIONS_PANEL_REL}" \
   '\.alignItems\(VerticalAlign\.Bottom\)' \

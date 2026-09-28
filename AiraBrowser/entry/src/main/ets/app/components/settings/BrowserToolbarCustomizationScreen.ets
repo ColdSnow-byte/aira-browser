@@ -137,6 +137,104 @@ export type BrowserToolbarDesktopView = 'overview' | 'scroll_behavior';
 class ToolbarSlotPickerParams {
 }
 
+/**
+ * The middle-bar choice list owns the check it shows.
+ *
+ * The sheet home page does not repaint a parent state write made from the row click, so the
+ * check stayed on the previous row until the sheet was closed and built again. A Radio group is
+ * also page-scoped: recreating the rows in the same group restores that old check. Each choice
+ * therefore gets a new group, and the visible selection is state on this list.
+ */
+@Component
+struct BrowserToolbarCenterCapsuleSwipeUpOptions {
+  @Prop options: BrowserToolbarCenterCapsuleSwipeUpOptionState[] = [];
+  @Prop @Watch('onSelectedActionIdChanged') selectedActionId: string = 'tools';
+  @Prop desktopPresentation: boolean = false;
+  @Prop saving: boolean = false;
+  @Prop surfaceColor: ResourceColor = '';
+  @Prop dividerColor: ResourceColor = '';
+  @Prop primaryTextColor: ResourceColor = '';
+  @Prop secondaryTextColor: ResourceColor = '';
+  @Prop selectedIndicatorColor: ResourceColor = '';
+  onSelect?: (actionId: string) => boolean;
+  @State private displayedActionId: string = 'tools';
+  @State private selectionRevision: number = 0;
+
+  aboutToAppear(): void {
+    this.displayedActionId = this.resolveIncomingActionId();
+  }
+
+  build() {
+    SettingsGroupCard({
+      surfaceColor: this.surfaceColor,
+      desktopPresentation: this.desktopPresentation
+    }) {
+      ForEach(this.options, (option: BrowserToolbarCenterCapsuleSwipeUpOptionState, index: number) => {
+        SettingsOptionRow({
+          title: option.title,
+          desktopPresentation: this.desktopPresentation,
+          rowPosition: this.resolveRowPosition(index, this.options.length),
+          isSelected: option.actionId === this.displayedActionId,
+          isEnabled: !this.saving,
+          radioGroup: `${TOOLBAR_CENTER_CAPSULE_RADIO_GROUP}-${option.actionId}-${this.selectionRevision}`,
+          radioValue: option.actionId,
+          primaryTextColor: this.primaryTextColor,
+          secondaryTextColor: this.secondaryTextColor,
+          selectedIndicatorColor: this.selectedIndicatorColor,
+          onAction: (): void => {
+            this.selectAction(option.actionId);
+          }
+        })
+        if (index < this.options.length - 1) {
+          SettingsGroupDivider({ dividerColor: this.dividerColor })
+        }
+      }, (option: BrowserToolbarCenterCapsuleSwipeUpOptionState): string =>
+        `${option.actionId}:${this.selectionRevision}:` +
+          `${option.actionId === this.displayedActionId ? 'selected' : 'idle'}`)
+    }
+  }
+
+  private onSelectedActionIdChanged(): void {
+    const incoming = this.resolveIncomingActionId();
+    if (incoming === this.displayedActionId) {
+      return;
+    }
+    this.displayedActionId = incoming;
+    this.selectionRevision++;
+  }
+
+  private selectAction(actionId: string): void {
+    if (this.saving || actionId === this.displayedActionId) {
+      return;
+    }
+    const previousActionId = this.displayedActionId;
+    const previousRevision = this.selectionRevision;
+    this.displayedActionId = actionId;
+    this.selectionRevision++;
+    if (this.onSelect?.(actionId) !== true) {
+      this.displayedActionId = previousActionId;
+      this.selectionRevision = previousRevision;
+    }
+  }
+
+  private resolveIncomingActionId(): string {
+    return this.selectedActionId === 'tabs' ? 'tabs' : 'tools';
+  }
+
+  private resolveRowPosition(index: number, count: number): SettingsRowPosition {
+    if (count <= 1) {
+      return 'single';
+    }
+    if (index <= 0) {
+      return 'first';
+    }
+    if (index >= count - 1) {
+      return 'last';
+    }
+    return 'middle';
+  }
+}
+
 @Component
 export struct BrowserToolbarCustomizationScreen {
   private viewModel: BrowserToolbarCustomizationViewModel = new BrowserToolbarCustomizationViewModel();
@@ -881,31 +979,21 @@ export struct BrowserToolbarCustomizationScreen {
 
   @Builder
   private buildCenterCapsuleSwipeUpOptionGroup(options: BrowserToolbarCenterCapsuleSwipeUpOptionState[]) {
-    SettingsGroupCard({
+    BrowserToolbarCenterCapsuleSwipeUpOptions({
+      options: options,
+      selectedActionId: this.resolveCenterCapsuleSwipeUpActionId(options),
+      desktopPresentation: this.desktopPresentation,
+      saving: this.saving,
       surfaceColor: this.storedSurfaceBackgroundColor,
-      desktopPresentation: this.desktopPresentation
-    }) {
-      ForEach(options, (option: BrowserToolbarCenterCapsuleSwipeUpOptionState, index: number) => {
-        SettingsOptionRow({
-          title: option.title,
-          desktopPresentation: this.desktopPresentation,
-          rowPosition: this.resolveSheetRowPosition(index, options.length),
-          isSelected: option.isSelected,
-          isEnabled: !this.saving,
-          radioGroup: TOOLBAR_CENTER_CAPSULE_RADIO_GROUP,
-          radioValue: option.actionId,
-          primaryTextColor: this.storedPrimaryTextColor,
-          secondaryTextColor: this.storedSecondaryTextColor,
-          selectedIndicatorColor: this.storedAccentColor,
-          onAction: (): void => {
-            this.applyCenterCapsuleSwipeUpActionId(option.actionId);
-          }
-        })
-        if (index < options.length - 1) {
-          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
-        }
-      }, (option: BrowserToolbarCenterCapsuleSwipeUpOptionState) => option.actionId)
-    }
+      dividerColor: this.storedDividerColor,
+      primaryTextColor: this.storedPrimaryTextColor,
+      secondaryTextColor: this.storedSecondaryTextColor,
+      selectedIndicatorColor: this.storedAccentColor,
+      onSelect: (actionId: string): boolean => {
+        return this.applyCenterCapsuleSwipeUpActionId(actionId);
+      }
+    })
+      .key('toolbar-center-capsule-swipe-up-options')
   }
 
   @Builder
@@ -1658,11 +1746,20 @@ export struct BrowserToolbarCustomizationScreen {
   }
 
   /** The middle bar's choice, saved through the same path the slots use. */
-  private applyCenterCapsuleSwipeUpActionId(actionId: string): void {
+  private applyCenterCapsuleSwipeUpActionId(actionId: string): boolean {
     if (this.saving) {
-      return;
+      return false;
     }
     this.applySettings(this.viewModel.withCenterCapsuleSwipeUpActionId(this.settings, actionId));
+    return true;
+  }
+
+  private resolveCenterCapsuleSwipeUpActionId(
+    options: BrowserToolbarCenterCapsuleSwipeUpOptionState[]
+  ): string {
+    const selected = options.find((option: BrowserToolbarCenterCapsuleSwipeUpOptionState): boolean =>
+      option.isSelected);
+    return selected !== undefined ? selected.actionId : 'tools';
   }
 
   private applySettings(settings: BrowserToolbarLayoutSettings): void {
