@@ -2,7 +2,6 @@ import { AiraMembershipState } from '../../common/models/MembershipModels';
 import {
   AIRA_PRO_MONTHLY_PRODUCT_ID,
   isAiraProLifetimeProductId,
-  AIRA_PRO_QUARTERLY_PRODUCT_ID,
   AIRA_PRO_YEARLY_PRODUCT_ID
 } from '../../services/membership/HuaweiIapProductCatalog';
 
@@ -88,7 +87,6 @@ function isCurrentSubscriptionMember(membership: AiraMembershipState, now: numbe
 
 function isKnownSubscriptionProduct(productId: string): boolean {
   return productId === AIRA_PRO_MONTHLY_PRODUCT_ID ||
-    productId === AIRA_PRO_QUARTERLY_PRODUCT_ID ||
     productId === AIRA_PRO_YEARLY_PRODUCT_ID;
 }
 

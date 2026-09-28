@@ -1,11 +1,10 @@
 export const AIRA_PRO_MONTHLY_PRODUCT_ID: string = 'aira_pro_monthly';
-export const AIRA_PRO_QUARTERLY_PRODUCT_ID: string = 'aira_pro_quarterly';
 export const AIRA_PRO_YEARLY_PRODUCT_ID: string = 'aira_pro_yearly';
 export const AIRA_PRO_ONE_TIME_PRODUCT_ID: string = 'aira_pro_lifetime';
 const AIRA_PRO_LEGACY_ONE_TIME_PRODUCT_ID: string = 'aira_pro_one_time';
 const AIRA_PRO_ONE_TIME_DISPLAY_PRICE: string = '¥68.8';
 
-export type HuaweiIapProductPeriod = 'monthly' | 'quarterly' | 'yearly';
+export type HuaweiIapProductPeriod = 'monthly' | 'yearly';
 export type HuaweiIapPlanId = HuaweiIapProductPeriod | 'one_time';
 
 export interface HuaweiIapProductPlan {
@@ -52,19 +51,6 @@ export const AIRA_PRO_MONTHLY_PLAN: HuaweiIapProductPlan = {
   badgeText: ''
 };
 
-export const AIRA_PRO_QUARTERLY_PLAN: HuaweiIapProductPlan = {
-  productId: AIRA_PRO_QUARTERLY_PRODUCT_ID,
-  featurePlan: 'pro',
-  period: 'quarterly',
-  title: '连续包季',
-  displayPrice: '¥8 / 季自动续费',
-  amountText: '¥8',
-  periodText: '/ 季',
-  discountBadgeText: '',
-  description: '按季自动续费，可在订阅管理中取消',
-  badgeText: ''
-};
-
 export const AIRA_PRO_YEARLY_PLAN: HuaweiIapProductPlan = {
   productId: AIRA_PRO_YEARLY_PRODUCT_ID,
   featurePlan: 'pro',
@@ -98,7 +84,6 @@ export const AIRA_PRO_SELLABLE_IAP_PLANS: HuaweiIapProductPlan[] = [
 
 export const AIRA_PRO_IAP_PLANS: HuaweiIapProductPlan[] = [
   AIRA_PRO_MONTHLY_PLAN,
-  AIRA_PRO_QUARTERLY_PLAN,
   AIRA_PRO_YEARLY_PLAN
 ];
 
@@ -117,13 +102,10 @@ export function findAiraProIapPlanByProductId(productId: string): HuaweiIapProdu
   return AIRA_PRO_IAP_PLANS.find((item: HuaweiIapProductPlan) => item.productId === normalizedProductId);
 }
 
-/** The lease period as it reads under a price: `/ 月`, `/ 季`, `/ 年`. */
+/** The lease period as it reads under a price: `/ 月`, `/ 年`. */
 export function resolveAiraProPlanPeriodText(period: HuaweiIapProductPeriod): string {
   if (period === 'yearly') {
     return '/ 年';
-  }
-  if (period === 'quarterly') {
-    return '/ 季';
   }
   return '/ 月';
 }

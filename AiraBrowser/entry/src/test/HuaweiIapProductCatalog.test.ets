@@ -18,7 +18,6 @@ export default function huaweiIapProductCatalogTest(): void {
       expect(AIRA_PRO_SELLABLE_IAP_PLANS[1].displayPrice).assertEqual('¥7.89 / 年自动续费');
       expect(isAiraProSellablePlanId('monthly')).assertTrue();
       expect(isAiraProSellablePlanId('yearly')).assertTrue();
-      expect(isAiraProSellablePlanId('quarterly')).assertFalse();
       expect(isAiraProSellablePlanId('one_time')).assertFalse();
     });
 
@@ -31,7 +30,6 @@ export default function huaweiIapProductCatalogTest(): void {
       expect(AIRA_PRO_SELLABLE_IAP_PLANS[1].amountText).assertEqual('¥7.89');
       expect(AIRA_PRO_SELLABLE_IAP_PLANS[1].periodText).assertEqual('/ 年');
       expect(resolveAiraProPlanPeriodText('monthly')).assertEqual('/ 月');
-      expect(resolveAiraProPlanPeriodText('quarterly')).assertEqual('/ 季');
       expect(resolveAiraProPlanPeriodText('yearly')).assertEqual('/ 年');
     });
 
