@@ -429,7 +429,9 @@ export class TabManager implements BrowserTabManagerPort {
 
     let nextActiveTabId = activeTabId;
     if (targetTabId === activeTabId) {
-      nextActiveTabId = remainingTabs[remainingTabs.length - 1].id;
+      const besideClosedTabId = this.resolveTabIdBesideClosedTab(tabs, targetTabId);
+      nextActiveTabId = besideClosedTabId.length > 0 ?
+        besideClosedTabId : remainingTabs[remainingTabs.length - 1].id;
     }
 
     return {
@@ -442,6 +444,25 @@ export class TabManager implements BrowserTabManagerPort {
       activeTabId: nextActiveTabId,
       tabSequence: this.resolveTabSequence(remainingTabs)
     };
+  }
+
+  /**
+   * The tab a closed active tab hands the window back to.
+   *
+   * Tab list order is the visual order in both the horizontal strip (left to right)
+   * and the vertical sidebar (top to bottom), so closing a tab steps back to the one
+   * immediately before it instead of jumping to the far end of the list. Only the
+   * leading tab, which has nothing before it, steps forward to the next tab.
+   */
+  private resolveTabIdBesideClosedTab(tabs: BrowserTabState[], closedTabId: string): string {
+    const closedIndex = tabs.findIndex((tab: BrowserTabState): boolean => tab.id === closedTabId);
+    if (closedIndex > 0) {
+      return tabs[closedIndex - 1].id;
+    }
+    if (closedIndex === 0 && tabs.length > 1) {
+      return tabs[1].id;
+    }
+    return '';
   }
 
   buildTerminalBackPlan(tabs: BrowserTabState[], activeTabId: string): BrowserTerminalBackPlan {

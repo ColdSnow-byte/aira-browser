@@ -102,6 +102,7 @@ import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTranspo
 import browserSearchInvocationHostPolicyTest from './BrowserSearchInvocationHostPolicy.test';
 import historyOmniboxIndexTest from './HistoryOmniboxIndex.test';
 import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.test';
+import browserTabCloseNeighborPolicyTest from './BrowserTabCloseNeighborPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -206,4 +207,5 @@ export default function tests(): void {
   browserSearchInvocationHostPolicyTest();
   historyOmniboxIndexTest();
   localOmniboxSuggestionMatcherTest();
+  browserTabCloseNeighborPolicyTest();
 }
