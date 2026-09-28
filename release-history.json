@@ -10,6 +10,15 @@
   },
   "history": [
     {
+      "versionName": "3.4.3",
+      "versionCode": 1000472,
+      "releasedAt": "2026-09-28",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package whose split-toolbar search joins one invocation session with the phone floating search, so escape, back, cancel, and submit behave the same and a close cannot clear a search opened right after it. The history page keeps its per-mode snapshot, stops greying out edit when the site list has content, and resumes the site first screen when a delete lands during a mode switch. Bottom-toolbar reorder follows a pure lift/drag/drop/tap policy so a long press released without moving no longer swallows later taps. The large-screen bookmark bar setting offers the same three-way visibility choice as the bar's own menu, the membership page redeems a code through the hosted function, and the .user.js source cap rises to 50 MB. Built from committed HEAD 57791af plus the 3.4.3 (1000472) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.3-1000472-release-signed.app",
+      "sha256": "0bc31a62ae13f76e63ec809534a09e543f29a5b97ffcae03c9d2c9b88ac87cba"
+    },
+    {
       "versionName": "3.4.2",
       "versionCode": 1000468,
       "releasedAt": "2026-09-27",
