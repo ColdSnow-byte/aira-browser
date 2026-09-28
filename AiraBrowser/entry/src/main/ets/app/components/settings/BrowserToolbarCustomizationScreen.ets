@@ -113,6 +113,11 @@ const TOOLBAR_SLOT_RADIO_GROUP_PREFIX: string = 'browser-toolbar-slot-action';
 const TOOLBAR_CENTER_CAPSULE_RADIO_GROUP: string = 'browser-toolbar-center-capsule-swipe-up';
 const TOOLBAR_SLOT_PICKER_DESTINATION: string = 'toolbarSlotActionPicker';
 /**
+ * pop() and the overview @State write share one click. Navigation drops that write, so the
+ * label is republished after the slide if the home-page callback does not run.
+ */
+const TOOLBAR_SHEET_OVERVIEW_REFRESH_FALLBACK_MS: number = 480;
+/**
  * Half-modal title bar from HdsNavigationTitleMode.MODAL: 8vp top padding, 56vp bar, 64vp backplate.
  * The 40vp button is centered in that bar, so it starts 16vp below the sheet content, level with close.
  */
@@ -199,15 +204,21 @@ export struct BrowserToolbarCustomizationScreen {
    * only one of them reachable, so the question is state and the sheet itself is single.
    * The action list is a NavDestination on this stack, not a rebuilt builder: pushPath is the system
    * slide, and back pops that destination before the sheet can dismiss.
+   * A @State write in that same click does not repaint this home page, so the overview is
+   * republished once the home page is current again.
    */
   private sheetNavigationStack: NavPathStack = new NavPathStack();
   private sheetNavigationPopGuardUntilMs: number = 0;
+  private sheetOverviewDisposed: boolean = false;
+  private sheetOverviewRefreshGeneration: number = 0;
   private sheetRootScroller: Scroller = new Scroller();
   private sheetPickerScroller: Scroller = new Scroller();
   @State private sheetRootBlurRadius: number = 0;
   @State private sheetPickerBlurRadius: number = 0;
   @State private sheetQuestion: BrowserToolbarSheetQuestion = 'slot';
   @State private sheetVisible: boolean = false;
+  /** Bumped after the picker returns, so the covered overview reads the action that was just saved. */
+  @State private sheetOverviewRevision: number = 0;
   @State private desktopView: BrowserToolbarDesktopView = 'overview';
   /**
    * Resolved once instead of per render.
@@ -237,6 +248,19 @@ export struct BrowserToolbarCustomizationScreen {
   aboutToAppear(): void {
     this.desktopView = this.initialDesktopView;
     this.refreshState();
+    this.sheetNavigationStack.setInterception({
+      didShow: (_from: NavDestinationContext | 'navBar', to: NavDestinationContext | 'navBar',
+        _operation: NavigationOperation, _animated: boolean): void => {
+        if (typeof to !== 'string') {
+          return;
+        }
+        this.scheduleSheetOverviewRefresh(0, this.sheetOverviewRefreshGeneration);
+      }
+    });
+  }
+
+  aboutToDisappear(): void {
+    this.sheetOverviewDisposed = true;
   }
 
   build() {
@@ -907,7 +931,7 @@ export struct BrowserToolbarCustomizationScreen {
     SettingsActionButton({
       title: '恢复此按钮默认设置',
       variant: 'tonal',
-      isEnabled: !this.saving && !this.resolveSplitDetail().isProfileDefault,
+      isEnabled: this.isSplitSlotResetEnabled(),
       onAction: (): void => {
         this.resetSelectedSlotAction();
       }
@@ -969,7 +993,7 @@ export struct BrowserToolbarCustomizationScreen {
     SettingsActionButton({
       title: '恢复此按钮默认设置',
       variant: 'tonal',
-      isEnabled: !this.saving && !this.resolveSelectedSlotAction().isProfileDefault,
+      isEnabled: this.isSlotResetEnabled(),
       onAction: (): void => {
         this.resetSelectedSlotAction();
       }
@@ -984,8 +1008,8 @@ export struct BrowserToolbarCustomizationScreen {
     SettingsNavigationRow({
       title: interaction.title,
       desktopPresentation: this.desktopPresentation,
-      value: interaction.action.title,
-      airaIconId: interaction.action.airaIconId,
+      value: this.resolveOverviewInteraction(interaction.kind).action.title,
+      airaIconId: this.resolveOverviewInteraction(interaction.kind).action.airaIconId,
       iconColor: this.storedPrimaryTextColor,
       rowPosition,
       primaryTextColor: this.storedPrimaryTextColor,
@@ -996,6 +1020,7 @@ export struct BrowserToolbarCustomizationScreen {
         this.openInteractionPicker(interaction.kind);
       }
     })
+    .key(this.resolveOverviewRowKey(interaction.kind))
   }
 
   @Builder
@@ -1326,12 +1351,12 @@ export struct BrowserToolbarCustomizationScreen {
       actionId
     );
     const after = this.splitViewModel.resolveActionId(nextSettings, this.selectedSplitSlotId, kind);
-    this.popSheetNavigation();
     if (after !== actionId) {
+      this.popSheetNavigation();
       this.showToast('这个动作已经在这条栏上了。');
       return;
     }
-    this.applySettings(nextSettings);
+    this.commitInteractionSelection(nextSettings);
   }
 
   private handleToolbarPreviewIntent(intent: BrowserBottomChromeTapIntent): void {
@@ -1366,8 +1391,58 @@ export struct BrowserToolbarCustomizationScreen {
       this.selectedInteractionKind,
       actionId
     );
+    this.commitInteractionSelection(nextSettings);
+  }
+
+  /**
+   * pop() and the settings write share this click. Navigation drops the overview repaint,
+   * so the label is published again once the home page is current, and again after the slide.
+   */
+  private commitInteractionSelection(nextSettings: BrowserToolbarLayoutSettings): void {
+    const generation = ++this.sheetOverviewRefreshGeneration;
     this.popSheetNavigation();
     this.applySettings(nextSettings);
+    this.scheduleSheetOverviewRefresh(TOOLBAR_SHEET_OVERVIEW_REFRESH_FALLBACK_MS, generation);
+  }
+
+  private scheduleSheetOverviewRefresh(delayMs: number, generation: number): void {
+    setTimeout((): void => {
+      if (this.sheetOverviewDisposed || generation !== this.sheetOverviewRefreshGeneration) {
+        return;
+      }
+      this.sheetOverviewRevision++;
+    }, delayMs);
+  }
+
+  private resolveOverviewInteraction(
+    kind: BrowserToolbarInteractionKind
+  ): BrowserToolbarSlotInteractionState {
+    if (this.sheetQuestion === 'split_slot') {
+      const detail = this.resolveSplitDetail();
+      return kind === 'longPress' ? detail.longPress : detail.tap;
+    }
+    const resolved = this.viewModel.findSlotInteraction(this.state, this.selectedSlotId, kind);
+    if (resolved !== undefined) {
+      return resolved;
+    }
+    return this.resolveSelectedSlotAction().tap;
+  }
+
+  private resolveOverviewRowKey(kind: BrowserToolbarInteractionKind): string {
+    const actionId = this.resolveOverviewInteraction(kind).action.id;
+    return `${this.sheetQuestion}-${this.selectedSlotId}-${this.selectedSplitSlotId}-${kind}-` +
+      `${actionId}-${this.sheetOverviewRevision}`;
+  }
+
+  private isSlotResetEnabled(): boolean {
+    // Revision is read so this row repaints after the picker pop, not only when saving flips.
+    return !this.saving && !this.resolveSelectedSlotAction().isProfileDefault &&
+      this.sheetOverviewRevision >= 0;
+  }
+
+  private isSplitSlotResetEnabled(): boolean {
+    return !this.saving && !this.resolveSplitDetail().isProfileDefault &&
+      this.sheetOverviewRevision >= 0;
   }
 
   private resetSelectedSlotAction(): void {
