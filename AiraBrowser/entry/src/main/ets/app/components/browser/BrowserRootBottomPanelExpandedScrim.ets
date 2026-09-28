@@ -6,6 +6,9 @@ import {
 import { BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
 import { DEFAULT_THEME_PALETTE } from '../../../features/theme/palettes/DefaultThemePalette';
 
+/** Softens the committed search page into place: the page has no travel to share with the panel. */
+const BROWSER_SEARCH_PAGE_BACKGROUND_FADE_MS: number = 180;
+
 @Component
 export struct BrowserRootBottomPanelExpandedScrim {
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY)
@@ -46,13 +49,15 @@ export struct BrowserRootBottomPanelExpandedScrim {
         // progress: a partial page colour behind a capsule that is still moving reads as a veil.
         // Suggestion rows stay transparent and sit on this surface, so the background is the
         // screen, not a plate behind the history block.
-        // A newly committed search page must not use the system appear transition, which slides in from the right.
+        // The committed page has no travel to share with the panel, so it fades in on its own.
+        // The incoming scene must not use the system appear transition, which slides in from the right.
         Stack()
           .width('100%')
           .height('100%')
           .backgroundColor(this.storedPageBackgroundColor)
           .hitTestBehavior(HitTestMode.None)
-          .transition(TransitionEffect.IDENTITY)
+          .transition(TransitionEffect.opacity(0)
+            .animation({ duration: BROWSER_SEARCH_PAGE_BACKGROUND_FADE_MS, curve: Curve.EaseOut }))
       }
     }
     .width(this.shouldBlockHitTest() ? '100%' : 0)
