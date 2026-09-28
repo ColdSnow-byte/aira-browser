@@ -2575,11 +2575,14 @@ export class BrowserDatabase {
     }
   }
 
-  async purgeDeletedShortcutSyncRecords(): Promise<number> {
+  async purgeDeletedShortcutSyncRecords(retainedShortcutIds: string[] = []): Promise<number> {
     try {
       const store = await this.getStore();
       const shortcutPredicates = new relationalStore.RdbPredicates(SHORTCUTS_TABLE);
       shortcutPredicates.isNotNull('deleted_at');
+      if (retainedShortcutIds.length > 0) {
+        shortcutPredicates.notIn('id', retainedShortcutIds);
+      }
       const deletedShortcuts = await store.delete(shortcutPredicates);
       const scenarioPredicates = new relationalStore.RdbPredicates(SHORTCUT_SCENARIOS_TABLE);
       scenarioPredicates.isNotNull('deleted_at');

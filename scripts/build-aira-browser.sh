@@ -45,6 +45,7 @@ SYNC_DIAGNOSTICS_TEST="${REPO_ROOT}/scripts/check-aira-sync-diagnostics.cjs"
 WEBDAV_LOCK_NULL_PLACEHOLDER_TEST="${REPO_ROOT}/scripts/check-aira-webdav-lock-null-placeholder.cjs"
 DIALOG_ACTION_LAYOUT_TEST="${REPO_ROOT}/scripts/check-aira-dialog-action-layout.cjs"
 BOOKMARK_SNAPSHOT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bookmark-snapshot-contract.sh"
+HOME_SHORTCUT_SEED_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-shortcut-seed-contract.sh"
 NEW_USER_GIFT_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-new-user-gift-contract.sh"
 PRO_RENEWAL_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-pro-renewal-contract.sh"
 BOTTOM_TOOLBAR_GUIDE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-bottom-toolbar-guide-contract.sh"
@@ -343,6 +344,10 @@ if [ ! -x "${BOOKMARK_SNAPSHOT_GUARD_SCRIPT}" ]; then
 fi
 
 "${BOOKMARK_SNAPSHOT_GUARD_SCRIPT}"
+if [ ! -x "${HOME_SHORTCUT_SEED_GUARD_SCRIPT}" ]; then
+  fail "Home shortcut seed contract guard not executable: ${HOME_SHORTCUT_SEED_GUARD_SCRIPT}"
+fi
+"${HOME_SHORTCUT_SEED_GUARD_SCRIPT}"
 if [ ! -x "${NEW_USER_GIFT_GUARD_SCRIPT}" ]; then
   fail "New User Gift contract guard not executable: ${NEW_USER_GIFT_GUARD_SCRIPT}"
 fi

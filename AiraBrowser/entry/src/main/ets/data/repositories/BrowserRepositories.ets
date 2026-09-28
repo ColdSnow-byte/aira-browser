@@ -410,7 +410,7 @@ export class InMemoryShortcutRepository implements ShortcutRepository {
       return scenario.sync.deletedAt === undefined;
     });
     this.shortcuts = this.shortcuts.filter((shortcut: ShortcutRecord): boolean => {
-      return shortcut.sync?.deletedAt === undefined;
+      return shouldRetainShortcutAfterDeletedSyncPurge(shortcut);
     });
     return Promise.resolve((scenarioCount - this.scenarios.length) + (shortcutCount - this.shortcuts.length));
   }
@@ -635,7 +635,7 @@ export class RdbShortcutRepository implements ShortcutRepository {
 
   async purgeDeletedSyncRecords(): Promise<number> {
     await this.initialize();
-    const deletedCount = await this.database.purgeDeletedShortcutSyncRecords();
+    const deletedCount = await this.database.purgeDeletedShortcutSyncRecords(buildSeedShortcutIds());
     if (deletedCount > 0) {
       await this.refresh();
     }
@@ -1630,11 +1630,19 @@ function buildSeedShortcutScenarios(): ShortcutScenarioRecord[] {
   ];
 }
 
+function createSeedShortcutId(idSuffix: string): string {
+  return `shortcut-seed-${idSuffix}`;
+}
+
+function buildSeedShortcutIds(): string[] {
+  return DEFAULT_BROWSER_SEED_SITES.map((site: BrowserDefaultSeedSite): string => createSeedShortcutId(site.idSuffix));
+}
+
 function buildSeedShortcuts(): ShortcutRecord[] {
   const now = 1710000000000;
   return DEFAULT_BROWSER_SEED_SITES.map((site: BrowserDefaultSeedSite, index: number) => {
     return createSeedShortcut(
-      `shortcut-seed-${site.idSuffix}`,
+      createSeedShortcutId(site.idSuffix),
       site.title,
       site.url,
       '首页',
@@ -1642,6 +1650,12 @@ function buildSeedShortcuts(): ShortcutRecord[] {
       now
     );
   });
+}
+
+// Deleted default homepage shortcuts must keep their ids. The next cold start
+// treats a missing seed id as never installed and would otherwise recreate it.
+function shouldRetainShortcutAfterDeletedSyncPurge(shortcut: ShortcutRecord): boolean {
+  return shortcut.sync?.deletedAt === undefined || buildSeedShortcutIds().indexOf(shortcut.id) >= 0;
 }
 
 function buildMissingSeedShortcuts(existingShortcuts: ShortcutRecord[]): ShortcutRecord[] {
