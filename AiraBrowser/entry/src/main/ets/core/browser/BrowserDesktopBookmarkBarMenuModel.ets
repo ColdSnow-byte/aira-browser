@@ -1,4 +1,8 @@
 import { BookmarkNode, DesktopBookmarkBarVisibility } from '../../common/models/BrowserModels';
+import {
+  DESKTOP_BOOKMARK_BAR_VISIBILITY_CHOICES,
+  DesktopBookmarkBarVisibilityChoice
+} from './DesktopBookmarkBarVisibility';
 import { isBookmarkRootNodeId } from '../../data/repositories/BookmarkRepositoryCore';
 
 /**
@@ -46,8 +50,7 @@ export interface BrowserDesktopBookmarkBarMenuModel {
 
 interface BrowserDesktopBookmarkBarVisibilityEntry {
   id: BrowserDesktopBookmarkBarMenuItemId;
-  label: string;
-  visibility: DesktopBookmarkBarVisibility;
+  choice: DesktopBookmarkBarVisibilityChoice;
 }
 
 const OPEN_NEW_TAB_LABEL: string = '在新标签页中打开';
@@ -62,11 +65,22 @@ const ADD_BOOKMARK_LABEL: string = '添加网页...';
 const ADD_FOLDER_LABEL: string = '添加文件夹...';
 const OPEN_MANAGER_LABEL: string = '打开书签管理器';
 
-const VISIBILITY_ENTRIES: BrowserDesktopBookmarkBarVisibilityEntry[] = [
-  { id: 'bar_visibility_never', label: '一律隐藏', visibility: 'never' },
-  { id: 'bar_visibility_always', label: '一律显示', visibility: 'always' },
-  { id: 'bar_visibility_new_tab_only', label: '仅在“新标签页”页面上显示', visibility: 'new_tab_only' }
-];
+function resolveVisibilityMenuItemId(
+  visibility: DesktopBookmarkBarVisibility
+): BrowserDesktopBookmarkBarMenuItemId {
+  if (visibility === 'never') {
+    return 'bar_visibility_never';
+  }
+  return visibility === 'always' ? 'bar_visibility_always' : 'bar_visibility_new_tab_only';
+}
+
+/** Menu ids stay this module's contract; the labels are the shared policy wording. */
+const VISIBILITY_ENTRIES: BrowserDesktopBookmarkBarVisibilityEntry[] =
+  DESKTOP_BOOKMARK_BAR_VISIBILITY_CHOICES.map(
+    (choice: DesktopBookmarkBarVisibilityChoice): BrowserDesktopBookmarkBarVisibilityEntry => {
+      return { id: resolveVisibilityMenuItemId(choice.visibility), choice: choice };
+    }
+  );
 
 /** Maps a visibility menu entry back to the stored policy it selects. */
 export function resolveDesktopBookmarkBarVisibilityForMenuItem(
@@ -75,7 +89,7 @@ export function resolveDesktopBookmarkBarVisibilityForMenuItem(
   const entry = VISIBILITY_ENTRIES.find(
     (candidate: BrowserDesktopBookmarkBarVisibilityEntry): boolean => candidate.id === id
   );
-  return entry?.visibility;
+  return entry?.choice.visibility;
 }
 
 /**
@@ -147,9 +161,9 @@ function buildVisibilityGroup(
     (entry: BrowserDesktopBookmarkBarVisibilityEntry): BrowserDesktopBookmarkBarMenuItem => {
       return {
         id: entry.id,
-        label: entry.label,
+        label: entry.choice.label,
         enabled: true,
-        checked: entry.visibility === barVisibility
+        checked: entry.choice.visibility === barVisibility
       };
     }
   );

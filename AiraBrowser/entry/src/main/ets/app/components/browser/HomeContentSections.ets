@@ -50,6 +50,8 @@ export struct HomeContentSections {
   /** Centered and minimal open homepage settings from the wordmark above the search field. */
   @Prop centeredWordmarkOpensSettings: boolean = false;
   @Prop centeredSearchPresented: boolean = false;
+  /** False when the floating toolbar owns search, so this field does not run a shared-element flight. */
+  @Prop centeredSearchGeometryEnabled: boolean = true;
   @Prop inlineSearch: boolean = false;
   @Prop inlineSearchActive: boolean = false;
   @Prop searchSuggestions: SearchSuggestion[] = [];
@@ -227,6 +229,7 @@ export struct HomeContentSections {
         textColor: this.theme.primaryTextColor,
         secondaryTextColor: this.theme.secondaryTextColor,
         searchPresented: this.centeredSearchPresented,
+        searchGeometryEnabled: this.centeredSearchGeometryEnabled,
         inlineSearch: this.inlineSearch,
         searchSuggestions: this.searchSuggestions,
         searchViewportHeight: this.centeredViewportHeight,

@@ -33,6 +33,11 @@ export struct CenteredHomeHeader {
   @Prop fieldBackgroundColor: ResourceColor = Color.Transparent;
   /** True while the phone search page owns the shared field, so this copy can leave. */
   @Prop searchPresented: boolean = false;
+  /**
+   * Only the split search page shares this field's geometry. The floating toolbar has no pair,
+   * and an unpaired geometry transition slides a surface in from the right.
+   */
+  @Prop searchGeometryEnabled: boolean = true;
   /** Large-screen home types into this field instead of opening the phone search page. */
   @Prop inlineSearch: boolean = false;
   /** Minimal home keeps the field and drops the scan button. */
@@ -181,8 +186,8 @@ export struct CenteredHomeHeader {
     .backgroundColor(this.fieldBackgroundColor)
     .clip(true)
     .id('centered-home-search-source')
-    .geometryTransition(CENTERED_HOME_SEARCH_GEOMETRY_ID)
-    .transition(TransitionEffect.opacity(0.99))
+    .geometryTransition(this.searchGeometryEnabled ? CENTERED_HOME_SEARCH_GEOMETRY_ID : '')
+    .transition(this.searchGeometryEnabled ? TransitionEffect.opacity(0.99) : TransitionEffect.IDENTITY)
   }
 
   @Builder

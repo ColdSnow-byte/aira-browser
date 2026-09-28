@@ -41,6 +41,7 @@ import {
   HistoryTimelineDeletionTransaction,
   HistoryTimelineVisibleContent
 } from '../../../features/history/HistoryManagerScreenController';
+import { HistorySitePageController, HistorySitePageStatus } from '../../../features/history/HistorySitePageController';
 import { DeferredEnterWork } from '../../../common/utils/DeferredEnterWork';
 import {
   sharedBrowserDatabase,
@@ -181,6 +182,11 @@ export struct HistoryManagerScreen {
   private historyTimelineDataSource: HistoryTimelineDataSource = new HistoryTimelineDataSource();
   private historySiteListDataSource: HistorySiteListDataSource = new HistorySiteListDataSource();
   private historySiteScroller: Scroller = new Scroller();
+  private sitePageController: HistorySitePageController = new HistorySitePageController(this.historyFeature);
+  private isActive: boolean = false;
+  private timelineScrollOffset: number = 0;
+  private siteScrollOffset: number = 0;
+  private scrollRestoreTimer: number = -1;
   private privateBoundaryNavigationService: BrowserPrivateBoundaryNavigationService =
     new BrowserPrivateBoundaryNavigationService();
   @State rawVisits: HistoryVisit[] = [];
@@ -192,6 +198,9 @@ export struct HistoryManagerScreen {
   @State titleActionsElevated: boolean = false;
   @State viewMode: HistoryViewMode = 'timeline';
   @State isTimelineLoading: boolean = false;
+  @State isSiteLoading: boolean = false;
+  @State timelineLoadError: string = '';
+  @State siteLoadError: string = '';
   @State drilldownReturnQuery: string = '';
   @State drilldownReturnMode: HistoryViewMode = 'timeline';
   @State drilldownHost: string = '';
@@ -204,6 +213,7 @@ export struct HistoryManagerScreen {
   @State bookmarkedVisitIds: string[] = [];
   @State homeShortcutVisitIds: string[] = [];
   @State isTransferBusy: boolean = false;
+  @State pendingHistoryMutations: number = 0;
   @State visitDetailRows: HistoryDetailRow[] = [];
   @State visitDetailUrl: string = '';
   @State visitDetailsSheetVisible: boolean = false;
@@ -226,7 +236,6 @@ export struct HistoryManagerScreen {
   private isApplyingRetentionPolicy: boolean = false;
   private isSeedingStressHistory: boolean = false;
   private handledStressHistorySeedCount: number = 0;
-  private siteReloadSequence: number = 0;
   private pendingBookmarkVisits: HistoryDisplayVisit[] = [];
   private bookmarkFolderSelectionOverlayGeneration: number = 0;
   private selectionMenuRevealSequence: number = 0;
@@ -235,10 +244,16 @@ export struct HistoryManagerScreen {
   private visibleIconResolveTimer: number = -1;
   @State isSessionEphemeral: boolean = false;
   @LocalStorageProp(BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY) private topSafeInsetVp: number = 0;
-  private hasLoadedAllSites: boolean = false;
-  private isLoadingMoreSites: boolean = false;
-
   aboutToAppear(): void {
+    this.isActive = true;
+    this.sitePageController = new HistorySitePageController(this.historyFeature);
+    this.sitePageController.setStatusListener((status: HistorySitePageStatus): void => {
+      this.isSiteLoading = status.loading;
+      this.siteLoadError = status.error;
+    });
+    this.controller.setTimelineErrorListener((message: string): void => {
+      this.timelineLoadError = message;
+    });
     this.controller.setTimelineLoadingListener((loading: boolean): void => {
       this.isTimelineLoading = loading;
     });
@@ -281,13 +296,17 @@ export struct HistoryManagerScreen {
     );
     if (!this.seedStressHistoryIfRequested()) {
       this.deferredEnterWork.schedule((): void => {
-        this.loadVisitsProgressively();
+        this.loadCurrentModeFirstPage();
       });
     }
   }
 
   aboutToDisappear(): void {
+    this.isActive = false;
     this.deferredEnterWork.cancel();
+    this.cancelHistoryScrollRestore();
+    this.sitePageController.setStatusListener(undefined);
+    this.sitePageController.invalidate();
     this.controller.clearBackHandler();
     this.cancelVisibleIconResolve();
     this.siteIconListPresenter.dispose();
@@ -404,7 +423,9 @@ export struct HistoryManagerScreen {
     if (this.isSelectionMode || this.isSearchMode) {
       return [];
     }
-    const hasVisits = this.rawVisits.length > 0;
+    const hasHistory = this.visits.length > 0 || this.sites.length > 0;
+    const canEdit = !this.isViewModeEmpty(this.viewMode) && !this.isTransferBusy &&
+      this.pendingHistoryMutations === 0;
     const actions: ManagementHdsMenuAction[] = [
       {
         label: '搜索',
@@ -416,7 +437,7 @@ export struct HistoryManagerScreen {
       {
         label: '编辑',
         icon: $r('sys.symbol.checkmark_circle_fill'),
-        enabled: hasVisits,
+        enabled: canEdit,
         action: () => {
           this.enterSelectionMode();
         }
@@ -424,7 +445,7 @@ export struct HistoryManagerScreen {
       {
         label: '按站点清理',
         icon: $r('sys.symbol.trash_fill'),
-        enabled: hasVisits,
+        enabled: hasHistory && !this.isTransferBusy,
         action: () => {
           this.openSiteCleanupMode();
         }
@@ -440,7 +461,7 @@ export struct HistoryManagerScreen {
       {
         label: '导出历史',
         icon: $r('sys.symbol.arrow_up'),
-        enabled: hasVisits && !this.isTransferBusy,
+        enabled: hasHistory && !this.isTransferBusy,
         action: () => {
           this.exportHistoryBundle();
         }
@@ -565,7 +586,50 @@ export struct HistoryManagerScreen {
 
   @Builder
   private buildHistoryList() {
-    this.buildHistoryPage()
+    Stack({ alignContent: Alignment.Top }) {
+      this.buildHistoryPage()
+      this.buildHistoryLoadStatus()
+    }
+    .width('100%')
+    .height('100%')
+  }
+
+  @Builder
+  private buildHistoryLoadStatus() {
+    if (this.resolveHistoryLoadError().length > 0) {
+      Row({ space: 8 }) {
+        Text(this.resolveHistoryLoadError())
+          .fontSize(14)
+          .fontColor(this.storedSecondaryTextColor)
+        Button('重试')
+          .onClick(() => this.reloadVisits())
+      }
+      .width('100%')
+      .justifyContent(FlexAlign.Center)
+      .padding({ top: this.resolveHistoryContentTopInset() + 8, bottom: 8 })
+      .backgroundColor(this.storedPageBackgroundColor)
+    } else if (this.isCurrentModeLoading() && this.isViewModeEmpty(this.viewMode)) {
+      Column({ space: 12 }) {
+        LoadingProgress()
+          .width(32)
+          .height(32)
+        Text('正在加载历史记录…')
+          .fontSize(14)
+          .fontColor(this.storedSecondaryTextColor)
+      }
+      .width('100%')
+      .height('100%')
+      .justifyContent(FlexAlign.Center)
+      .hitTestBehavior(HitTestMode.None)
+    }
+  }
+
+  private isCurrentModeLoading(): boolean {
+    return this.viewMode === 'sites' ? this.isSiteLoading : this.isTimelineLoading;
+  }
+
+  private resolveHistoryLoadError(): string {
+    return this.viewMode === 'sites' ? this.siteLoadError : this.timelineLoadError;
   }
 
   // Read this.viewMode inside the observed builder bodies (not as a by-value
@@ -574,19 +638,36 @@ export struct HistoryManagerScreen {
   private buildHistoryPage() {
     if (this.isSearchMode && this.searchQuery.trim().length === 0) {
       this.buildIdleSearchList()
-    } else if (this.viewMode === 'timeline') {
+    } else {
       Stack({ alignContent: Alignment.Top }) {
-        this.buildHistoryContent()
+        // Keep a loaded list mounted. Recreating LazyForEach on every tab
+        // change is the remaining switch hitch after the query itself is reused.
+        if (this.viewMode === 'timeline' || this.visits.length > 0) {
+          Column() {
+            this.buildTimelineList()
+          }
+          .width('100%')
+          .height('100%')
+          .zIndex(this.viewMode === 'timeline' ? 1 : 0)
+          .visibility(this.viewMode === 'timeline' ? Visibility.Visible : Visibility.Hidden)
+          .hitTestBehavior(this.viewMode === 'timeline' ? HitTestMode.Default : HitTestMode.None)
+        }
+        if (this.viewMode === 'sites' || this.sites.length > 0) {
+          Column() {
+            this.buildSiteList()
+          }
+          .width('100%')
+          .height('100%')
+          .zIndex(this.viewMode === 'sites' ? 1 : 0)
+          .visibility(this.viewMode === 'sites' ? Visibility.Visible : Visibility.Hidden)
+          .hitTestBehavior(this.viewMode === 'sites' ? HitTestMode.Default : HitTestMode.None)
+        }
         if (this.shouldShowHistoryEmptyState(this.viewMode)) {
           this.buildEmptyState(this.viewMode)
         }
       }
       .width('100%')
       .height('100%')
-    } else if (!this.isViewModeEmpty(this.viewMode)) {
-      this.buildHistoryContent()
-    } else {
-      this.buildEmptyState(this.viewMode)
     }
   }
 
@@ -604,9 +685,8 @@ export struct HistoryManagerScreen {
   }
 
   @Builder
-  private buildHistoryContent() {
-    if (this.viewMode === 'sites') {
-      HistorySiteList({
+  private buildSiteList() {
+    HistorySiteList({
         dataSource: this.historySiteListDataSource,
         listScroller: this.historySiteScroller,
         icons: this.iconStates,
@@ -636,11 +716,17 @@ export struct HistoryManagerScreen {
           this.updateSiteVisibleRange(start, end);
         },
         onScrollOffsetChange: (offset: number) => {
-          this.updateTitleActionsElevationFromOffset(offset);
+          if (this.viewMode === 'sites') {
+            this.updateTitleActionsElevationFromOffset(offset);
+          }
         }
       })
-    } else {
-      HistoryTimelineList({
+      .onAppear(() => this.scheduleHistoryScrollRestore('sites'))
+  }
+
+  @Builder
+  private buildTimelineList() {
+    HistoryTimelineList({
         dataSource: this.historyTimelineDataSource,
         listScroller: this.controller.getTimelineScroller(),
         icons: this.iconStates,
@@ -697,7 +783,9 @@ export struct HistoryManagerScreen {
           );
         },
         onScrollOffsetChange: (offset: number) => {
-          this.updateTitleActionsElevationFromOffset(offset);
+          if (this.viewMode === 'timeline') {
+            this.updateTitleActionsElevationFromOffset(offset);
+          }
         },
         onReachEnd: () => {
           this.loadNextTimelinePage();
@@ -710,7 +798,7 @@ export struct HistoryManagerScreen {
           this.controller.setTimelineSwipeActionOpen(visitId, open);
         }
       })
-    }
+      .onAppear(() => this.scheduleHistoryScrollRestore('timeline'))
   }
 
   @Builder
@@ -811,37 +899,80 @@ export struct HistoryManagerScreen {
   }
 
   private reloadVisits(): void {
+    if (!this.isActive) {
+      return;
+    }
+    this.controller.invalidateTimelineCache();
+    this.sitePageController.invalidate();
+    if (this.viewMode === 'sites' && !this.shouldHoldEmptySearchResults()) {
+      // A failed deletion must recover the optimistic removal, so the stale
+      // visible rows cannot be preserved across the recovery read.
+      this.loadSiteFirstPage(false);
+      return;
+    }
     this.loadCurrentModeFirstPage();
   }
 
-  private loadCurrentModeFirstPage(): void {
+  private loadCurrentModeFirstPage(allowReuse: boolean = false): void {
+    this.deferredEnterWork.cancel();
     if (this.shouldHoldEmptySearchResults()) {
       this.clearHistoryViewState();
       return;
     }
     if (this.viewMode === 'sites') {
+      if (!allowReuse) {
+        this.controller.cancelTimelineRequests();
+      }
+      if (allowReuse && this.sitePageController.canReuse(this.searchQuery)) {
+        this.scheduleHistoryScrollRestore('sites');
+        this.scheduleVisibleIconResolve();
+        return;
+      }
+      // A background prefetch is already filling this snapshot. Restarting it
+      // would drop the in-flight page and make the click wait again.
+      if (allowReuse && this.isSiteLoading) {
+        return;
+      }
       this.loadSiteFirstPage();
+      return;
+    }
+    if (!allowReuse) {
+      this.sitePageController.cancel();
+    }
+    if (allowReuse && this.controller.canReuseTimeline(this.searchQuery)) {
+      this.scheduleHistoryScrollRestore('timeline');
+      this.scheduleVisibleIconResolve();
+      return;
+    }
+    if (allowReuse && this.isTimelineLoading) {
       return;
     }
     this.loadVisitsProgressively();
   }
 
-  private loadVisitsProgressively(): void {
-    this.siteReloadSequence += 1;
-    this.isLoadingMoreSites = false;
+  private loadVisitsProgressively(preserveContent: boolean = false, cancelSites: boolean = true): void {
+    this.deferredEnterWork.cancel();
+    if (cancelSites) {
+      this.sitePageController.cancel();
+    }
     if (this.shouldHoldEmptySearchResults()) {
       this.clearHistoryViewState();
       return;
     }
     const query = this.searchQuery.trim();
-    if (query.length > 0) {
-      this.applyHistoryViewState();
+    if (!preserveContent) {
+      this.rawVisits = [];
+      this.visits = [];
+      this.historyTimelineDataSource.replaceGroups([]);
+      this.timelineScrollOffset = 0;
     }
     this.controller.loadTimelineFirstPage(
       query,
       HISTORY_INITIAL_RENDER_LIMIT,
       (visits: HistoryVisit[]) => {
-        this.applyLoadedVisits(visits, false);
+        if (this.isActive && query === this.searchQuery.trim()) {
+          this.applyLoadedVisits(visits, false);
+        }
       }
     );
   }
@@ -849,21 +980,29 @@ export struct HistoryManagerScreen {
   private applyLoadedVisits(visits: HistoryVisit[], shouldApplyRetention: boolean): void {
     this.rawVisits = visits.slice();
     this.applyHistoryViewState();
-    this.controller.scrollTimelineToStart();
-    this.resetTitleActionsElevation();
+    if (this.viewMode === 'timeline') {
+      this.controller.scrollTimelineToStart();
+      this.resetTitleActionsElevation();
+    }
     this.pruneSelectedVisits();
     this.refreshBookmarkMarkers(this.visits);
     this.refreshHomeShortcutMarkers(this.visits);
-    this.scheduleVisibleIconResolve();
+    if (this.viewMode === 'timeline') {
+      this.scheduleVisibleIconResolve();
+    }
     if (shouldApplyRetention) {
       this.applyRetentionPolicyIfNeeded();
     }
+    this.prefetchInactiveHistoryMode();
   }
 
   private clearHistoryViewState(): void {
     this.controller.clearTimelineState();
-    this.hasLoadedAllSites = false;
-    this.isLoadingMoreSites = false;
+    this.sitePageController.invalidate();
+    this.timelineLoadError = '';
+    this.siteLoadError = '';
+    this.timelineScrollOffset = 0;
+    this.siteScrollOffset = 0;
     this.rawVisits = [];
     this.visits = [];
     this.sites = [];
@@ -877,13 +1016,12 @@ export struct HistoryManagerScreen {
   }
 
   private applyHistoryViewState(): void {
-    const state: HistoryViewState = this.historyViewModel.buildViewState(this.rawVisits, this.searchQuery, this.viewMode);
+    const state: HistoryViewState = this.historyViewModel.buildTimelineViewState(this.rawVisits, this.searchQuery);
     this.visits = state.visits;
-    this.sites = state.sites;
     this.historyTimelineDataSource.replaceGroups(state.groups);
-    this.historySiteListDataSource.replaceSites(state.sites);
-    this.pruneSelectedSites();
-    this.scheduleVisibleIconResolve();
+    if (this.viewMode === 'timeline') {
+      this.scheduleVisibleIconResolve();
+    }
   }
 
   private refreshLoadedHistoryViewState(visits: HistoryVisit[]): number {
@@ -895,6 +1033,9 @@ export struct HistoryManagerScreen {
   }
 
   private loadNextTimelinePage(): void {
+    if (this.viewMode !== 'timeline' || !this.isActive || this.timelineLoadError.length > 0) {
+      return;
+    }
     this.controller.requestNextTimelinePages(
       HISTORY_RENDER_INCREMENT,
       this.visits.length,
@@ -902,40 +1043,57 @@ export struct HistoryManagerScreen {
     );
   }
 
-  private loadSiteFirstPage(): void {
-    this.controller.cancelTimelineRequests();
-    const sequence = ++this.siteReloadSequence;
-    const query = this.searchQuery.trim();
-    this.hasLoadedAllSites = false;
-    this.isLoadingMoreSites = false;
-    this.historyFeature.refreshSitePageForManagement(
-      query,
-      0,
+  private loadSiteFirstPage(preserveContent: boolean = false, cancelTimeline: boolean = true): void {
+    this.deferredEnterWork.cancel();
+    if (cancelTimeline) {
+      this.controller.cancelTimelineRequests();
+    }
+    if (!preserveContent) {
+      this.siteScrollOffset = 0;
+      this.sites = [];
+      this.historySiteListDataSource.replaceSites([]);
+    }
+    this.sitePageController.loadFirstPage(
+      this.searchQuery,
       HISTORY_INITIAL_RENDER_LIMIT,
-      this.buildHistoryManagementBoundary()
-    )
-      .then((sites: HistorySiteAggregate[]) => {
-        if (sequence !== this.siteReloadSequence || query !== this.searchQuery.trim()) {
-          return;
-        }
-        this.applyLoadedSites(sites, sites.length < HISTORY_INITIAL_RENDER_LIMIT, false);
-      })
-      .catch((_error: Error) => {
-      });
+      this.buildHistoryManagementBoundary(),
+      (sites: HistorySiteAggregate[], append: boolean) => this.applyLoadedSites(sites, append)
+    );
   }
 
-  private applyLoadedSites(sites: HistorySiteAggregate[], hasLoadedAll: boolean, append: boolean): void {
-    if (!append) {
+  private applyLoadedSites(sites: HistorySiteAggregate[], append: boolean): void {
+    if (!this.isActive) {
+      return;
+    }
+    const showingSites = this.viewMode === 'sites';
+    if (!append && showingSites) {
       this.resetTitleActionsElevation();
+      this.siteScrollOffset = 0;
+      this.siteVisibleStartIndex = 0;
+      this.siteVisibleEndIndex = 20;
     }
     const siteGroups = this.historyViewModel.buildSiteGroupsFromAggregates(sites);
     this.sites = append ? this.mergeLoadedSites(siteGroups) : siteGroups;
-    this.hasLoadedAllSites = hasLoadedAll;
     this.historySiteListDataSource.replaceSites(this.sites);
-    this.siteVisibleStartIndex = 0;
-    this.siteVisibleEndIndex = 20;
     this.pruneSelectedSites();
-    this.scheduleVisibleIconResolve();
+    if (showingSites) {
+      this.scheduleVisibleIconResolve();
+    }
+    this.prefetchInactiveHistoryMode();
+  }
+
+  private prefetchInactiveHistoryMode(): void {
+    if (!this.isActive || this.searchQuery.trim().length > 0 || this.pendingHistoryMutations > 0) {
+      return;
+    }
+    if (this.viewMode !== 'sites' && !this.isSiteLoading &&
+      !this.sitePageController.canReuse(this.searchQuery)) {
+      this.loadSiteFirstPage(true, false);
+    }
+    if (this.viewMode !== 'timeline' && !this.isTimelineLoading &&
+      !this.controller.canReuseTimeline(this.searchQuery)) {
+      this.loadVisitsProgressively(true, false);
+    }
   }
 
   private mergeLoadedSites(nextSites: HistorySiteGroup[]): HistorySiteGroup[] {
@@ -951,36 +1109,18 @@ export struct HistoryManagerScreen {
   }
 
   private requestMoreSiteRowsIfNeeded(): void {
-    if (this.viewMode !== 'sites' || this.hasLoadedAllSites || this.isLoadingMoreSites) {
+    if (this.viewMode !== 'sites' || !this.isActive || this.siteLoadError.length > 0) {
       return;
     }
     const remainingRows = this.sites.length - this.siteVisibleEndIndex;
     if (remainingRows >= HISTORY_RENDER_PREFETCH_REMAINING_ROWS) {
       return;
     }
-    const sequence = this.siteReloadSequence;
-    const query = this.searchQuery.trim();
-    const offset = this.sites.length;
-    this.isLoadingMoreSites = true;
-    this.historyFeature.refreshSitePageForManagement(
-      query,
-      offset,
+    this.sitePageController.loadNextPage(
       HISTORY_RENDER_INCREMENT,
-      this.buildHistoryManagementBoundary()
-    )
-      .then((sites: HistorySiteAggregate[]) => {
-        if (sequence !== this.siteReloadSequence || query !== this.searchQuery.trim()) {
-          return;
-        }
-        this.applyLoadedSites(sites, sites.length < HISTORY_RENDER_INCREMENT, true);
-      })
-      .catch((_error: Error) => {
-      })
-      .finally(() => {
-        if (sequence === this.siteReloadSequence) {
-          this.isLoadingMoreSites = false;
-        }
-      });
+      this.buildHistoryManagementBoundary(),
+      (sites: HistorySiteAggregate[], append: boolean) => this.applyLoadedSites(sites, append)
+    );
   }
 
   private resolveTitle(): string {
@@ -1147,7 +1287,8 @@ export struct HistoryManagerScreen {
     if (this.shouldHoldEmptySearchResults()) {
       return false;
     }
-    if (mode === 'timeline' && this.isTimelineLoading) {
+    if ((mode === 'timeline' ? this.isTimelineLoading : this.isSiteLoading) ||
+      this.resolveHistoryLoadError().length > 0) {
       return false;
     }
     return this.isViewModeEmpty(mode);
@@ -1353,7 +1494,7 @@ export struct HistoryManagerScreen {
   }
 
   private enterSelectionMode(initialVisitId?: string): void {
-    if (this.isSearchMode) {
+    if (this.isSearchMode || this.isViewModeEmpty(this.viewMode) || this.pendingHistoryMutations > 0) {
       return;
     }
     this.controller.closeTimelineSwipeActions();
@@ -1529,11 +1670,8 @@ export struct HistoryManagerScreen {
   }
 
   private removeVisitsFromLocalState(visitIds: string[]): number {
-    if (visitIds.length === 0) {
-      return 0;
-    }
-    this.siteReloadSequence += 1;
-    this.isLoadingMoreSites = false;
+    this.pendingHistoryMutations += 1;
+    this.sitePageController.beginMutation();
     const removingIds = new Set<string>(visitIds);
     const transaction: HistoryTimelineDeletionTransaction = this.controller.beginTimelineDeletion(visitIds);
     this.rawVisits = transaction.visits;
@@ -1550,6 +1688,8 @@ export struct HistoryManagerScreen {
   }
 
   private finishTimelineDeletion(transactionId: number, committed: boolean): void {
+    this.pendingHistoryMutations = Math.max(0, this.pendingHistoryMutations - 1);
+    this.sitePageController.finishMutation();
     const completion: HistoryTimelineDeletionCompletion =
       this.controller.finishTimelineDeletion(transactionId, committed);
     if (completion.shouldReload) {
@@ -2093,15 +2233,18 @@ export struct HistoryManagerScreen {
   }
 
   private openSiteCleanupMode(): void {
-    if (!this.controller.hasLoadedTimelineVisits()) {
+    if (this.isTransferBusy || this.pendingHistoryMutations > 0) {
       return;
     }
+    this.captureHistoryScrollOffset();
     this.clearDrilldownState();
     this.isSearchMode = false;
     this.searchQuery = '';
     this.viewMode = 'sites';
-    this.loadSiteFirstPage();
-    this.enterSelectionMode();
+    this.loadCurrentModeFirstPage(true);
+    // Selection can start before the first site page arrives.
+    this.isSelectionMode = true;
+    this.contextMenuVisitId = '';
     this.showNativeToast('选择站点后点删除。');
   }
 
@@ -2130,12 +2273,58 @@ export struct HistoryManagerScreen {
     if (this.viewMode === mode) {
       return;
     }
+    this.captureHistoryScrollOffset();
     this.controller.resetTimelineSwipeActions();
     this.viewMode = mode;
     this.clearDrilldownState();
     this.exitSelectionMode();
     this.resetTitleActionsElevation();
-    this.loadCurrentModeFirstPage();
+    this.loadCurrentModeFirstPage(true);
+  }
+
+  private captureHistoryScrollOffset(): void {
+    try {
+      if (this.viewMode === 'sites') {
+        this.siteScrollOffset = this.historySiteScroller.currentOffset().yOffset;
+      } else {
+        this.timelineScrollOffset = this.controller.getTimelineScroller().currentOffset().yOffset;
+      }
+    } catch (_error) {
+    }
+  }
+
+  private cancelHistoryScrollRestore(): void {
+    if (this.scrollRestoreTimer >= 0) {
+      clearTimeout(this.scrollRestoreTimer);
+      this.scrollRestoreTimer = -1;
+    }
+  }
+
+  private scheduleHistoryScrollRestore(mode: HistoryViewMode): void {
+    this.cancelHistoryScrollRestore();
+    this.scrollRestoreTimer = setTimeout(() => {
+      this.scrollRestoreTimer = -1;
+      if (!this.isActive || this.viewMode !== mode) {
+        return;
+      }
+      const offset = mode === 'sites' ? this.siteScrollOffset : this.timelineScrollOffset;
+      // The list is created only after its rows exist. scrollTo(0) at that moment
+      // lands before contentStartOffset settles and pulls the first rows to the
+      // physical top, above the floating header. A zero offset is already the
+      // natural start, so only a real previous scroll is restored.
+      if (!(offset > 0)) {
+        return;
+      }
+      try {
+        if (mode === 'sites') {
+          this.historySiteScroller.scrollTo({ xOffset: 0, yOffset: offset, animation: false });
+        } else {
+          this.controller.getTimelineScroller().scrollTo({ xOffset: 0, yOffset: offset, animation: false });
+        }
+        this.updateTitleActionsElevationFromOffset(offset);
+      } catch (_error) {
+      }
+    }, 0);
   }
 
   private applyRetentionPolicyIfNeeded(): void {

@@ -759,6 +759,30 @@ export class BrowserDatabase {
   private storePromise?: Promise<relationalStore.RdbStore>;
   private legacyMobileBookmarkRootCleanupPromise?: Promise<void>;
   private historySyncCanonicalBackfilledAccounts: Set<string> = new Set<string>();
+  private historyDataRevision: number = 0;
+  private historyMutationPendingCount: number = 0;
+
+  getHistoryDataRevision(): number {
+    return this.historyDataRevision;
+  }
+
+  isHistoryMutationPending(): boolean {
+    return this.historyMutationPendingCount > 0;
+  }
+
+  // Cover the entire public write, including preparation, early returns and failures.
+  // A counter keeps overlapping writes pending until the last writer has settled.
+  // Readers must require !pending and an unchanged revision across their read.
+  async runHistoryMutation<T>(operation: () => Promise<T>): Promise<T> {
+    this.historyMutationPendingCount += 1;
+    this.historyDataRevision += 1;
+    try {
+      return await operation();
+    } finally {
+      this.historyDataRevision += 1;
+      this.historyMutationPendingCount -= 1;
+    }
+  }
 
   async initialize(): Promise<void> {
     await this.getStore();
@@ -1432,6 +1456,10 @@ export class BrowserDatabase {
   }
 
   async upsertHistoryVisit(visit: HistoryVisit, syncContext?: HistorySyncOutboxContext): Promise<HistoryVisit> {
+    return this.runHistoryMutation(() => this.upsertHistoryVisitMutation(visit, syncContext));
+  }
+
+  private async upsertHistoryVisitMutation(visit: HistoryVisit, syncContext?: HistorySyncOutboxContext): Promise<HistoryVisit> {
     let store: relationalStore.RdbStore | undefined = undefined;
     let transactionStarted = false;
     try {
@@ -1543,6 +1571,10 @@ export class BrowserDatabase {
   }
 
   async seedHistoryStressFixture(targetTotalCount: number): Promise<number> {
+    return this.runHistoryMutation(() => this.seedHistoryStressFixtureMutation(targetTotalCount));
+  }
+
+  private async seedHistoryStressFixtureMutation(targetTotalCount: number): Promise<number> {
     const safeTarget = Math.max(0, Math.floor(targetTotalCount));
     const store = await this.getStore();
     await store.executeSql(`DELETE FROM ${HISTORY_VISITS_TABLE} WHERE id LIKE '${HISTORY_STRESS_VISIT_ID_PREFIX}%'`);
@@ -1642,6 +1674,10 @@ export class BrowserDatabase {
   }
 
   async deleteHistoryVisit(id: string, syncContext?: HistorySyncOutboxContext): Promise<boolean> {
+    return this.runHistoryMutation(() => this.deleteHistoryVisitMutation(id, syncContext));
+  }
+
+  private async deleteHistoryVisitMutation(id: string, syncContext?: HistorySyncOutboxContext): Promise<boolean> {
     let store: relationalStore.RdbStore | undefined = undefined;
     let transactionStarted = false;
     try {
@@ -1669,6 +1705,10 @@ export class BrowserDatabase {
   }
 
   async deleteHistoryVisitsByIds(ids: string[], syncContext?: HistorySyncOutboxContext): Promise<number> {
+    return this.runHistoryMutation(() => this.deleteHistoryVisitsByIdsMutation(ids, syncContext));
+  }
+
+  private async deleteHistoryVisitsByIdsMutation(ids: string[], syncContext?: HistorySyncOutboxContext): Promise<number> {
     const uniqueIds = Array.from(new Set<string>(ids.map((id: string) => id.trim()).filter((id: string) => id.length > 0)));
     if (uniqueIds.length === 0) {
       return 0;
@@ -1711,6 +1751,14 @@ export class BrowserDatabase {
     endAt: number,
     syncContext?: HistorySyncOutboxContext
   ): Promise<number> {
+    return this.runHistoryMutation(() => this.deleteHistoryVisitsInRangeMutation(startAt, endAt, syncContext));
+  }
+
+  private async deleteHistoryVisitsInRangeMutation(
+    startAt: number,
+    endAt: number,
+    syncContext?: HistorySyncOutboxContext
+  ): Promise<number> {
     const normalizedStartAt = Math.max(0, Math.round(startAt));
     const normalizedEndAt = Math.max(normalizedStartAt, Math.round(endAt));
     let store: relationalStore.RdbStore | undefined = undefined;
@@ -1742,6 +1790,10 @@ export class BrowserDatabase {
   }
 
   async deleteHistoryVisitsByHost(host: string, syncContext?: HistorySyncOutboxContext): Promise<number> {
+    return this.runHistoryMutation(() => this.deleteHistoryVisitsByHostMutation(host, syncContext));
+  }
+
+  private async deleteHistoryVisitsByHostMutation(host: string, syncContext?: HistorySyncOutboxContext): Promise<number> {
     const normalizedHost = host.trim().toLowerCase();
     if (normalizedHost.length === 0) {
       return 0;
@@ -1777,6 +1829,10 @@ export class BrowserDatabase {
   }
 
   async clearHistoryVisits(syncContext?: HistorySyncOutboxContext): Promise<number> {
+    return this.runHistoryMutation(() => this.clearHistoryVisitsMutation(syncContext));
+  }
+
+  private async clearHistoryVisitsMutation(syncContext?: HistorySyncOutboxContext): Promise<number> {
     let store: relationalStore.RdbStore | undefined = undefined;
     let transactionStarted = false;
     try {
@@ -1982,6 +2038,13 @@ export class BrowserDatabase {
     accountUid: string,
     state: HuaweiSpaceHistorySyncState
   ): Promise<number> {
+    return this.runHistoryMutation(() => this.applyHuaweiSpaceHistorySyncStateMutation(accountUid, state));
+  }
+
+  private async applyHuaweiSpaceHistorySyncStateMutation(
+    accountUid: string,
+    state: HuaweiSpaceHistorySyncState
+  ): Promise<number> {
     const normalizedUid = accountUid.trim();
     if (normalizedUid.length <= 0) {
       return 0;
@@ -2139,6 +2202,15 @@ export class BrowserDatabase {
     deviceName: string,
     limit: number
   ): Promise<number> {
+    return this.runHistoryMutation(() => this.prepareHistorySyncEnrollmentMutation(accountUid, clientId, deviceName, limit));
+  }
+
+  private async prepareHistorySyncEnrollmentMutation(
+    accountUid: string,
+    clientId: string,
+    deviceName: string,
+    limit: number
+  ): Promise<number> {
     const normalizedUid = accountUid.trim();
     const normalizedClientId = clientId.trim();
     if (normalizedUid.length <= 0 || normalizedClientId.length <= 0) {
@@ -2212,6 +2284,16 @@ export class BrowserDatabase {
     response: HistorySyncExchangeResponse,
     removeAcknowledgedMutations: boolean = true
   ): Promise<number> {
+    return this.runHistoryMutation(() =>
+      this.applyHistorySyncExchangeMutation(accountUid, clientId, response, removeAcknowledgedMutations));
+  }
+
+  private async applyHistorySyncExchangeMutation(
+    accountUid: string,
+    clientId: string,
+    response: HistorySyncExchangeResponse,
+    removeAcknowledgedMutations: boolean = true
+  ): Promise<number> {
     const startedAt = Date.now();
     AiraSyncJankProbe.mark('history_local_apply_exchange_start');
     const store = await this.getStore();
@@ -2251,6 +2333,16 @@ export class BrowserDatabase {
   }
 
   async applyHistorySyncBootstrap(
+    accountUid: string,
+    clientId: string,
+    response: HistorySyncBootstrapResponse,
+    resetRemoteProjection: boolean
+  ): Promise<number> {
+    return this.runHistoryMutation(() =>
+      this.applyHistorySyncBootstrapMutation(accountUid, clientId, response, resetRemoteProjection));
+  }
+
+  private async applyHistorySyncBootstrapMutation(
     accountUid: string,
     clientId: string,
     response: HistorySyncBootstrapResponse,
@@ -2331,6 +2423,10 @@ export class BrowserDatabase {
   }
 
   async detachHistorySyncRemoteProjection(accountUid: string): Promise<number> {
+    return this.runHistoryMutation(() => this.detachHistorySyncRemoteProjectionMutation(accountUid));
+  }
+
+  private async detachHistorySyncRemoteProjectionMutation(accountUid: string): Promise<number> {
     const store = await this.getStore();
     let transactionStarted = false;
     try {
@@ -2348,6 +2444,10 @@ export class BrowserDatabase {
   }
 
   async pruneHistorySyncProjection(accountUid: string, now: number = Date.now()): Promise<number> {
+    return this.runHistoryMutation(() => this.pruneHistorySyncProjectionMutation(accountUid, now));
+  }
+
+  private async pruneHistorySyncProjectionMutation(accountUid: string, now: number = Date.now()): Promise<number> {
     const normalizedUid = accountUid.trim();
     if (normalizedUid.length <= 0) {
       return 0;
@@ -2423,6 +2523,10 @@ export class BrowserDatabase {
   }
 
   async detachHistorySyncRemoteProjectionsExcept(accountUid: string): Promise<number> {
+    return this.runHistoryMutation(() => this.detachHistorySyncRemoteProjectionsExceptMutation(accountUid));
+  }
+
+  private async detachHistorySyncRemoteProjectionsExceptMutation(accountUid: string): Promise<number> {
     const normalizedUid = accountUid.trim();
     // An empty account means the user signed out, not that they switched accounts. This is the only
     // operation in the group that deletes rows, and its predicate matches every remote row whose

@@ -59,13 +59,23 @@ const HISTORY_DIALOG_TITLE_MAX_LENGTH: number = 72;
 const HISTORY_DIALOG_URL_MAX_LENGTH: number = 88;
 
 export class HistoryViewModel {
+  buildTimelineViewState(visits: HistoryVisit[], query: string): HistoryViewState {
+    return this.buildPresentation(visits, query, 'timeline', false);
+  }
+
   buildViewState(visits: HistoryVisit[], query: string, mode: HistoryViewMode): HistoryViewState {
+    return this.buildPresentation(visits, query, mode, true);
+  }
+
+  private buildPresentation(
+    visits: HistoryVisit[], query: string, mode: HistoryViewMode, includeSites: boolean
+  ): HistoryViewState {
     const normalizedQuery = this.normalizeQuery(query);
     const displayVisits = this.deduplicateVisits(visits)
       .filter((visit: HistoryDisplayVisit) => this.matchesQuery(visit, normalizedQuery));
     const groups = this.groupVisits(displayVisits);
-    const sites = this.groupSites(displayVisits)
-      .filter((site: HistorySiteGroup) => this.matchesSiteQuery(site, normalizedQuery));
+    const sites: HistorySiteGroup[] = includeSites ? this.groupSites(displayVisits)
+      .filter((site: HistorySiteGroup) => this.matchesSiteQuery(site, normalizedQuery)) : [];
     const visibleCount = mode === 'sites' ? sites.length : displayVisits.length;
     return {
       query: query,
@@ -156,15 +166,18 @@ export class HistoryViewModel {
 
   private groupVisits(visits: HistoryDisplayVisit[]): HistoryDateGroup[] {
     const groups: HistoryDateGroup[] = [];
+    const groupsByLabel = new Map<string, HistoryDateGroup>();
     visits.forEach((visit: HistoryDisplayVisit) => {
       const label = visit.dayBucketLabel.length > 0 ? visit.dayBucketLabel : this.formatDate(visit.visitedAt);
-      const existing = groups.find((group: HistoryDateGroup) => group.label === label);
+      const existing = groupsByLabel.get(label);
       if (existing === undefined) {
-        groups.push({
+        const group: HistoryDateGroup = {
           key: this.buildDateGroupKey(label),
           label: label,
           visits: [visit]
-        });
+        };
+        groups.push(group);
+        groupsByLabel.set(label, group);
       } else {
         existing.visits.push(visit);
       }

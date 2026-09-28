@@ -72,7 +72,9 @@ function isUserScriptUnreachableTransportText(message: string): boolean {
 }
 
 const USER_SCRIPT_SOURCE_FETCH_TIMEOUT_MS: number = 12000;
-const MAX_USER_SCRIPT_SOURCE_BYTES: number = 5 * 1024 * 1024;
+// http.request receives at most 5 MB unless maxLimit is set. From API 23 the receive ceiling is 50 MB.
+const MAX_USER_SCRIPT_SOURCE_BYTES: number = 50 * 1024 * 1024;
+const USER_SCRIPT_SOURCE_TOO_LARGE_MESSAGE: string = '脚本超过 50 MB，无法安装。';
 const USER_SCRIPT_METADATA_MARKER: string = '// ==UserScript==';
 
 export class UserScriptSourceFetchService {
@@ -127,6 +129,7 @@ export class UserScriptSourceFetchService {
         expectDataType: http.HttpDataType.STRING,
         connectTimeout: USER_SCRIPT_SOURCE_FETCH_TIMEOUT_MS,
         readTimeout: USER_SCRIPT_SOURCE_FETCH_TIMEOUT_MS,
+        maxLimit: MAX_USER_SCRIPT_SOURCE_BYTES,
         usingCache: true,
         header: {
           'Accept': 'text/javascript,application/javascript,text/plain,*/*;q=0.8',
@@ -149,7 +152,7 @@ export class UserScriptSourceFetchService {
         return this.fail('脚本内容为空。');
       }
       if (source.length > MAX_USER_SCRIPT_SOURCE_BYTES) {
-        return this.fail('脚本超过 5 MB，暂不支持安装。');
+        return this.fail(USER_SCRIPT_SOURCE_TOO_LARGE_MESSAGE);
       }
       return {
         ok: true,

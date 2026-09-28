@@ -148,9 +148,15 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
       browserNativeTabSceneService.isNativeTabUrl(targetUrl)) {
       return;
     }
-    const shouldHoldErrorPage = holdErrorPageDuringReload &&
-      (this.dependencies.loadFailureSurfaceCoordinator.shouldShowNativeSurface(activeFacts.activeTabId) ||
-        activeFacts.holdPageErrorSurfaceDuringReload);
+    const hasErrorDocument =
+      this.dependencies.loadFailureSurfaceCoordinator.shouldShow(activeFacts.activeTabId);
+    const hasErrorSurface =
+      this.dependencies.loadFailureSurfaceCoordinator.shouldShowNativeSurface(activeFacts.activeTabId) ||
+      activeFacts.holdPageErrorSurfaceDuringReload;
+    const refreshLiveDocument = reason === 'user_manual_reload' && activeFacts.controllerAttached &&
+      this.dependencies.hostedRuntimeSurfacePort.isHostedControllerAttached(activeTab.id) &&
+      !hasErrorDocument && !hasErrorSurface;
+    const shouldHoldErrorPage = holdErrorPageDuringReload && hasErrorSurface;
     if (shouldHoldErrorPage && activeTab.id === activeFacts.activeTabId &&
       !activeFacts.showTabsSheet && !activeFacts.showHomePage) {
       this.host.applyState({
@@ -161,8 +167,14 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
     this.host.applyState({
       pageErrorSurfaceVisible: false
     });
-    this.dependencies.hostedRuntimeSurfacePort.ensureActiveWebSurfaceForNavigation(activeTab);
-    const resolution = this.dependencies.restoreCoordinator.buildManualReloadResolution(activeTab, targetUrl, reason);
+    // A live refresh must not update/rebind the Hosted Web's JS proxies or scripts.
+    // Keep the current Web instance and its native history-page state intact.
+    if (!refreshLiveDocument) {
+      this.dependencies.hostedRuntimeSurfacePort.ensureActiveWebSurfaceForNavigation(activeTab);
+    }
+    const resolution = this.dependencies.restoreCoordinator.buildManualReloadResolution(
+      activeTab, targetUrl, reason, refreshLiveDocument
+    );
     this.host.applyState({
       restoreTraceTabId: activeTab.id,
       restoreTrace: resolution.trace,
@@ -192,7 +204,8 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
     const executionError = this.issuePageReload(
       reason,
       activeTab.id,
-      resolution.restorePlan.targetUrl
+      resolution.restorePlan.targetUrl,
+      refreshLiveDocument
     );
     if (activeFacts.controllerAttached && executionError.length > 0) {
       this.host.applyState({
@@ -480,15 +493,19 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
   private issuePageReload(
     reason: BrowserPageReloadReason,
     tabId: string,
-    targetUrl: string
+    targetUrl: string,
+    refreshLiveDocument: boolean
   ): string {
-    if (reason !== 'user_manual_reload') {
-      return this.issueLoadUrl(tabId, targetUrl, '刷新下发失败', '刷新下发异常');
+    if (!refreshLiveDocument) {
+      return this.issueLoadUrl(
+        tabId, targetUrl, '刷新下发失败', '刷新下发异常', reason !== 'user_manual_reload'
+      );
     }
     // refresh() reloads the current document and keeps the back-forward list.
     // loadUrl + clearHistory makes the next Back look terminal and jump home.
     AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestoreRefresh', tabId, targetUrl, false);
     try {
+      this.dependencies.webLoadRuntimeCoordinator.syncEventContext(tabId, targetUrl, true);
       if (this.dependencies.runtimeLifecyclePort.refreshControllerPage(tabId)) {
         return '';
       }
@@ -502,11 +519,14 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
     tabId: string,
     targetUrl: string,
     failurePrefix: string,
-    exceptionPrefix: string
+    exceptionPrefix: string,
+    clearHistory: boolean = true
   ): string {
-    AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestore', tabId, targetUrl, true);
+    AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestore', tabId, targetUrl, clearHistory);
     try {
-      if (this.dependencies.webLoadRuntimeCoordinator.loadUrlForTab(tabId, targetUrl, true, true, true, 'ActiveTabRuntimeRestore')) {
+      if (this.dependencies.webLoadRuntimeCoordinator.loadUrlForTab(
+        tabId, targetUrl, true, clearHistory, true, 'ActiveTabRuntimeRestore'
+      )) {
         return '';
       }
       return `${failurePrefix}：${targetUrl}`;

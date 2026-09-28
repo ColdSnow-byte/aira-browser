@@ -111,12 +111,6 @@ export class SettingsDetailActionResolver {
     if (action === 'toggle_blur_private_tab_previews') {
       return this.copyAppearanceSettings(current, { blurPrivateTabPreviews: nextChecked });
     }
-    if (action === 'toggle_desktop_bookmark_bar') {
-      return this.copyAppearanceSettings(current, {
-        showDesktopBookmarkBar: nextChecked,
-        desktopBookmarkBarVisibility: nextChecked ? 'always' : 'never'
-      });
-    }
     return undefined;
   }
 

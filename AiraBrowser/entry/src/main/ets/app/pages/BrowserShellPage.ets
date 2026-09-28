@@ -639,6 +639,20 @@ import {
   BrowserShellSearchInvocationHost
 } from '../../core/browser/BrowserShellSearchInvocationAdapter';
 import {
+  BrowserSplitToolbarSearchInvocationAdapter,
+  BrowserSplitToolbarSearchInvocationHost,
+  BrowserSplitToolbarSearchPresentation,
+  BrowserSplitToolbarSearchSuggestionPort
+} from '../../core/browser/BrowserSplitToolbarSearchInvocationAdapter';
+import { BrowserSearchSuggestionSessionInput } from '../../core/browser/BrowserSearchSuggestionCoordinator';
+import { BrowserSearchInvocationHostRouter } from '../../core/search/BrowserSearchInvocationHostRouter';
+import {
+  BrowserSearchInvocationHostKind,
+  resolveBrowserSearchInvocationHost,
+  shouldCompleteSearchClose
+} from '../../core/search/BrowserSearchInvocationHostPolicy';
+import { BrowserSearchInvocationEndReason } from '../../core/search/BrowserSearchInvocationSessionCoordinator';
+import {
   SiteClearOnCloseCoordinator,
   SiteClearOnCloseCoordinatorHost
 } from '../../core/browser/SiteClearOnCloseCoordinator';
@@ -3281,10 +3295,7 @@ struct BrowserShellPage {
       return request;
     },
     endSearchInvocation: (): void => {
-      BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'explicit_exit');
-      if (this.splitToolbarSearchActive) {
-        this.dismissSplitToolbarSearch();
-      }
+      this.endVisibleSearchInvocation('explicit_exit');
     },
     collapseRootBottomPanel: (): void => {
       this.requestRootBottomPanelCollapse();
@@ -5044,6 +5055,9 @@ struct BrowserShellPage {
             fullScreenModeEnabled: this.browserFullscreenSessionPresentation.fullScreenModeEnabled,
             webBottomAddressFocused: this.webBottomAddressFocused,
             homeSearchFocused: this.browserSearchSuggestionSnapshot.homeSearchFocused,
+            searchInvocationVisible: this.splitToolbarSearchActive ||
+              this.centeredHomeSearchGeometryOpen ||
+              this.browserLargeScreenOmniboxPresentation.editing,
             activeTabId: this.activeTabId,
             tabs: this.tabs,
             recentlyClosedCount: this.recentlyClosedApplicationSnapshot.recordCount,
@@ -5063,22 +5077,10 @@ struct BrowserShellPage {
           this.dispatchTabsOverviewSession({ type: 'request_close' });
         },
         releaseAddressFocus: (homePage: boolean): void => {
-          if (this.browserShellPresentationOperations?.surface() === 'large_screen') {
-            BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'explicit_exit');
-            return;
+          this.endVisibleSearchInvocation('explicit_exit');
+          if (this.resolveSearchInvocationHostKind() === 'floating') {
+            this.releaseFloatingAddressFocus(homePage);
           }
-          if (homePage) {
-            this.browserShellSearchInvocationAdapter.releaseHomeSearchFocus();
-            this.rootBottomAddressPanelDetent = 'low';
-            this.syncBottomPanelStatusBarStyle();
-            return;
-          }
-          this.browserRootBottomPanelSessionCoordinator.restoreScrollPresentation();
-          this.setWebBottomAddressFocused(false);
-          this.webBottomAddressDraft = '';
-          this.rootBottomAddressPanelDetent = 'low';
-          this.syncBottomPanelStatusBarStyle();
-          this.browserWebTopImmersionSessionCoordinator.requestVisible('shortcut-address-blur');
         },
         bookmarkCurrentPage: (): void => this.browserRootBottomPanelActionApplication.toggleCurrentPageBookmark()
       }
@@ -5188,6 +5190,10 @@ struct BrowserShellPage {
         }),
         publishPresentation: (presentation: BrowserLargeScreenOmniboxPresentation): void => {
           this.browserLargeScreenOmniboxPresentation = presentation;
+          if (presentation.editing &&
+            (this.splitToolbarSearchActive || this.centeredHomeSearchGeometryOpen)) {
+            this.suspendSplitToolbarSearchPresentation();
+          }
         }
       },
       webZoomCoordinator: this.browserLargeScreenWebZoomCoordinator,
@@ -5278,8 +5284,56 @@ struct BrowserShellPage {
       this.browserKeyboardShortcutCoordinator,
       this.browserShellSearchInvocationHost
     );
+  private browserSplitToolbarSearchSuggestionPort: BrowserSplitToolbarSearchSuggestionPort = {
+    beginSearchSession: (authorityId: string, input: BrowserSearchSuggestionSessionInput): void => {
+      this.browserSearchSuggestionCoordinator.beginSearchSession(authorityId, input);
+    },
+    cancelPendingWork: (): void => {
+      this.browserSearchSuggestionCoordinator.cancelPendingWork();
+    }
+  };
+  private browserSplitToolbarSearchInvocationHost: BrowserSplitToolbarSearchInvocationHost = {
+    resolveSceneFacts: () => ({
+      homeScene: this.showHomePage,
+      webSceneVisible: this.isWebPageVisible(),
+      editableWebAddress: this.resolveEditableWebBottomAddress()
+    }),
+    canPresent: (): boolean => this.resolveSearchInvocationHostKind() === 'split',
+    ensureHomeScene: (): void => {
+      if (this.showHomePage) {
+        return;
+      }
+      this.browserTabHomeCoordinator.showHomeSurface(
+        '已回到主页',
+        this.browserWindowContextCoordinator.resolveCurrentTabSessionBoundary()
+      );
+    },
+    publishPresentation: (presentation: BrowserSplitToolbarSearchPresentation): void => {
+      this.applySplitToolbarSearchPresentation(presentation);
+    },
+    dismissPresentation: (): void => {
+      this.dismissSplitToolbarSearch();
+    },
+    suspendPresentation: (): void => {
+      this.suspendSplitToolbarSearchPresentation();
+    }
+  };
+  private browserSplitToolbarSearchInvocationAdapter: BrowserSplitToolbarSearchInvocationAdapter =
+    new BrowserSplitToolbarSearchInvocationAdapter(
+      this.browserSplitToolbarSearchSuggestionPort,
+      this.browserSplitToolbarSearchInvocationHost
+    );
+  private browserSearchInvocationHostRouter: BrowserSearchInvocationHostRouter =
+    new BrowserSearchInvocationHostRouter(
+      {
+        resolveHostKind: (): BrowserSearchInvocationHostKind => this.resolveSearchInvocationHostKind()
+      },
+      this.browserShellSearchInvocationAdapter,
+      this.browserSplitToolbarSearchInvocationAdapter,
+      this.browserLargeScreenShellIntentApplication.resolveSearchInvocationAdapter()
+    );
   private browserSearchInvocationSurfaceConnection: BrowserSearchInvocationSurfaceConnection =
-    new BrowserSearchInvocationSurfaceConnection(this.browserShellSearchInvocationAdapter);
+    new BrowserSearchInvocationSurfaceConnection(this.browserSearchInvocationHostRouter);
   private webAppearancePolicy: WebAppearancePolicy = resolveWebAppearancePolicy();
   private browserUserAgentService: BrowserUserAgentService = new BrowserUserAgentService();
   private browserBrowsingIdentityPolicyCoordinator: BrowserBrowsingIdentityPolicyCoordinator =
@@ -6105,6 +6159,12 @@ struct BrowserShellPage {
     sharedPreferencesRepository.getPreferences().appearance.toolbarChromeStyle;
   @State splitToolbarSearchActive: boolean = false;
   @State splitToolbarSearchDismissVersion: number = 0;
+  @State private splitToolbarSearchOpenDraft: string = '';
+  @State private splitToolbarSearchOpenSelectAll: boolean = false;
+  private splitToolbarSearchCloseGeneration: number = 0;
+  private splitToolbarSearchCloseInFlight: boolean = false;
+  private splitSearchOverlayPrepared: boolean = false;
+  private boundSearchInvocationHostKind: BrowserSearchInvocationHostKind = 'unavailable';
   @State contextMenuHomeShortcutId: string = '';
   @State homeShortcutEditDraft: HomeShortcutEditDraft = {
     shortcutId: '',
@@ -6426,6 +6486,7 @@ struct BrowserShellPage {
       this.noteSplitAddressBarScroll(this.activeTabId, this.browserWebScrollInteractionCoordinator.getLastScrollY(), false);
       this.browserWebTopImmersionSessionCoordinator.syncPolicy('appearance');
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
+      this.syncSearchInvocationPresentationHost();
       this.noteBottomToolbarGuideBrowsingSurface();
     },
     applyExperimentSettings: (settings: BrowserExperimentSettings): void => {
@@ -8748,6 +8809,8 @@ struct BrowserShellPage {
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
       centeredSearchChromeFade: this.centeredHomeSearchChromeFade,
       searchOpenRequestVersion: this.topSearchOpenRequestVersion,
+      searchOpenDraft: this.splitToolbarSearchOpenDraft,
+      searchOpenSelectAll: this.splitToolbarSearchOpenSelectAll,
       bottomChromeReserveVp: sessionMode === 'search_only' ?
         this.resolveCenteredHomeSearchBottomReserveVp() : -1,
       homeScene: this.showHomePage,
@@ -8762,6 +8825,8 @@ struct BrowserShellPage {
       selectedEngineId: this.selectedSearchEngine,
       topSafeInsetVp: this.homeTopSafeInsetVp,
       bottomSafeInsetVp: this.homeBottomSafeInsetVp,
+      viewportWidth: this.rootViewportWidth,
+      widthBreakpoint: this.rootBottomPanelLayoutState.responsiveState.widthBreakpoint,
       keyboardInsetVp: this.rootAddressKeyboardOverlayInsetVp,
       barsCollapsed: sessionMode === 'chrome' && this.shouldCollapseSplitToolbarBars(),
       addressBarCollapsed: sessionMode === 'chrome' && this.splitAddressBarCollapsedByImmersion,
@@ -8783,11 +8848,14 @@ struct BrowserShellPage {
       wallpaperIconColor: this.readWallpaperSplitToolbarIconColor(),
       wallpaperSecondaryIconColor: this.readWallpaperSplitToolbarSecondaryIconColor(),
       wallpaperPressedColor: this.readWallpaperSplitToolbarPressedColor(),
-      onSearchSessionChange: (active: boolean, query: string): void => {
-        this.handleSplitToolbarSearchSession(active, query);
+      onRequestSearchOpen: (): void => {
+        this.requestSplitToolbarSearchOpen();
       },
-      onCenteredSearchGeometryReverse: (): void => {
-        this.reverseCenteredHomeSearchGeometry();
+      onSearchDraftChange: (query: string): void => {
+        this.handleSplitToolbarSearchDraft(query);
+      },
+      onRequestSearchEnd: (reason: string): void => {
+        this.endSplitToolbarSearchFromChrome(reason);
       },
       onSubmit: (rawInput: string): void => {
         this.submitRootBottomAddressInput(rawInput);
@@ -8883,28 +8951,65 @@ struct BrowserShellPage {
     });
   }
 
-  private handleSplitToolbarSearchSession(active: boolean, query: string): void {
-    this.splitToolbarSearchActive = active;
-    if (!active) {
-      this.centeredHomeSearchGeometryOpen = false;
-      this.centeredHomeSearchChromeFade = 0;
-      this.centeredHomeSearchSessionMounted = false;
-      this.browserSearchSuggestionCoordinator.beginClosingOverlay();
-      this.webBottomAddressFocused = false;
-      return;
+  private resolveSearchInvocationHostKind(): BrowserSearchInvocationHostKind {
+    return resolveBrowserSearchInvocationHost({
+      largeScreenShellActive: this.isLargeScreenShellFamilyActive(),
+      splitToolbarChromeActive: this.shouldUseSplitToolbarChrome(),
+      splitSearchOverlayPrepared: this.splitSearchOverlayPrepared ||
+        this.centeredHomeSearchSessionMounted ||
+        this.centeredHomeSearchGeometryOpen,
+      legacyFloatingToolbarSuppressed: shouldSuppressLegacyFloatingToolbar(
+        this.toolbarChromeStyle,
+        this.isLargeScreenShellFamilyActive()
+      )
+    });
+  }
+
+  private requestSplitToolbarSearchOpen(): void {
+    this.splitSearchOverlayPrepared = true;
+    const receipt = BrowserSearchInvocationRuntime.triggers(this.getWindowScopeId()).browserChrome.open();
+    void receipt.presentation.then((outcome) => {
+      if (outcome.kind !== 'failed' && outcome.kind !== 'rejected_authority') {
+        return;
+      }
+      const snapshot = BrowserSearchInvocationRuntime.snapshot(this.getWindowScopeId());
+      if (snapshot.sessionId.length > 0 && snapshot.sessionId !== outcome.sessionId &&
+        snapshot.phase !== 'failed' && snapshot.phase !== 'ended' && snapshot.phase !== 'idle') {
+        return;
+      }
+      this.abortPreparedSplitSearchOverlay();
+    });
+  }
+
+  private endSplitToolbarSearchFromChrome(reason: string): void {
+    const endReason: BrowserSearchInvocationEndReason = reason === 'submitted' ? 'submitted' : 'explicit_exit';
+    this.endVisibleSearchInvocation(endReason);
+  }
+
+  private endVisibleSearchInvocation(reason: BrowserSearchInvocationEndReason): boolean {
+    const ended = BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), reason);
+    if (this.splitToolbarSearchActive || this.centeredHomeSearchGeometryOpen ||
+      this.centeredHomeSearchSessionMounted) {
+      this.dismissSplitToolbarSearch();
     }
+    return ended;
+  }
+
+  private handleSplitToolbarSearchDraft(query: string): void {
+    this.splitToolbarSearchActive = true;
     if (this.showHomePage) {
       this.addressInput = query;
     } else {
       this.webBottomAddressDraft = query;
       this.webBottomAddressFocused = true;
     }
-    this.browserSearchSuggestionCoordinator.beginSearchSession('split-toolbar-search', {
-      query: query,
-      focused: true,
-      protectKeyboardSession: true
-    });
-    this.browserSearchSuggestionCoordinator.updateSearchSessionInput('split-toolbar-search', {
+    const windowId = this.getWindowScopeId();
+    const authorityId = BrowserSearchInvocationRuntime.currentAuthorityId(windowId);
+    BrowserSearchInvocationRuntime.updateCurrentDraft(windowId, query);
+    if (authorityId.length <= 0) {
+      return;
+    }
+    this.browserSearchSuggestionCoordinator.updateSearchSessionInput(authorityId, {
       query: query,
       focused: true,
       protectKeyboardSession: true
@@ -8912,20 +9017,135 @@ struct BrowserShellPage {
     this.browserSearchSuggestionCoordinator.refreshDeferred();
   }
 
-  private dismissSplitToolbarSearch(): void {
-    if (this.centeredHomeSearchGeometryOpen && this.isCenteredHomePageStyleActive() && this.showHomePage) {
-      // The system back key lands here, not on the cancel button. The shared-element animation has
-      // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
-      this.reverseCenteredHomeSearchGeometry(true);
+  private applySplitToolbarSearchPresentation(presentation: BrowserSplitToolbarSearchPresentation): void {
+    if (!presentation.editing) {
       return;
     }
+    this.splitSearchOverlayPrepared = false;
+    this.splitToolbarSearchCloseInFlight = false;
+    this.splitToolbarSearchCloseGeneration += 1;
+    this.splitToolbarSearchActive = true;
+    this.splitToolbarSearchOpenDraft = presentation.draft;
+    this.splitToolbarSearchOpenSelectAll = presentation.selection === 'all';
+    if (this.showHomePage) {
+      this.addressInput = presentation.draft;
+    } else {
+      this.webBottomAddressDraft = presentation.draft;
+      this.webBottomAddressFocused = true;
+    }
+    const reveal = (): void => {
+      if (this.isCenteredHomePageStyleActive() && this.showHomePage) {
+        this.centeredHomeSearchChromeFade = 0;
+        this.centeredHomeSearchGeometryOpen = true;
+        if (!this.shouldUseSplitToolbarChrome()) {
+          this.centeredHomeSearchSessionMounted = true;
+        }
+      }
+      this.topSearchOpenRequestVersion += 1;
+    };
+    if (this.isCenteredHomePageStyleActive() && this.showHomePage && !this.centeredHomeSearchGeometryOpen) {
+      this.getUIContext().animateTo({
+        curve: curves.interpolatingSpring(0, 1, 342, 38)
+      }, reveal);
+      return;
+    }
+    reveal();
+  }
+
+  private abortPreparedSplitSearchOverlay(): void {
+    this.splitSearchOverlayPrepared = false;
+    if (!this.splitToolbarSearchActive && !this.centeredHomeSearchGeometryOpen &&
+      !this.centeredHomeSearchSessionMounted) {
+      return;
+    }
+    this.dismissSplitToolbarSearch();
+  }
+
+  private dismissSplitToolbarSearch(): void {
+    if (this.splitToolbarSearchCloseInFlight) {
+      return;
+    }
+    this.splitToolbarSearchCloseInFlight = true;
+    const generation = this.beginSplitToolbarSearchClose();
+    if (this.centeredHomeSearchGeometryOpen && this.isCenteredHomePageStyleActive() && this.showHomePage) {
+      // The system back key and cancel both land here. The shared-element animation has
+      // to start on this call stack; starting it from the chrome's dismiss watch applies instantly.
+      this.reverseCenteredHomeSearchGeometry(true, generation);
+      return;
+    }
+    this.finishSplitToolbarSearchClose(generation);
+  }
+
+  private suspendSplitToolbarSearchPresentation(): void {
+    this.splitToolbarSearchCloseInFlight = false;
+    const generation = this.beginSplitToolbarSearchClose();
+    this.finishSplitToolbarSearchClose(generation);
+  }
+
+  private beginSplitToolbarSearchClose(): number {
+    this.splitToolbarSearchCloseGeneration += 1;
+    return this.splitToolbarSearchCloseGeneration;
+  }
+
+  private finishSplitToolbarSearchClose(generation: number): void {
+    if (!shouldCompleteSearchClose(generation, this.splitToolbarSearchCloseGeneration, false)) {
+      return;
+    }
+    this.splitSearchOverlayPrepared = false;
     this.splitToolbarSearchActive = false;
     this.centeredHomeSearchGeometryOpen = false;
     this.centeredHomeSearchChromeFade = 0;
     this.centeredHomeSearchSessionMounted = false;
     this.splitToolbarSearchDismissVersion += 1;
-    this.browserSearchSuggestionCoordinator.beginClosingOverlay();
+    this.splitToolbarSearchCloseInFlight = false;
     this.webBottomAddressFocused = false;
+    this.browserSearchSuggestionCoordinator.reset();
+  }
+
+  private releaseFloatingAddressFocus(homePage: boolean): void {
+    if (homePage) {
+      this.browserShellSearchInvocationAdapter.releaseHomeSearchFocus();
+      this.rootBottomAddressPanelDetent = 'low';
+      this.syncBottomPanelStatusBarStyle();
+      return;
+    }
+    this.browserRootBottomPanelSessionCoordinator.restoreScrollPresentation();
+    this.setWebBottomAddressFocused(false);
+    this.webBottomAddressDraft = '';
+    this.rootBottomAddressPanelDetent = 'low';
+    this.syncBottomPanelStatusBarStyle();
+    this.browserWebTopImmersionSessionCoordinator.requestVisible('shortcut-address-blur');
+  }
+
+  private syncSearchInvocationPresentationHost(): void {
+    const kind = this.resolveSearchInvocationHostKind();
+    const previous = this.boundSearchInvocationHostKind;
+    this.boundSearchInvocationHostKind = kind;
+    if (previous === kind) {
+      return;
+    }
+    const windowId = this.getWindowScopeId();
+    if (previous === 'large_screen' && kind !== 'large_screen' && this.splitToolbarSearchActive) {
+      const inlineSnapshot = BrowserSearchInvocationRuntime.snapshot(windowId);
+      const runtimeStillActive = inlineSnapshot.phase !== 'idle' &&
+        inlineSnapshot.phase !== 'ended' &&
+        inlineSnapshot.phase !== 'failed';
+      if (!runtimeStillActive) {
+        this.endCenteredHomeInlineSearch();
+      }
+    }
+    if (!BrowserSearchInvocationRuntime.isSurfaceAdapterRegistered(windowId, this.browserSearchInvocationHostRouter)) {
+      return;
+    }
+    if (kind === 'unavailable') {
+      BrowserSearchInvocationRuntime.endCurrent(windowId, 'other_surface_selected');
+      if (this.splitToolbarSearchActive || this.centeredHomeSearchGeometryOpen ||
+        this.centeredHomeSearchSessionMounted) {
+        this.dismissSplitToolbarSearch();
+      }
+      return;
+    }
+    BrowserSearchInvocationRuntime.refreshPresentation(windowId);
   }
 
   private resolveSplitToolbarButtons(): BrowserSplitToolbarButtonPresentation[] {
@@ -8950,7 +9170,7 @@ struct BrowserShellPage {
       return;
     }
     if (action.id !== 'webBack' && action.id !== 'webForward') {
-      this.dismissSplitToolbarSearch();
+      this.endVisibleSearchInvocation('other_surface_selected');
     }
     if (action.id === 'bottomChromeMenu') {
       this.openSplitToolbarMenu();
@@ -9328,6 +9548,11 @@ struct BrowserShellPage {
       centeredSearchMatchesToolbar: normalizeBrowserHomePageStyle(this.storedHomePageStyle) === 'minimal',
       centeredWordmarkOpensSettings: this.isCenteredHomePageStyleActive(),
       centeredSearchPresented: this.centeredHomeSearchGeometryOpen,
+      centeredSearchGeometryEnabled: !shouldRouteCenteredHomeSearchToFloatingToolbar(
+        this.toolbarChromeStyle,
+        this.isCenteredHomePageStyleActive(),
+        this.isLargeScreenShellFamilyActive()
+      ),
       inlineSearch: this.isLargeScreenShellFamilyActive(),
       inlineSearchActive: this.isCenteredHomeInlineSearchActive(),
       searchSuggestions: this.browserSearchSuggestionSnapshot.searchSuggestions,
@@ -9739,7 +9964,22 @@ struct BrowserShellPage {
       this.endCenteredHomeInlineSearch();
       return;
     }
-    this.handleSplitToolbarSearchSession(true, query);
+    // Large-screen inline search stays on the homepage field. It is mutually
+    // exclusive with the omnibox session, not a second split-toolbar session.
+    BrowserSearchInvocationRuntime.endCurrent(this.getWindowScopeId(), 'other_surface_selected');
+    this.splitToolbarSearchActive = true;
+    this.addressInput = query;
+    this.browserSearchSuggestionCoordinator.beginSearchSession('large-screen-inline-search', {
+      query: query,
+      focused: true,
+      protectKeyboardSession: false
+    });
+    this.browserSearchSuggestionCoordinator.updateSearchSessionInput('large-screen-inline-search', {
+      query: query,
+      focused: true,
+      protectKeyboardSession: false
+    });
+    this.browserSearchSuggestionCoordinator.refreshDeferred();
   }
 
   private submitCenteredHomeInlineSearch(rawInput: string): void {
@@ -9785,38 +10025,45 @@ struct BrowserShellPage {
       this.floatingToolbarSearchOpenRequestVersion += 1;
       return;
     }
+    this.splitSearchOverlayPrepared = true;
     this.centeredHomeSearchChromeFade = 0;
     this.getUIContext().animateTo({
       curve: curves.interpolatingSpring(0, 1, 342, 38)
     }, () => {
       this.centeredHomeSearchGeometryOpen = true;
-      this.topSearchOpenRequestVersion += 1;
       if (!this.shouldUseSplitToolbarChrome()) {
         this.centeredHomeSearchSessionMounted = true;
       }
     });
+    this.requestSplitToolbarSearchOpen();
   }
 
-  private reverseCenteredHomeSearchGeometry(dismissChrome: boolean = false): void {
+  private reverseCenteredHomeSearchGeometry(dismissChrome: boolean = false, closeGeneration: number = 0): void {
+    const generation = closeGeneration > 0 ? closeGeneration : this.beginSplitToolbarSearchClose();
     // The field's own animation fades the search-page chrome. Keeping that change out of
     // the spring stops the cancel button and fill from waiting until the box lands.
     this.centeredHomeSearchChromeFade = 1;
     this.getUIContext().animateTo({
       curve: curves.interpolatingSpring(0, 1, 342, 38),
       onFinish: (): void => {
-        if (this.centeredHomeSearchGeometryOpen) {
+        const reopened = this.centeredHomeSearchGeometryOpen || this.splitToolbarSearchActive;
+        if (!shouldCompleteSearchClose(generation, this.splitToolbarSearchCloseGeneration, reopened)) {
           return;
         }
         this.centeredHomeSearchSessionMounted = false;
+        this.splitSearchOverlayPrepared = false;
+        this.splitToolbarSearchCloseInFlight = false;
+        this.browserSearchSuggestionCoordinator.reset();
       }
     }, () => {
       this.centeredHomeSearchGeometryOpen = false;
       this.splitToolbarSearchActive = false;
+      this.splitSearchOverlayPrepared = false;
       if (dismissChrome) {
         this.splitToolbarSearchDismissVersion += 1;
       }
-      this.browserSearchSuggestionCoordinator.beginClosingOverlay();
       this.webBottomAddressFocused = false;
+      this.browserSearchSuggestionCoordinator.reset();
     });
   }
 
@@ -9906,6 +10153,7 @@ struct BrowserShellPage {
   }
 
   private resetHomeTransientUiState(): void {
+    this.endVisibleSearchInvocation('other_surface_selected');
     this.browserSearchSuggestionCoordinator.reset();
     this.contextMenuHomeShortcutId = '';
     this.endRootAddressInputSession();
@@ -9913,6 +10161,10 @@ struct BrowserShellPage {
   }
 
   private endRootAddressInputSession(keyboardHiddenConfirmed: boolean = false): void {
+    // Keyboard hide is blur, not an exit, while the split search session is open.
+    if (this.splitToolbarSearchActive || this.centeredHomeSearchGeometryOpen) {
+      return;
+    }
     const plan = this.browserRootBottomPanelSessionCoordinator.buildAddressSessionEndPlan(
       this.buildRootAddressInputSessionSnapshot(keyboardHiddenConfirmed)
     );
@@ -10689,6 +10941,7 @@ struct BrowserShellPage {
       this.novelReaderSession,
       (snapshot: NovelReaderSnapshot): void => {
         this.novelReaderSnapshot = snapshot;
+        this.syncSearchInvocationPresentationHost();
       }
     );
   }
@@ -10709,6 +10962,7 @@ struct BrowserShellPage {
     }
     this.readerModeSessionSnapshot = snapshot;
     this.readerSpeechVoiceDialogPresentation = snapshot.speech.voiceDialog;
+    this.syncSearchInvocationPresentationHost();
   }
 
   private openReaderSpeechVoiceDialog(): void {
@@ -11494,10 +11748,9 @@ struct BrowserShellPage {
     this.browserSearchInvocationSurfaceConnection.connectForShell(
       this.currentWindowId,
       this.isBrowserShellVisible && !this.isRestoringTabs,
-      this.browserShellPresentationOperations?.surface() === 'large_screen',
-      this.browserShellSearchInvocationAdapter,
-      this.browserLargeScreenShellIntentApplication.resolveSearchInvocationAdapter()
+      this.browserSearchInvocationHostRouter
     );
+    this.syncSearchInvocationPresentationHost();
   }
 
   private scheduleWebSafeInsetSettleSync(source: string): void {

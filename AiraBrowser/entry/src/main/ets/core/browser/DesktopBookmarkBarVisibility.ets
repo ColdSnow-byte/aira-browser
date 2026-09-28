@@ -6,6 +6,21 @@ import {
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
 
 /**
+ * The three-state policy's wording and order, defined once: the bookmark bar's own context menu and
+ * the Large-Screen setting both offer these choices, so a wording change stays a single edit.
+ */
+export interface DesktopBookmarkBarVisibilityChoice {
+  visibility: DesktopBookmarkBarVisibility;
+  label: string;
+}
+
+export const DESKTOP_BOOKMARK_BAR_VISIBILITY_CHOICES: DesktopBookmarkBarVisibilityChoice[] = [
+  { visibility: 'never', label: '一律隐藏' },
+  { visibility: 'always', label: '一律显示' },
+  { visibility: 'new_tab_only', label: '仅在“新标签页”页面上显示' }
+];
+
+/**
  * Resolves the three-state bookmark bar policy. Installs that only stored the legacy two-state
  * switch are migrated on read: a hidden bar means "never", a shown bar means "always".
  */

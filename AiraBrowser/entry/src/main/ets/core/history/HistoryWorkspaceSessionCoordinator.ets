@@ -151,7 +151,7 @@ export class HistoryWorkspaceSessionCoordinator {
   }
 
   async setViewMode(viewMode: HistoryViewMode): Promise<HistoryWorkspaceSnapshot> {
-    if (viewMode === this.snapshotState.viewMode && this.snapshotState.site.length === 0) {
+    if (this.initialized && viewMode === this.snapshotState.viewMode && this.snapshotState.site.length === 0) {
       return this.getSnapshot();
     }
     const routeUrl = browserNativeTabSceneService.buildHistoryRoute({
@@ -176,7 +176,7 @@ export class HistoryWorkspaceSessionCoordinator {
   }
 
   async loadNextPage(): Promise<HistoryWorkspaceSnapshot> {
-    if (!this.canReadPersistentData() || this.snapshotState.loading ||
+    if (!this.canReadPersistentData() || !this.initialized || this.snapshotState.loading ||
       this.snapshotState.busy || !this.snapshotState.hasMore) {
       return this.getSnapshot();
     }
@@ -321,56 +321,43 @@ export class HistoryWorkspaceSessionCoordinator {
     if (!this.canWritePersistentData() || normalizedHost.length === 0 || this.snapshotState.busy) {
       return this.getSnapshot();
     }
-    this.snapshotState.busy = true;
-    this.snapshotState.message = '';
-    this.publish();
+    this.beginMutation();
+    let message = '';
     try {
       const removed = await this.historyFeature.deleteVisitsByHostForManagement(
         normalizedHost,
         this.managementBoundary
       );
       if (removed <= 0) {
-        this.snapshotState.message = '没有删除任何历史记录。';
-      } else {
-        const currentRoute = this.snapshotState.routeUrl;
-        this.snapshotState.busy = false;
-        return this.loadFirstPage(currentRoute, false);
+        message = '没有删除任何历史记录。';
       }
     } catch (error) {
-      this.snapshotState.message = `删除站点历史记录失败：${this.stringifyError(error as Error)}`;
+      message = `删除站点历史记录失败：${this.stringifyError(error as Error)}`;
     }
-    this.snapshotState.busy = false;
-    this.publish();
-    return this.getSnapshot();
+    return this.finishMutation(message, false);
   }
 
   async clearAll(): Promise<HistoryWorkspaceSnapshot> {
     if (!this.canWritePersistentData() || this.snapshotState.busy) {
       return this.getSnapshot();
     }
-    this.snapshotState.busy = true;
-    this.snapshotState.message = '';
-    this.publish();
+    this.beginMutation();
+    let message = '';
+    let cleared = false;
     try {
       await this.historyFeature.clearVisitsForManagement(this.managementBoundary);
-      this.rawVisits = [];
-      this.rawSites = [];
-      this.sourceOffset = 0;
-      this.snapshotState.hasMore = false;
-      this.snapshotState.selectedVisitIds = [];
-      this.snapshotState.selectionAnchorId = '';
-      this.snapshotState.visits = [];
-      this.snapshotState.groups = [];
-      this.snapshotState.sites = [];
+      cleared = true;
     } catch (error) {
-      this.snapshotState.message = `清除历史记录失败：${this.stringifyError(error as Error)}`;
+      message = `清除历史记录失败：${this.stringifyError(error as Error)}`;
     }
-    this.snapshotState.busy = false;
-    this.publish();
-    return this.getSnapshot();
+    return this.finishMutation(message, cleared);
   }
 
-  private async loadFirstPage(routeUrl: string, preserveSelection: boolean): Promise<HistoryWorkspaceSnapshot> {
+  private async loadFirstPage(
+    routeUrl: string,
+    preserveSelection: boolean,
+    mutationMessage: string = ''
+  ): Promise<HistoryWorkspaceSnapshot> {
     if (!this.canReadPersistentData()) {
       return this.activatePrivateBoundary(routeUrl);
     }
@@ -380,13 +367,19 @@ export class HistoryWorkspaceSessionCoordinator {
     this.snapshotState.viewMode = route.site.length > 0 ? 'timeline' : route.view;
     this.snapshotState.site = route.site;
     this.snapshotState.routeUrl = browserNativeTabSceneService.buildHistoryRoute(route);
-    this.snapshotState.loading = true;
-    this.snapshotState.message = '';
+    this.resetLoadedPage();
+    this.snapshotState.loading = !this.snapshotState.busy;
+    this.snapshotState.message = mutationMessage;
     if (!preserveSelection) {
       this.snapshotState.selectedVisitIds = [];
       this.snapshotState.selectionAnchorId = '';
     }
     this.publish();
+    // Navigation during a write records only the latest route. The write owner
+    // starts its first read after the mutation settles, including failure.
+    if (this.snapshotState.busy) {
+      return this.getSnapshot();
+    }
     try {
       if (this.snapshotState.viewMode === 'sites') {
         const page = await this.historyFeature.refreshSitePageForManagement(
@@ -436,7 +429,8 @@ export class HistoryWorkspaceSessionCoordinator {
       this.pruneSelection();
     } catch (error) {
       if (sequence === this.requestSequence) {
-        this.snapshotState.message = `加载历史记录失败：${this.stringifyError(error as Error)}`;
+        const readMessage = `加载历史记录失败：${this.stringifyError(error as Error)}`;
+        this.snapshotState.message = mutationMessage.length > 0 ? `${mutationMessage} ${readMessage}` : readMessage;
       }
     }
     if (sequence === this.requestSequence) {
@@ -452,27 +446,55 @@ export class HistoryWorkspaceSessionCoordinator {
     if (sourceIds.length === 0) {
       return this.getSnapshot();
     }
-    this.snapshotState.busy = true;
-    this.snapshotState.message = '';
-    this.publish();
+    this.beginMutation();
+    let message = '';
     try {
       const removed = await this.historyFeature.deleteVisitsByIdsForManagement(sourceIds, this.managementBoundary);
       if (removed <= 0) {
-        this.snapshotState.message = '没有删除任何历史记录。';
-      } else {
-        const sourceLookup = new Set<string>(sourceIds);
-        this.rawVisits = this.rawVisits.filter((visit: HistoryVisit): boolean => !sourceLookup.has(visit.id));
-        this.sourceOffset = Math.max(0, this.sourceOffset - removed);
-        this.snapshotState.selectedVisitIds = [];
-        this.snapshotState.selectionAnchorId = '';
-        this.rebuildPresentation();
+        message = '没有删除任何历史记录。';
       }
     } catch (error) {
-      this.snapshotState.message = `删除历史记录失败：${this.stringifyError(error as Error)}`;
+      message = `删除历史记录失败：${this.stringifyError(error as Error)}`;
     }
-    this.snapshotState.busy = false;
+    return this.finishMutation(message, false);
+  }
+
+  private beginMutation(): void {
+    // Invalidate both first-page and pagination results before starting the write.
+    this.requestSequence += 1;
+    this.snapshotState.loading = false;
+    this.snapshotState.busy = true;
+    this.snapshotState.message = '';
     this.publish();
-    return this.getSnapshot();
+  }
+
+  private finishMutation(message: string, cleared: boolean): Promise<HistoryWorkspaceSnapshot> {
+    this.snapshotState.busy = false;
+    this.snapshotState.loading = false;
+    this.snapshotState.selectedVisitIds = [];
+    this.snapshotState.selectionAnchorId = '';
+    this.resetLoadedPage();
+    if (cleared) {
+      this.initialized = true;
+      this.snapshotState.message = '';
+      this.publish();
+      return Promise.resolve(this.getSnapshot());
+    }
+    // Rebase OFFSET even after zero removals or rejection: the write may have
+    // partially committed. A failed recovery leaves pagination disabled until
+    // activate/applyRoute/setQuery/setViewMode retries a first page successfully.
+    return this.loadFirstPage(this.snapshotState.routeUrl, false, message);
+  }
+
+  private resetLoadedPage(): void {
+    this.initialized = false;
+    this.rawVisits = [];
+    this.rawSites = [];
+    this.sourceOffset = 0;
+    this.snapshotState.hasMore = false;
+    this.snapshotState.visits = [];
+    this.snapshotState.groups = [];
+    this.snapshotState.sites = [];
   }
 
   private rebuildPresentation(): void {

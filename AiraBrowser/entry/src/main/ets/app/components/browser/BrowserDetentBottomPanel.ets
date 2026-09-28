@@ -331,6 +331,7 @@ export struct BrowserDetentBottomPanel {
     .height('100%')
     .hitTestBehavior(this.motionState.visible ? HitTestMode.Transparent : HitTestMode.None)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.TOP, SafeAreaEdge.BOTTOM])
+    .transition(TransitionEffect.IDENTITY)
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.rememberOverlayHostArea(newArea);
     })
@@ -399,7 +400,13 @@ export struct BrowserDetentBottomPanel {
   private buildFloatingOverlayTopSurface() {
     Column() {
       ForEach([this.buildFloatingTopContentRenderKey()], (_renderKey: string) => {
-        this.floatingTopContent()
+        Column() {
+          this.floatingTopContent()
+        }
+        .width('100%')
+        .height('100%')
+        // A new suggestion list must not use the system appear transition, which slides in from the right.
+        .transition(TransitionEffect.IDENTITY)
       }, (renderKey: string) => renderKey)
     }
     .width(this.resolveOverlayPanelWidth())
@@ -417,6 +424,7 @@ export struct BrowserDetentBottomPanel {
     })
     .hitTestBehavior(HitTestMode.BLOCK_HIERARCHY)
     .clip(this.floatingHeaderChromeVisible)
+    .transition(TransitionEffect.IDENTITY)
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.reportFloatingPanelVisualHeightFromArea(newArea, 'top');
     })
@@ -620,6 +628,7 @@ export struct BrowserDetentBottomPanel {
     })
     .hitTestBehavior(this.shouldShowFloatingExpandedContent() ? HitTestMode.Transparent : HitTestMode.None)
     .clip(true)
+    .transition(TransitionEffect.IDENTITY)
   }
 
   private buildFloatingTopContentRenderKey(): string {

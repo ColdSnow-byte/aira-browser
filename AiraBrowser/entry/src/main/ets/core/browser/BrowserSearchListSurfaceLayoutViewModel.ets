@@ -20,6 +20,45 @@ export const BROWSER_SEARCH_LIST_EXTERNAL_ITEM_WIDTH: number = 48;
 export const BROWSER_SEARCH_LIST_EXTERNAL_ACTION_SIZE: number = 42;
 export const BROWSER_SEARCH_LIST_EXTERNAL_ITEM_CENTER_PITCH: number = 74;
 
+/**
+ * How many cross-app icons fit on one page. The floating search list and the split search
+ * sheet both use this, so a phone that fits five does not fall back to the strip's default four.
+ */
+export function resolveExternalAppSearchPageSize(
+  surfaceWidth: number,
+  contentHorizontalPadding: number,
+  widthBreakpoint: BrowserBottomPanelWidthBreakpoint
+): number {
+  const columnLimit = resolveExternalAppSearchColumnLimit(widthBreakpoint);
+  const contentWidth = Math.max(0, surfaceWidth - Math.max(0, contentHorizontalPadding) * 2);
+  if (contentWidth <= 0) {
+    return columnLimit;
+  }
+  const fittedColumns = Math.floor(contentWidth / BROWSER_SEARCH_LIST_EXTERNAL_ITEM_WIDTH);
+  return Math.max(
+    BROWSER_SEARCH_LIST_EXTERNAL_XS_COLUMN_LIMIT,
+    Math.min(columnLimit, fittedColumns)
+  );
+}
+
+function resolveExternalAppSearchColumnLimit(
+  widthBreakpoint: BrowserBottomPanelWidthBreakpoint
+): number {
+  if (widthBreakpoint === 'xl') {
+    return BROWSER_SEARCH_LIST_EXTERNAL_XL_COLUMN_LIMIT;
+  }
+  if (widthBreakpoint === 'lg') {
+    return BROWSER_SEARCH_LIST_EXTERNAL_LG_COLUMN_LIMIT;
+  }
+  if (widthBreakpoint === 'md') {
+    return BROWSER_SEARCH_LIST_EXTERNAL_MD_COLUMN_LIMIT;
+  }
+  if (widthBreakpoint === 'xs') {
+    return BROWSER_SEARCH_LIST_EXTERNAL_XS_COLUMN_LIMIT;
+  }
+  return BROWSER_SEARCH_LIST_EXTERNAL_SM_COLUMN_LIMIT;
+}
+
 export interface BrowserSearchListSurfaceHostLayout {
   surfaceWidth: number;
   contentHorizontalPadding: number;
@@ -63,42 +102,12 @@ export class BrowserSearchListSurfaceLayoutViewModel {
       externalItemWidth: BROWSER_SEARCH_LIST_EXTERNAL_ITEM_WIDTH,
       externalActionSize: BROWSER_SEARCH_LIST_EXTERNAL_ACTION_SIZE,
       externalColumnGap: externalColumnGap,
-      externalPageSize: this.resolveExternalPageSize(
+      externalPageSize: resolveExternalAppSearchPageSize(
         host.surfaceWidth,
         contentHorizontalPadding,
         host.widthBreakpoint
       )
     };
-  }
-
-  private resolveExternalPageSize(
-    surfaceWidth: number,
-    contentHorizontalPadding: number,
-    widthBreakpoint: BrowserBottomPanelWidthBreakpoint
-  ): number {
-    const columnLimit = this.resolveExternalColumnLimit(widthBreakpoint);
-    const contentWidth = Math.max(0, surfaceWidth - contentHorizontalPadding * 2);
-    if (contentWidth <= 0) {
-      return columnLimit;
-    }
-    const fittedColumns = Math.floor(contentWidth / BROWSER_SEARCH_LIST_EXTERNAL_ITEM_WIDTH);
-    return Math.max(BROWSER_SEARCH_LIST_EXTERNAL_XS_COLUMN_LIMIT, Math.min(columnLimit, fittedColumns));
-  }
-
-  private resolveExternalColumnLimit(widthBreakpoint: BrowserBottomPanelWidthBreakpoint): number {
-    if (widthBreakpoint === 'xl') {
-      return BROWSER_SEARCH_LIST_EXTERNAL_XL_COLUMN_LIMIT;
-    }
-    if (widthBreakpoint === 'lg') {
-      return BROWSER_SEARCH_LIST_EXTERNAL_LG_COLUMN_LIMIT;
-    }
-    if (widthBreakpoint === 'md') {
-      return BROWSER_SEARCH_LIST_EXTERNAL_MD_COLUMN_LIMIT;
-    }
-    if (widthBreakpoint === 'xs') {
-      return BROWSER_SEARCH_LIST_EXTERNAL_XS_COLUMN_LIMIT;
-    }
-    return BROWSER_SEARCH_LIST_EXTERNAL_SM_COLUMN_LIMIT;
   }
 
   private resolveColumns(widthBreakpoint: BrowserBottomPanelWidthBreakpoint, wideCompact: boolean): number {

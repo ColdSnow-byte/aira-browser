@@ -94,7 +94,8 @@ export class BrowserRestoreCoordinator {
   buildManualReloadResolution(
     tab: BrowserTabState,
     targetUrl: string,
-    reloadReason: BrowserPageReloadReason = 'user_manual_reload'
+    reloadReason: BrowserPageReloadReason = 'user_manual_reload',
+    refreshLiveDocument: boolean = false
   ): BrowserRestoreStartResolution {
     const normalizedTargetUrl = this.normalizeTargetUrl(targetUrl);
     const restorePlan: WebRestoreRecoveryPlan = {
@@ -118,7 +119,7 @@ export class BrowserRestoreCoordinator {
         lastCrashReason: '',
         webStatePath: '',
         webStateUpdatedAt: 0,
-        scrollOffsetY: 0,
+        scrollOffsetY: refreshLiveDocument ? tab.scrollOffsetY : 0,
         lastRestoreType: 'reload'
       },
       trace: trace

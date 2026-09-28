@@ -11,6 +11,7 @@ import {
   DEFAULT_BROWSER_SETTINGS_ICON_BACKGROUND_TOKENS,
   DEFAULT_BROWSER_SYNC_PROVIDER_ICON_BACKGROUND_TOKENS
 } from '../../../features/theme/BrowserThemePaletteModels';
+import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { SettingsColoredIconBackground } from '../settings/SettingsColoredIconBackground';
 import {
@@ -57,6 +58,7 @@ export struct AiraProOverviewScreen {
     membershipStatusDetail: '',
     showManageSubscription: false,
     showPurchaseButton: true,
+    showMembershipRedeem: true,
     complimentaryClaim: {
       entryVisible: false,
       entryTitle: '',
@@ -98,6 +100,7 @@ export struct AiraProOverviewScreen {
   @State private proTermsAccepted: boolean = false;
   scroller?: Scroller;
   onSubscribe?: (planId: string) => void;
+  onOpenMembershipRedeem?: () => void;
   onOpenSelfHostingGuide?: () => void;
   onOpenMembershipTerms?: () => void;
   onOpenAutoRenewalNotice?: () => void;
@@ -116,6 +119,9 @@ export struct AiraProOverviewScreen {
       this.buildBenefitCard()
       if (this.state.showMembershipStatus) {
         this.buildMembershipStatusCard()
+      }
+      if (this.state.showMembershipRedeem) {
+        this.buildMembershipRedeemRow()
       }
       this.buildSelfHostingRow()
       if (this.state.plans.length > 0) {
@@ -366,22 +372,54 @@ export struct AiraProOverviewScreen {
     })
   }
 
+  @Builder
+  private buildMembershipRedeemRow() {
+    this.buildFooterEntryRow(
+      '兑换会员',
+      '输入兑换码开通会员',
+      'settings.membership',
+      this.settingsIconBackgrounds.syncMethod,
+      () => {
+        this.onOpenMembershipRedeem?.();
+      }
+    )
+  }
+
   /**
    * The free route stays on the page for every membership state. A status card
    * explains the current Pro grant; it does not replace this row.
    */
   @Builder
   private buildSelfHostingRow() {
+    this.buildFooterEntryRow(
+      '私有化部署',
+      '免费使用，查看部署教程',
+      'settings.webdav',
+      this.syncProviderIconBackgrounds.webdav,
+      () => {
+        this.onOpenSelfHostingGuide?.();
+      }
+    )
+  }
+
+  @Builder
+  private buildFooterEntryRow(
+    title: string,
+    subtitle: string,
+    airaIconId: AiraRenderableIconId,
+    iconBackground: ResourceColor,
+    onAction: () => void
+  ) {
     SettingsGroupCard({ surfaceColor: this.surfaceBackground }) {
       Row({ space: 12 }) {
         Stack({ alignContent: Alignment.Center }) {
           SettingsColoredIconBackground({
-            color: this.syncProviderIconBackgrounds.webdav,
+            color: iconBackground,
             iconSize: AIRA_PRO_BENEFIT_ICON_TILE_SIZE
           })
 
           AiraIcon({
-            airaIconId: 'settings.webdav',
+            airaIconId: airaIconId,
             iconSize: AIRA_PRO_BENEFIT_ICON_IMAGE_SIZE,
             iconColor: this.settingsIconForeground
           })
@@ -390,7 +428,7 @@ export struct AiraProOverviewScreen {
         .height(AIRA_PRO_BENEFIT_ICON_TILE_SIZE)
 
         Column({ space: 2 }) {
-          Text('私有化部署')
+          Text(title)
             .width('100%')
             .fontSize(16)
             .fontWeight(FontWeight.Medium)
@@ -398,7 +436,7 @@ export struct AiraProOverviewScreen {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
 
-          Text('免费使用，查看部署教程')
+          Text(subtitle)
             .width('100%')
             .fontSize(12)
             .lineHeight(17)
@@ -422,7 +460,7 @@ export struct AiraProOverviewScreen {
       })
       .alignItems(VerticalAlign.Center)
       .onClick(() => {
-        this.onOpenSelfHostingGuide?.();
+        onAction();
       })
     }
   }

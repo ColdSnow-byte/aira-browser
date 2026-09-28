@@ -13,8 +13,8 @@ import {
 
 const MAX_REQUIRE_COUNT: number = 24;
 const MAX_RESOURCE_COUNT: number = 24;
-const MAX_RESOURCE_BYTES: number = 5 * 1024 * 1024;
-const MAX_REQUIRE_SOURCE_LENGTH: number = 5 * 1024 * 1024;
+const MAX_RESOURCE_BYTES: number = 50 * 1024 * 1024;
+const MAX_REQUIRE_SOURCE_LENGTH: number = 50 * 1024 * 1024;
 const RESOURCE_FETCH_TIMEOUT_MS: number = 12000;
 
 interface UserScriptResourceFetchResult {

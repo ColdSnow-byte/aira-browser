@@ -117,11 +117,9 @@ export class BrowserSearchInvocationSurfaceConnection {
   connectForShell(
     windowId: string,
     ready: boolean,
-    largeScreenActive: boolean,
-    phoneAdapter: BrowserSearchInvocationSurfaceAdapter,
-    largeScreenAdapter: BrowserSearchInvocationSurfaceAdapter
+    adapter: BrowserSearchInvocationSurfaceAdapter
   ): void {
-    this.connect(windowId, ready, largeScreenActive ? largeScreenAdapter : phoneAdapter);
+    this.connect(windowId, ready, adapter);
   }
 
   disconnect(): void {
@@ -258,6 +256,10 @@ export class BrowserSearchInvocationRuntime {
   static endCurrent(windowId: string, reason: BrowserSearchInvocationEndReason): boolean {
     const coordinator = BrowserSearchInvocationRuntime.resolveWindow(windowId).coordinator;
     return coordinator.end(coordinator.currentAuthorityId(), reason);
+  }
+
+  static refreshPresentation(windowId: string): boolean {
+    return BrowserSearchInvocationRuntime.resolveWindow(windowId).coordinator.refreshPresentation();
   }
 
   static currentAuthorityId(windowId: string): string {

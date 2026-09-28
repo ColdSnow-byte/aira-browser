@@ -156,6 +156,12 @@ assertContract(!toolbarSheetContent.includes('PanGesture') &&
   addressPanel.includes('private shouldEnableToolbarSystemSheetReorder(') &&
   addressPanel.includes('this.toolbarSystemSheetVisible'),
   'Toolbar Sheet content must use the official List drag-sort callback without a competing custom PanGesture.');
+assertContract(toolbarSheetGrid.includes('this.beginQuickActionNativeLongPress(index)') &&
+  toolbarSheetGrid.includes('this.noteQuickActionGridTouch(event.type)') &&
+  !toolbarSheetGrid.includes('beginQuickActionNativeDrag(index, true)') &&
+  !addressPanel.includes('this.quickActionReorderActive = true') &&
+  addressPanel.includes('reduceBrowserBottomToolbarReorderGesture('),
+  'A stationary toolbar long press must not latch reorder; release has to restore every action click.');
 assertContract(addressPanel.includes('this.toolbarCustomizationCoordinator.persistPrimaryMove(') &&
   toolbarCustomizationCoordinator.includes('preferencesRepository.updateToolbarLayoutSettings') &&
   personalizationSyncSnapshot.includes('toolbarLayout: {') &&
@@ -309,5 +315,40 @@ const suite = loadEts(
   });
 suite.default();
 assert.equal(cases, 3, 'Split toolbar policy tests must all run.');
+
+const reorderPolicyExports = loadEts(
+  'AiraBrowser/entry/src/main/ets/core/browser/BrowserBottomToolbarReorderGesturePolicy.ets',
+  (name) => {
+    throw new Error(`Toolbar reorder gesture policy must not import ${name}`);
+  });
+let reorderCases = 0;
+const reorderSuite = loadEts(
+  'AiraBrowser/entry/src/test/BrowserBottomToolbarReorderGesturePolicy.test.ets',
+  (name) => {
+    if (name === '@ohos/hypium') {
+      return {
+        describe: (_name, body) => body(),
+        it: (name, _flags, body) => {
+          try {
+            body();
+            reorderCases += 1;
+          } catch (error) {
+            throw new Error(name, { cause: error });
+          }
+        },
+        expect: (value) => ({
+          assertEqual: (expected) => assert.equal(value, expected),
+          assertTrue: () => assert.equal(value, true),
+          assertFalse: () => assert.equal(value, false)
+        })
+      };
+    }
+    if (name.endsWith('BrowserBottomToolbarReorderGesturePolicy')) {
+      return reorderPolicyExports;
+    }
+    throw new Error(`Unexpected test import ${name}`);
+  });
+reorderSuite.default();
+assert.equal(reorderCases, 3, 'Toolbar reorder gesture policy tests must all run.');
 
 console.log('Bottom toolbar system Sheet contract passed.');

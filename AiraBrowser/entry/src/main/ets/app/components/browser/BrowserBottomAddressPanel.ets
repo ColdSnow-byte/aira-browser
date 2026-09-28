@@ -63,6 +63,10 @@ import {
   BrowserBottomToolbarSurfaceTransitionState
 } from '../../../core/browser/BrowserBottomToolbarExpansionViewModel';
 import {
+  BrowserBottomToolbarReorderGestureKind,
+  reduceBrowserBottomToolbarReorderGesture
+} from '../../../core/browser/BrowserBottomToolbarReorderGesturePolicy';
+import {
   BrowserTabsOverviewEntryGesturePolicy
 } from '../../../core/browser/tabsOverview/BrowserTabsOverviewEntryGesturePolicy';
 import { BrowserBottomChromeRenderer } from './BrowserBottomChromeRenderer';
@@ -376,6 +380,7 @@ export struct BrowserBottomAddressPanel {
   private floatingToolbarSearchRequestReady: boolean = false;
   private toolbarSystemSheetInstanceToken: number = allocateToolbarSystemSheetInstanceToken();
   private dragConsumedQuickActionId: BrowserBottomAddressPanelActionId | undefined = undefined;
+  private quickActionLiftArmed: boolean = false;
   private quickActionDragClickGuardTimeout: number = -1;
   private floatingActionContentEntryTimer: number = -1;
   private floatingActionGestureRevealTimer: number = -1;
@@ -894,6 +899,7 @@ export struct BrowserBottomAddressPanel {
     // The native Sheet owns the detent and backdrop. Its action content still
     // uses the official List drag-sort contract so a long press can reorder
     // actions without adding a competing custom gesture to the Sheet itself.
+    // A stationary release does not get onDrop, so the lift must not latch reorder.
     List({ space: layoutState.rowGap }) {
       ForEach(actions, (item: BrowserBottomAddressPanelAction) => {
         ListItem() {
@@ -922,10 +928,10 @@ export struct BrowserBottomAddressPanel {
           this.handleQuickActionNativeMove(from, to);
         }, {
           onLongPress: (index: number) => {
-            this.beginQuickActionNativeDrag(index, true);
+            this.beginQuickActionNativeLongPress(index);
           },
           onDragStart: (index: number) => {
-            this.beginQuickActionNativeDrag(index, false);
+            this.beginQuickActionNativeDrag(index);
           },
           onDrop: (_index: number) => {
             this.endQuickActionNativeDrag();
@@ -947,6 +953,9 @@ export struct BrowserBottomAddressPanel {
       right: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
       top: layoutState.groupVerticalPadding,
       bottom: layoutState.groupVerticalPadding
+    })
+    .onTouch((event: TouchEvent) => {
+      this.noteQuickActionGridTouch(event.type);
     })
   }
 
@@ -1591,10 +1600,10 @@ export struct BrowserBottomAddressPanel {
             this.handleQuickActionNativeMove(from, to);
           }, {
             onLongPress: (index: number) => {
-              this.beginQuickActionNativeDrag(index, true);
+              this.beginQuickActionNativeLongPress(index);
             },
             onDragStart: (index: number) => {
-              this.beginQuickActionNativeDrag(index, false);
+              this.beginQuickActionNativeDrag(index);
             },
             onDrop: (_index: number) => {
               this.endQuickActionNativeDrag();
@@ -1634,6 +1643,9 @@ export struct BrowserBottomAddressPanel {
       right: BROWSER_BOTTOM_QUICK_ACTION_GROUP_HORIZONTAL_PADDING,
       top: layoutState.groupVerticalPadding,
       bottom: layoutState.groupVerticalPadding
+    })
+    .onTouch((event: TouchEvent) => {
+      this.noteQuickActionGridTouch(event.type);
     })
   }
 
@@ -2308,9 +2320,7 @@ export struct BrowserBottomAddressPanel {
       item.id,
       item.enabled ? '1' : '0'
     );
-    if (this.quickActionReorderActive || this.dragConsumedQuickActionId === item.id) {
-      this.dragConsumedQuickActionId = undefined;
-      this.clearQuickActionDragClickGuard();
+    if (this.shouldIgnoreQuickActionGestureClick(item)) {
       return;
     }
     if (!item.enabled) {
@@ -2345,9 +2355,7 @@ export struct BrowserBottomAddressPanel {
   }
 
   private requestToolbarSystemSheetAction(item: BrowserBottomAddressPanelAction): void {
-    if (this.quickActionReorderActive || this.dragConsumedQuickActionId === item.id) {
-      this.dragConsumedQuickActionId = undefined;
-      this.clearQuickActionDragClickGuard();
+    if (this.shouldIgnoreQuickActionGestureClick(item)) {
       return;
     }
     if (!item.enabled) {
@@ -2404,6 +2412,7 @@ export struct BrowserBottomAddressPanel {
   }
 
   private handleToolbarSystemSheetDisappear(): void {
+    this.resetQuickActionReorderState();
     this.toolbarSystemSheetVisible = false;
     this.toolbarSystemSheetDetentSelection = 0;
     const pendingAction = this.pendingToolbarSystemSheetAction;
@@ -2633,20 +2642,29 @@ export struct BrowserBottomAddressPanel {
       this.shouldRenderUnifiedQuickActionsContent();
   }
 
-  private beginQuickActionNativeDrag(index: number, performFeedback: boolean): void {
-    if (!this.shouldEnableQuickActionReorder()) {
-      return;
-    }
-    const action = this.resolveUnifiedQuickActions()[index];
+  private beginQuickActionNativeLongPress(index: number): void {
+    // Lift only. Official onDrop fires after a finger-following slide, so a stationary release
+    // would otherwise leave quickActionReorderActive set and ignore every later tap.
+    const action = this.resolveQuickActionReorderTarget(index);
     if (action === undefined) {
       return;
     }
-    this.clearQuickActionDragClickGuard();
-    this.dragConsumedQuickActionId = action.id;
-    this.quickActionReorderActive = true;
-    if (performFeedback) {
-      this.toolbarCustomizationCoordinator.performReorderFeedback();
+    this.applyQuickActionReorderGesture('longPress', action);
+  }
+
+  private beginQuickActionNativeDrag(index: number): void {
+    const action = this.resolveQuickActionReorderTarget(index);
+    if (action === undefined) {
+      return;
     }
+    this.applyQuickActionReorderGesture('dragStart', action);
+  }
+
+  private resolveQuickActionReorderTarget(index: number): BrowserBottomAddressPanelAction | undefined {
+    if (!this.shouldEnableQuickActionReorder()) {
+      return undefined;
+    }
+    return this.resolveUnifiedQuickActions()[index];
   }
 
   private handleQuickActionNativeMove(from: number, to: number): void {
@@ -2686,11 +2704,58 @@ export struct BrowserBottomAddressPanel {
   }
 
   private endQuickActionNativeDrag(): void {
-    this.quickActionReorderActive = false;
+    this.applyQuickActionReorderGesture('drop', undefined);
+  }
+
+  private noteQuickActionGridTouch(type: TouchType): void {
+    if (type !== TouchType.Up) {
+      return;
+    }
+    this.applyQuickActionReorderGesture('touchUp', undefined);
+  }
+
+  private shouldIgnoreQuickActionGestureClick(item: BrowserBottomAddressPanelAction): boolean {
+    return this.applyQuickActionReorderGesture('click', item);
+  }
+
+  private applyQuickActionReorderGesture(
+    kind: BrowserBottomToolbarReorderGestureKind,
+    action: BrowserBottomAddressPanelAction | undefined
+  ): boolean {
+    const actionId = action === undefined ? '' : action.id;
+    const effect = reduceBrowserBottomToolbarReorderGesture(
+      this.quickActionReorderActive,
+      this.quickActionLiftArmed,
+      this.dragConsumedQuickActionId ?? '',
+      kind,
+      actionId
+    );
+    this.quickActionReorderActive = effect.reorderActive;
+    this.quickActionLiftArmed = effect.liftArmed;
+    if (effect.consumption === 'clear') {
+      this.dragConsumedQuickActionId = undefined;
+    } else if (effect.consumption === 'set' && action !== undefined) {
+      this.dragConsumedQuickActionId = action.id;
+    }
+    if (effect.armClickGuard) {
+      this.armQuickActionDragClickGuard();
+    } else if (effect.clearClickGuard) {
+      this.clearQuickActionDragClickGuard();
+    }
+    if (effect.performFeedback) {
+      this.toolbarCustomizationCoordinator.performReorderFeedback();
+    }
+    return effect.swallowClick;
+  }
+
+  private armQuickActionDragClickGuard(): void {
     this.clearQuickActionDragClickGuard();
     this.quickActionDragClickGuardTimeout = setTimeout(() => {
       this.quickActionDragClickGuardTimeout = -1;
       this.dragConsumedQuickActionId = undefined;
+      if (!this.quickActionReorderActive) {
+        this.quickActionLiftArmed = false;
+      }
     }, WEB_BOTTOM_QUICK_ACTION_DRAG_CLICK_GUARD_MS);
   }
 
@@ -2723,6 +2788,7 @@ export struct BrowserBottomAddressPanel {
 
   private resetQuickActionReorderState(): void {
     this.quickActionReorderActive = false;
+    this.quickActionLiftArmed = false;
     this.dragConsumedQuickActionId = undefined;
     this.clearQuickActionDragClickGuard();
   }

@@ -38,6 +38,10 @@ import {
   AiraComplimentaryClaimResponseBody
 } from '../../services/membership/AiraComplimentaryClaimFunctionService';
 import {
+  AiraMembershipRedeemFunctionService,
+  AiraMembershipRedeemResponseBody
+} from '../../services/membership/AiraMembershipRedeemFunctionService';
+import {
   MEMBERSHIP_REFRESH_DEFAULT_FRESH_MS,
   MEMBERSHIP_REFRESH_RETRY_COOLDOWN_MS
 } from '../../services/membership/MembershipRefreshPolicyService';
@@ -91,6 +95,14 @@ export interface AiraComplimentaryClaimResult {
   state?: AiraMembershipState;
 }
 
+export interface AiraMembershipRedeemResult {
+  ok: boolean;
+  code: string;
+  message: string;
+  kind: string;
+  state?: AiraMembershipState;
+}
+
 export class MembershipFeature {
   private repository: MembershipRepository;
   private entitlementService: EntitlementService;
@@ -101,6 +113,7 @@ export class MembershipFeature {
   private profileBoundaryService: BrowserProfileBoundaryService;
   private newUserGiftService: AiraNewUserGiftFunctionService;
   private complimentaryClaimService: AiraComplimentaryClaimFunctionService;
+  private membershipRedeemService: AiraMembershipRedeemFunctionService;
   private retentionPolicy: MembershipEntitlementRetentionPolicy;
   private syncConfigStore?: AiraSyncConfigStore;
   private stateChangeHandler?: MembershipStateChangeHandler;
@@ -126,7 +139,8 @@ export class MembershipFeature {
     profileBoundaryService: BrowserProfileBoundaryService = new BrowserProfileBoundaryService(),
     newUserGiftService: AiraNewUserGiftFunctionService = new AiraNewUserGiftFunctionService(),
     complimentaryClaimService: AiraComplimentaryClaimFunctionService = new AiraComplimentaryClaimFunctionService(),
-    retentionPolicy: MembershipEntitlementRetentionPolicy = new MembershipEntitlementRetentionPolicy()
+    retentionPolicy: MembershipEntitlementRetentionPolicy = new MembershipEntitlementRetentionPolicy(),
+    membershipRedeemService: AiraMembershipRedeemFunctionService = new AiraMembershipRedeemFunctionService()
   ) {
     this.repository = repository;
     this.entitlementService = entitlementService;
@@ -139,6 +153,7 @@ export class MembershipFeature {
     this.newUserGiftService = newUserGiftService;
     this.complimentaryClaimService = complimentaryClaimService;
     this.retentionPolicy = retentionPolicy;
+    this.membershipRedeemService = membershipRedeemService;
   }
 
   setStateChangeHandler(handler: MembershipStateChangeHandler): void {
@@ -383,9 +398,93 @@ export class MembershipFeature {
     };
   }
 
+  /**
+   * Redeems one membership code. The hosted service is the authority: it
+   * checks the code, decides whether to consume it, and returns the grant.
+   * This never invents a local grant.
+   */
+  async redeemMembershipCode(
+    code: string,
+    boundaryInput: BrowserDataBoundaryInput
+  ): Promise<AiraMembershipRedeemResult> {
+    if (!this.isEffectAllowed('membership_redeem', boundaryInput, 'remote_account_sync_state')) {
+      return {
+        ok: false,
+        code: 'private_session_blocked',
+        message: '请回到普通会话后再兑换会员。',
+        kind: ''
+      };
+    }
+    const normalizedCode = code.trim();
+    if (normalizedCode.length <= 0) {
+      return {
+        ok: false,
+        code: 'invalid_format',
+        message: '兑换码格式不正确',
+        kind: ''
+      };
+    }
+    await this.repository.initialize();
+    await this.initializeSyncConfigIfAvailable();
+    const uid = this.getHuaweiUid();
+    if (uid.length <= 0) {
+      return {
+        ok: false,
+        code: 'login_required',
+        message: '请先使用华为账号登录。',
+        kind: ''
+      };
+    }
+    const accountScope = this.captureAccountScope(uid);
+    const response = await this.membershipRedeemService.redeem(uid, normalizedCode);
+    if (!this.isCurrentAccountScope(accountScope)) {
+      return {
+        ok: false,
+        code: 'account_changed',
+        message: '账号已切换，请稍后重试。',
+        kind: ''
+      };
+    }
+    const kind = response.kind?.trim() ?? '';
+    if (response.ok !== true) {
+      await this.commitComplimentaryClaimGrant(accountScope, response);
+      return {
+        ok: false,
+        code: response.code?.trim() ?? 'membership_redeem_failed',
+        message: response.message?.trim() ?? '兑换失败，请稍后再试。',
+        kind: ''
+      };
+    }
+    const committedSnapshot = await this.commitComplimentaryClaimGrant(accountScope, response);
+    if (!this.isCurrentAccountScope(accountScope)) {
+      return {
+        ok: false,
+        code: 'account_changed',
+        message: '账号已切换，请稍后重试。',
+        kind: ''
+      };
+    }
+    if (committedSnapshot === undefined || committedSnapshot.state.plan !== 'pro') {
+      return {
+        ok: false,
+        code: 'grant_not_applied',
+        message: '兑换未能生效，请稍后重试。',
+        kind: ''
+      };
+    }
+    this.notifyStateChanged(committedSnapshot.state);
+    return {
+      ok: true,
+      code: 'membership_redeemed',
+      message: response.message?.trim() ?? '已兑换会员',
+      kind: kind,
+      state: committedSnapshot.state
+    };
+  }
+
   private async commitComplimentaryClaimGrant(
     accountScope: MembershipAccountScope,
-    response: AiraComplimentaryClaimResponseBody
+    response: AiraComplimentaryClaimResponseBody | AiraMembershipRedeemResponseBody
   ): Promise<MembershipRepositorySnapshot | undefined> {
     const grant = response.membershipGrant ?? undefined;
     if (grant === undefined) {

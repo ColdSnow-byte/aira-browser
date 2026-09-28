@@ -68,6 +68,15 @@ export class HistoryFeature {
     this.profileBoundaryService = profileBoundaryService;
   }
 
+  // A negative revision means this repository does not support snapshot caching.
+  getDataRevision(): number {
+    return this.repository.getDataRevision?.() ?? -1;
+  }
+
+  isMutationPending(): boolean {
+    return this.repository.isMutationPending?.() ?? false;
+  }
+
   getCount(): number {
     return this.getStats().totalVisits;
   }

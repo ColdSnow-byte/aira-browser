@@ -596,27 +596,51 @@ export struct HistoryLargeScreenWorkspace {
   }
 
   private async deleteVisit(visitId: string): Promise<void> {
-    const task = this.coordinator.deleteVisit(visitId);
-    this.applySnapshot(this.coordinator.getSnapshot());
-    this.applySnapshot(await task);
+    const bindingRevision = this.sessionBindingRevision;
+    const tabId = this.tabId.trim();
+    const coordinator = this.coordinator;
+    const task = coordinator.deleteVisit(visitId);
+    this.applySnapshot(coordinator.getSnapshot());
+    const snapshot = await task;
+    if (this.isBindingCurrent(bindingRevision, tabId, coordinator)) {
+      this.applySnapshot(snapshot);
+    }
   }
 
   private async deleteSelection(): Promise<void> {
-    const task = this.coordinator.deleteSelection();
-    this.applySnapshot(this.coordinator.getSnapshot());
-    this.applySnapshot(await task);
+    const bindingRevision = this.sessionBindingRevision;
+    const tabId = this.tabId.trim();
+    const coordinator = this.coordinator;
+    const task = coordinator.deleteSelection();
+    this.applySnapshot(coordinator.getSnapshot());
+    const snapshot = await task;
+    if (this.isBindingCurrent(bindingRevision, tabId, coordinator)) {
+      this.applySnapshot(snapshot);
+    }
   }
 
   private async clearAll(): Promise<void> {
-    const task = this.coordinator.clearAll();
-    this.applySnapshot(this.coordinator.getSnapshot());
-    this.applySnapshot(await task);
+    const bindingRevision = this.sessionBindingRevision;
+    const tabId = this.tabId.trim();
+    const coordinator = this.coordinator;
+    const task = coordinator.clearAll();
+    this.applySnapshot(coordinator.getSnapshot());
+    const snapshot = await task;
+    if (this.isBindingCurrent(bindingRevision, tabId, coordinator)) {
+      this.applySnapshot(snapshot);
+    }
   }
 
   private async deleteSite(host: string): Promise<void> {
-    const task = this.coordinator.deleteSite(host);
-    this.applySnapshot(this.coordinator.getSnapshot());
-    this.applySnapshot(await task);
+    const bindingRevision = this.sessionBindingRevision;
+    const tabId = this.tabId.trim();
+    const coordinator = this.coordinator;
+    const task = coordinator.deleteSite(host);
+    this.applySnapshot(coordinator.getSnapshot());
+    const snapshot = await task;
+    if (this.isBindingCurrent(bindingRevision, tabId, coordinator)) {
+      this.applySnapshot(snapshot);
+    }
   }
 
   private copyLink(url: string): void {

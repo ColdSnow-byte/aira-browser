@@ -33,6 +33,11 @@ import {
   BrowserPrivacyEffectTargetScope
 } from '../../services/privacy/BrowserPrivacyEffectPolicyService';
 import { BrowserProfileBoundaryService } from '../browser/BrowserProfileBoundaryService';
+import {
+  DESKTOP_BOOKMARK_BAR_VISIBILITY_CHOICES,
+  DesktopBookmarkBarVisibilityChoice,
+  resolveDesktopBookmarkBarVisibility
+} from '../browser/DesktopBookmarkBarVisibility';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 
 export type SettingsDetailRowKind = 'static' | 'navigation' | 'option' | 'switch' | 'dropdown';
@@ -107,7 +112,7 @@ export type SettingsDetailRowAction =
   'toggle_private_mode_preserve_cookies_on_close' |
   'toggle_allow_user_scripts_in_private_mode' |
   'toggle_blur_private_tab_previews' |
-  'toggle_desktop_bookmark_bar' |
+  'set_desktop_bookmark_bar_visibility' |
   'toggle_pause_web_animations_during_scroll' |
   'toggle_reduce_media_motion_during_scroll' |
   'toggle_strengthen_ad_blocking_for_smooth_scroll' |
@@ -1324,14 +1329,7 @@ export class SettingsDetailViewModel {
         id: 'desktop_bookmark_bar',
         title: '大屏浏览器栏',
         rows: [
-          this.switchRow(
-            'desktop_bookmark_bar',
-            '显示书签栏',
-            canEditDevicePreferences ? '' : '当前会话不可修改全局设置',
-            'toggle_desktop_bookmark_bar',
-            appearance.showDesktopBookmarkBar !== false,
-            canEditDevicePreferences
-          )
+          this.desktopBookmarkBarVisibilityRow(appearance, canEditDevicePreferences)
         ],
         footerText: '仅在平板和桌面窗口显示，设置保存在本设备。'
       });
@@ -1643,6 +1641,72 @@ export class SettingsDetailViewModel {
       isEnabled: isEnabled,
       isSelected: false,
       checked: false
+    };
+  }
+
+  /**
+   * The bar has three policies, so a switch cannot carry the setting: "only on the new tab page"
+   * is neither shown nor hidden. The row offers the same three-way choice as the bar's own menu.
+   */
+  private desktopBookmarkBarVisibilityRow(
+    appearance: BrowserAppearanceSettings,
+    isEnabled: boolean
+  ): SettingsDetailRowState {
+    const options: SettingsDetailOption[] = this.buildDesktopBookmarkBarVisibilityOptions(
+      appearance,
+      isEnabled
+    );
+    const selectedOption = options.find((option: SettingsDetailOption): boolean => option.isSelected);
+    return this.dropdownRow(
+      'desktop_bookmark_bar',
+      '显示书签栏',
+      selectedOption !== undefined ? selectedOption.label : '',
+      isEnabled ? '' : '当前会话不可修改全局设置',
+      'set_desktop_bookmark_bar_visibility',
+      options,
+      isEnabled
+    );
+  }
+
+  private buildDesktopBookmarkBarVisibilityOptions(
+    appearance: BrowserAppearanceSettings,
+    isEnabled: boolean
+  ): SettingsDetailOption[] {
+    const visibility = resolveDesktopBookmarkBarVisibility(appearance);
+    return DESKTOP_BOOKMARK_BAR_VISIBILITY_CHOICES.map(
+      (choice: DesktopBookmarkBarVisibilityChoice): SettingsDetailOption => {
+        return this.dropdownOption(
+          choice.visibility,
+          choice.label,
+          '',
+          choice.visibility === visibility,
+          isEnabled
+        );
+      }
+    );
+  }
+
+  private dropdownRow(
+    id: string,
+    title: string,
+    value: string,
+    helperText: string,
+    action: SettingsDetailRowAction,
+    options: SettingsDetailOption[],
+    isEnabled: boolean = true
+  ): SettingsDetailRowState {
+    return {
+      id: id,
+      kind: 'dropdown',
+      action: action,
+      title: title,
+      value: value,
+      valueSwatchColor: '',
+      helperText: helperText,
+      isEnabled: isEnabled,
+      isSelected: false,
+      checked: false,
+      options: options
     };
   }
 

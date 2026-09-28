@@ -108,6 +108,7 @@ export class BrowserShellSearchInvocationAdapter implements BrowserSearchInvocat
   end(_authorityId: string, _reason: BrowserSearchInvocationEndReason): void {
     this.rootBottomPanelSessionCoordinator.cancelSearchPresentationHostPreparation();
     this.searchSuggestionCoordinator.cancelPendingWork();
+    // Idempotent: the shell's own release path may already have dismissed this host.
     this.keyboardShortcutCoordinator.releaseAddressFocus();
   }
 

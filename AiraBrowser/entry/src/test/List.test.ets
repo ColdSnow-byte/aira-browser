@@ -22,6 +22,7 @@ import novelFontSubstitutionPolicyTest from './NovelFontSubstitutionPolicy.test'
 import browserLargeScreenOmniboxSearchViewModelTest from './BrowserLargeScreenOmniboxSearchViewModel.test';
 import browserLargeScreenToolbarMenuViewModelTest from './BrowserLargeScreenToolbarMenuViewModel.test';
 import browserDesktopBookmarkBarMenuModelTest from './BrowserDesktopBookmarkBarMenuModel.test';
+import settingsDesktopBookmarkBarVisibilityRowTest from './SettingsDesktopBookmarkBarVisibilityRow.test';
 import browserLargeScreenOverflowFlyoutViewModelTest from './BrowserLargeScreenOverflowFlyoutViewModel.test';
 import browserDesktopMenuShortcutCatalogTest from './BrowserDesktopMenuShortcutCatalog.test';
 import browserPrivacyEffectPolicyTest from './BrowserPrivacyEffectPolicy.test';
@@ -90,8 +91,10 @@ import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntim
 import elementInspectionOutlineMenuLayoutTest from './ElementInspectionOutlineMenuLayout.test';
 import webVideoPictureInPictureBackgroundPolicyTest from './WebVideoPictureInPictureBackgroundPolicy.test';
 import browserSplitToolbarCustomizationPolicyTest from './BrowserSplitToolbarCustomizationPolicy.test';
+import browserBottomToolbarReorderGesturePolicyTest from './BrowserBottomToolbarReorderGesturePolicy.test';
 import browserOpenTabsButtonViewModelTest from './BrowserOpenTabsButtonViewModel.test';
 import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
+import browserSearchInvocationHostPolicyTest from './BrowserSearchInvocationHostPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -117,6 +120,7 @@ export default function tests(): void {
   browserLargeScreenOmniboxSearchViewModelTest();
   browserLargeScreenToolbarMenuViewModelTest();
   browserDesktopBookmarkBarMenuModelTest();
+  settingsDesktopBookmarkBarVisibilityRowTest();
   browserLargeScreenOverflowFlyoutViewModelTest();
   browserDesktopMenuShortcutCatalogTest();
   browserPrivacyEffectPolicyTest();
@@ -184,6 +188,8 @@ export default function tests(): void {
   elementInspectionOutlineMenuLayoutTest();
   webVideoPictureInPictureBackgroundPolicyTest();
   browserSplitToolbarCustomizationPolicyTest();
+  browserBottomToolbarReorderGesturePolicyTest();
   browserOpenTabsButtonViewModelTest();
   documentViewerHtmlFileTransportTest();
+  browserSearchInvocationHostPolicyTest();
 }

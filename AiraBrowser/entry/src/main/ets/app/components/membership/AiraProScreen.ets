@@ -6,6 +6,14 @@ import {
   AiraProOverviewViewState
 } from '../../../core/membership/AiraProOverviewViewModel';
 import { AiraProComplimentaryClaimDialog } from './AiraProComplimentaryClaimDialog';
+import { AiraProMembershipRedeemDialog } from './AiraProMembershipRedeemDialog';
+import { AiraProMembershipRedeemResultDialog } from './AiraProMembershipRedeemResultDialog';
+import {
+  AiraProMembershipRedeemGrantKind,
+  AiraProMembershipRedeemResultState,
+  isValidMembershipRedeemCode,
+  resolveAiraProMembershipRedeemResult
+} from '../../../core/membership/AiraProMembershipRedeemResult';
 import { AiraProOverviewScreen } from './AiraProOverviewScreen';
 import { resolveCenteredDialogControllerWidth,  CENTERED_DIALOG_CORNER_RADIUS_VP } from '../common/CenteredDialogSurface';
 import {
@@ -46,7 +54,10 @@ import {
   sharedMembershipFeature,
   sharedPreferencesRepository
 } from '../../bootstrap/BrowserAppRuntime';
-import { AiraComplimentaryClaimResult } from '../../../features/membership/MembershipFeature';
+import {
+  AiraComplimentaryClaimResult,
+  AiraMembershipRedeemResult
+} from '../../../features/membership/MembershipFeature';
 import { AppServiceModeGateService } from '../../../services/settings/AppServiceModeGateService';
 import { MEMBERSHIP_REFRESH_ACCOUNT_VISIBLE_FRESH_MS } from '../../../services/membership/MembershipRefreshPolicyService';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
@@ -103,6 +114,7 @@ export struct AiraProScreen {
     this.privacyMode
   );
   private complimentaryClaimInFlight: boolean = false;
+  private membershipRedeemInFlight: boolean = false;
   private complimentaryClaimDialogController: CustomDialogController = new CustomDialogController({
     builder: AiraProComplimentaryClaimDialog({
       state: $state,
@@ -116,6 +128,34 @@ export struct AiraProScreen {
     width: resolveCenteredDialogControllerWidth('s'),
     autoCancel: true,
     alignment: DialogAlignment.Center
+  });
+  @State private membershipRedeemCode: string = '';
+  @State private membershipRedeemResult: AiraProMembershipRedeemResultState =
+    resolveAiraProMembershipRedeemResult('month');
+  private membershipRedeemDialogController: CustomDialogController = new CustomDialogController({
+    builder: AiraProMembershipRedeemDialog({
+      codeDraft: $membershipRedeemCode,
+      onRedeem: (code: string): void => {
+        this.submitMembershipRedeemCode(code);
+      }
+    }),
+    customStyle: true,
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('s'),
+    autoCancel: true,
+    alignment: DialogAlignment.Center
+  });
+  private membershipRedeemResultDialogController: CustomDialogController = new CustomDialogController({
+    builder: AiraProMembershipRedeemResultDialog({
+      result: $membershipRedeemResult
+    }),
+    customStyle: true,
+    backgroundBlurStyle: BlurStyle.NONE,
+    autoCancel: true,
+    alignment: DialogAlignment.Center,
+    openAnimation: { duration: 0 },
+    closeAnimation: { duration: 160 }
   });
   @State private activeSheetVisible: boolean = false;
   @State private activeSheetMounted: boolean = false;
@@ -140,6 +180,14 @@ export struct AiraProScreen {
     this.unbindThemePreferencesUpdates();
     try {
       this.complimentaryClaimDialogController.close();
+    } catch (_error) {
+    }
+    try {
+      this.membershipRedeemDialogController.close();
+    } catch (_error) {
+    }
+    try {
+      this.membershipRedeemResultDialogController.close();
     } catch (_error) {
     }
   }
@@ -249,6 +297,9 @@ export struct AiraProScreen {
       onSubscribe: (planId: string) => {
         this.openProPurchase(planId);
       },
+      onOpenMembershipRedeem: () => {
+        this.openMembershipRedeem();
+      },
       onOpenSelfHostingGuide: () => {
         this.openSelfHostingGuide();
       },
@@ -304,6 +355,72 @@ export struct AiraProScreen {
     } else {
       this.buildHuaweiLoginSheet()
     }
+  }
+
+  private openMembershipRedeem(): void {
+    if (!this.state.showMembershipRedeem) {
+      return;
+    }
+    this.membershipRedeemCode = '';
+    this.membershipRedeemDialogController.open();
+  }
+
+  private submitMembershipRedeemCode(code: string): void {
+    if (this.membershipRedeemInFlight) {
+      return;
+    }
+    if (!isValidMembershipRedeemCode(code)) {
+      this.showToast('兑换码格式不正确');
+      return;
+    }
+    this.membershipRedeemInFlight = true;
+    sharedMembershipFeature.redeemMembershipCode(code, this.buildAiraProDataBoundaryInput())
+      .then((result: AiraMembershipRedeemResult) => {
+        this.membershipRedeemInFlight = false;
+        if (!result.ok) {
+          this.showToast(result.message.length > 0 ? result.message : '兑换失败，请稍后再试。');
+          return;
+        }
+        const kind = this.resolveRedeemGrantKind(result.kind);
+        if (kind === undefined) {
+          this.showToast(result.message.length > 0 ? result.message : '兑换失败，请稍后再试。');
+          return;
+        }
+        this.presentMembershipRedeemResult(kind);
+        this.applyAiraProState();
+        sharedMembershipFeature.refreshStateForBoundary(this.buildAiraProDataBoundaryInput(), { force: true })
+          .then(() => {
+            this.applyAiraProState();
+          })
+          .catch((_error: Error) => {
+            this.applyAiraProState();
+          });
+      })
+      .catch((_error: Error) => {
+        this.membershipRedeemInFlight = false;
+        this.showToast('兑换失败，请稍后再试。');
+      });
+  }
+
+  private resolveRedeemGrantKind(kind: string): AiraProMembershipRedeemGrantKind | undefined {
+    if (kind === 'month' || kind === 'year' || kind === 'lifetime') {
+      return kind;
+    }
+    return undefined;
+  }
+
+  private presentMembershipRedeemResult(kind: AiraProMembershipRedeemGrantKind): void {
+    this.membershipRedeemResult = resolveAiraProMembershipRedeemResult(kind);
+    try {
+      this.membershipRedeemDialogController.close();
+    } catch (_error) {
+    }
+    setTimeout((): void => {
+      try {
+        this.membershipRedeemResultDialogController.open();
+      } catch (_error) {
+      }
+    }, 200);
   }
 
   private openComplimentaryClaim(): void {

@@ -22,7 +22,11 @@ import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/Bro
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { BrowserSearchSuggestionsPanel } from './BrowserSearchSuggestionsPanel';
-import { BROWSER_SEARCH_LIST_ROW_CONTENT_FRAME_HEIGHT } from '../../../core/browser/BrowserSearchListSurfaceLayoutViewModel';
+import { BrowserBottomPanelWidthBreakpoint } from '../../../core/browser/BrowserBottomPanelResponsiveViewModel';
+import {
+  BROWSER_SEARCH_LIST_ROW_CONTENT_FRAME_HEIGHT,
+  resolveExternalAppSearchPageSize
+} from '../../../core/browser/BrowserSearchListSurfaceLayoutViewModel';
 import { ExternalAppSearchStrip } from './ExternalAppSearchStrip';
 import {
   ExternalAppSearchService,
@@ -72,9 +76,14 @@ export struct BrowserSplitToolbarChrome {
   @Prop selectedEngineId: SearchEngineId = 'bing';
   @Prop topSafeInsetVp: number = 0;
   @Prop bottomSafeInsetVp: number = 0;
+  @Prop viewportWidth: number = 0;
+  @Prop widthBreakpoint: BrowserBottomPanelWidthBreakpoint = 'sm';
   @Prop keyboardInsetVp: number = 0;
   @Prop @Watch('handleSearchDismissRequest') searchDismissVersion: number = 0;
   @Prop @Watch('handleSearchOpenRequest') searchOpenRequestVersion: number = 0;
+  /** Draft published by the search-invocation session. The open watch reads it. */
+  @Prop searchOpenDraft: string = '';
+  @Prop searchOpenSelectAll: boolean = false;
   @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
   /**
    * The centered homepage already has a search field, so that home hides this row. Minimal keeps
@@ -124,9 +133,9 @@ export struct BrowserSplitToolbarChrome {
   @Prop wallpaperIconColor: ResourceColor = '#111111';
   @Prop wallpaperSecondaryIconColor: ResourceColor = '#8A8A8E';
   @Prop wallpaperPressedColor: ResourceColor = '#14000000';
-  onSearchSessionChange: (active: boolean, query: string) => void =
-    (_active: boolean, _query: string) => {};
-  onCenteredSearchGeometryReverse: () => void = () => {};
+  onRequestSearchOpen: () => void = () => {};
+  onSearchDraftChange: (query: string) => void = (_query: string) => {};
+  onRequestSearchEnd: (reason: string) => void = (_reason: string) => {};
   onSubmit: (rawInput: string) => void = (_rawInput: string) => {};
   onSelectEngine: (engineId: SearchEngineId) => void = (_engineId: SearchEngineId) => {};
   onOpenSuggestion: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion) => {};
@@ -250,8 +259,7 @@ export struct BrowserSplitToolbarChrome {
         .width('100%')
         .height('100%')
         .onClick(() => {
-          this.openSearch('');
-          this.focusSearchInput();
+          this.onRequestSearchOpen();
         })
 
       Row() {
@@ -319,8 +327,7 @@ export struct BrowserSplitToolbarChrome {
               .onActionEnd((event: GestureEvent) => { this.emitTabSwipe('end', event); })
               .onActionCancel(() => { this.cancelTabSwipe(); }),
             TapGesture().onAction(() => {
-              this.openSearch(this.editableAddress);
-              this.focusSearchInput();
+              this.onRequestSearchOpen();
             })
           )
         )
@@ -470,7 +477,7 @@ export struct BrowserSplitToolbarChrome {
           }
           this.selectAllAddressOnOpen = false;
           this.query = value;
-          this.onSearchSessionChange(true, value);
+          this.onSearchDraftChange(value);
         })
         .onSubmit((_enterKey: EnterKeyType) => {
           this.submitQuery(this.query);
@@ -555,6 +562,36 @@ export struct BrowserSplitToolbarChrome {
   @Builder
   private buildSearchSheet() {
     Column() {
+      // The split search field lives in the top bar. Cross-app icons belong under that field,
+      // not in the floating toolbar's bottom dock.
+      if (this.resolveExternalSearchTargets().length > 0) {
+        Column() {
+          ExternalAppSearchStrip({
+            targets: this.resolveExternalSearchTargets(),
+            query: this.query,
+            labelColor: this.secondaryTextColor,
+            pageSize: this.resolveExternalSearchPageSize(),
+            onSearch: (targetId: ExternalAppSearchTargetId, query: string) => {
+              this.searching = false;
+              this.engineMenuOpen = false;
+              this.query = '';
+              this.selectAllAddressOnOpen = false;
+              this.clearAddressSelectAllTimeout();
+              this.clearSearchFocusTimeout();
+              this.releaseSearchInputFocus();
+              this.onRequestSearchEnd('submitted');
+              this.onExternalSearch(targetId, query);
+            }
+          })
+        }
+        .width('100%')
+        .padding({
+          left: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+          right: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+          bottom: 8
+        })
+      }
+
       BrowserSearchSuggestionsPanel({
         suggestions: this.suggestions,
         layoutMode: 'topDown',
@@ -573,24 +610,6 @@ export struct BrowserSplitToolbarChrome {
       })
         .layoutWeight(1)
         .align(Alignment.TopStart)
-
-      if (this.resolveExternalSearchTargets().length > 0) {
-        ExternalAppSearchStrip({
-          targets: this.resolveExternalSearchTargets(),
-          query: this.query,
-          onSearch: (targetId: ExternalAppSearchTargetId, query: string) => {
-            this.searching = false;
-            this.engineMenuOpen = false;
-            this.query = '';
-            this.selectAllAddressOnOpen = false;
-            this.clearAddressSelectAllTimeout();
-            this.clearSearchFocusTimeout();
-            this.releaseSearchInputFocus();
-            this.onSearchSessionChange(false, '');
-            this.onExternalSearch(targetId, query);
-          }
-        })
-      }
     }
     .width('100%')
     .height('100%')
@@ -640,13 +659,13 @@ export struct BrowserSplitToolbarChrome {
     })
   }
 
-  private openSearch(prefill: string): void {
+  private openSearch(prefill: string, selectAll: boolean): void {
     this.clearAddressSelectAllTimeout();
     this.query = prefill;
-    this.selectAllAddressOnOpen = prefill.length > 0;
+    this.selectAllAddressOnOpen = selectAll && prefill.length > 0;
     this.searching = true;
     this.engineMenuOpen = false;
-    this.onSearchSessionChange(true, prefill);
+    this.onSearchDraftChange(prefill);
   }
 
   private focusSearchInput(): void {
@@ -730,7 +749,7 @@ export struct BrowserSplitToolbarChrome {
       return;
     }
     this.appliedSearchOpenRequestVersion = this.searchOpenRequestVersion;
-    this.openSearch('');
+    this.openSearch(this.searchOpenDraft, this.searchOpenSelectAll);
     this.scheduleSearchInputFocus();
   }
 
@@ -739,14 +758,8 @@ export struct BrowserSplitToolbarChrome {
     if (!sessionOpen) {
       return;
     }
-    const reverseGeometry = this.shouldReverseCenteredSearchGeometry();
-    this.clearSearchSessionLocally();
-    if (reverseGeometry) {
-      // Opened from the centered homepage: the field flies back. A webpage search just closes.
-      this.onCenteredSearchGeometryReverse();
-      return;
-    }
-    this.onSearchSessionChange(false, '');
+    // The shell starts the return flight on this stack. Clearing here would snap it.
+    this.onRequestSearchEnd('explicit_exit');
   }
 
   private clearSearchSessionLocally(): void {
@@ -771,7 +784,7 @@ export struct BrowserSplitToolbarChrome {
     this.clearAddressSelectAllTimeout();
     this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
-    this.onSearchSessionChange(false, '');
+    this.onRequestSearchEnd('submitted');
     this.onSubmit(trimmed);
   }
 
@@ -783,8 +796,16 @@ export struct BrowserSplitToolbarChrome {
     this.clearAddressSelectAllTimeout();
     this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
-    this.onSearchSessionChange(false, '');
+    this.onRequestSearchEnd('submitted');
     this.onOpenSuggestion(suggestion);
+  }
+
+  private resolveExternalSearchPageSize(): number {
+    return resolveExternalAppSearchPageSize(
+      this.viewportWidth,
+      SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
+      this.widthBreakpoint
+    );
   }
 
   private resolveExternalSearchTargets(): ExternalAppSearchTarget[] {

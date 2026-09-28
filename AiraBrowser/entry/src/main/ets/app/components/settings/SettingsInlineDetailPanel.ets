@@ -18,6 +18,7 @@ import {
   BrowserTabAutoClosePolicy,
   BrowserThemeMode,
   DEFAULT_BROWSER_PROFILE_ID,
+  DesktopBookmarkBarVisibility,
   ExternalNavigationAppOpenPolicy,
   HistoryRetentionSettings,
   SearchEngineId,
@@ -38,6 +39,7 @@ import {
   SettingsSingleChoiceSelectionSnapshot
 } from '../../../core/settings/SettingsDetailViewModel';
 import { BrowserRetentionSettingsCoordinator } from '../../../core/settings/BrowserRetentionSettingsCoordinator';
+import { buildDesktopBookmarkBarVisibilitySettings } from '../../../core/browser/DesktopBookmarkBarVisibility';
 import { HistoryFeature, HistoryManagementBoundary } from '../../../features/history/HistoryFeature';
 import { SettingsGeneralCoordinator } from '../../../core/settings/SettingsGeneralCoordinator';
 import { HomePageSettingsCoordinator } from '../../../core/settings/HomePageSettingsCoordinator';
@@ -609,6 +611,18 @@ export struct SettingsInlineDetailPanel {
     }
   }
 
+  /**
+   * Writes one of the three bookmark-bar policies. The legacy two-state projection is rebuilt
+   * inside the settings builder, so Personalization Sync keeps receiving a value it knows.
+   */
+  private async applyDesktopBookmarkBarVisibility(
+    visibility: DesktopBookmarkBarVisibility
+  ): Promise<void> {
+    await this.applyAppearanceSettings(
+      buildDesktopBookmarkBarVisibilitySettings(this.appearanceSettings, visibility)
+    );
+  }
+
   private async applyPrivateModeAuthenticationEnabled(enabled: boolean): Promise<void> {
     const previousSettings = sharedPreferencesRepository.getPreferences().general;
     const nextSettings: BrowserGeneralSettings = {
@@ -764,6 +778,10 @@ export struct SettingsInlineDetailPanel {
 
   private handleDropdownSelection(row: SettingsDetailRowState, optionId: string): void {
     const action = row.action;
+    if (action === 'set_desktop_bookmark_bar_visibility') {
+      void this.applyDesktopBookmarkBarVisibility(optionId as DesktopBookmarkBarVisibility);
+      return;
+    }
     if (action === 'open_general_startup_settings') {
       void this.applyStartupRestorePolicy(optionId as BrowserStartupRestorePolicy);
       return;

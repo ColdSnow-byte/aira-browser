@@ -71,6 +71,8 @@ export interface AiraProOverviewViewState {
   showManageSubscription: boolean;
   /** Hidden once there is nothing left to buy, including permanent membership. */
   showPurchaseButton: boolean;
+  /** A permanent member cannot use a code, so the entry is not shown. */
+  showMembershipRedeem: boolean;
   complimentaryClaim: AiraProComplimentaryClaimState;
   proValue: string;
   proActivatedActionText: string;
@@ -168,6 +170,7 @@ export class AiraProOverviewViewModel {
       membershipStatusDetail: presentation.membershipStatusDetail,
       showManageSubscription: presentation.showManageSubscription,
       showPurchaseButton: presentation.showPurchaseButton,
+      showMembershipRedeem: !this.membershipPresentationService.isLongTermMember(membershipState),
       complimentaryClaim: this.buildComplimentaryClaimState(
         membershipState,
         plans.length > 0 && actionsEnabled
@@ -216,6 +219,7 @@ export class AiraProOverviewViewModel {
       membershipStatusDetail: '',
       showManageSubscription: false,
       showPurchaseButton: false,
+      showMembershipRedeem: false,
       complimentaryClaim: this.buildHiddenComplimentaryClaim(),
       proValue: '本地功能已全部开启',
       proActivatedActionText: '无需会员',

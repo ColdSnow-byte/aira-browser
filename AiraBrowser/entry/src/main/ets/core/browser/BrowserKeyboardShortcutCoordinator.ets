@@ -52,6 +52,7 @@ export interface BrowserKeyboardShortcutFacts {
   fullScreenModeEnabled: boolean;
   webBottomAddressFocused: boolean;
   homeSearchFocused: boolean;
+  searchInvocationVisible: boolean;
   activeTabId: string;
   tabs: BrowserTabState[];
   recentlyClosedCount: number;
@@ -345,7 +346,7 @@ export class BrowserKeyboardShortcutCoordinator {
       this.shell.showMessage('已关闭标签页列表。');
       return;
     }
-    if (facts.webBottomAddressFocused || facts.homeSearchFocused) {
+    if (facts.webBottomAddressFocused || facts.homeSearchFocused || facts.searchInvocationVisible) {
       this.releaseAddressFocus();
       this.shell.showMessage('已退出地址栏。');
       return;

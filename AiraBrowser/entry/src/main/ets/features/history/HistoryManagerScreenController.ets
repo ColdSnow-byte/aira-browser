@@ -47,6 +47,9 @@ export class HistoryManagerScreenController {
   private timelineLoadedVisits: HistoryVisit[] = [];
   private timelineHasLoadedAll: boolean = false;
   private timelineLoading: boolean = false;
+  private timelineInitialized: boolean = false;
+  private timelineRevision: number = -1;
+  private timelineErrorListener?: (message: string) => void;
   private timelineLoadingListener?: (loading: boolean) => void;
   private timelineDeletionSequence: number = 0;
   private timelineDeletionFailed: boolean = false;
@@ -68,7 +71,26 @@ export class HistoryManagerScreenController {
   }
 
   setManagementBoundary(boundary: HistoryManagementBoundary): void {
+    if (this.managementBoundary?.dataScope !== boundary.dataScope ||
+      this.managementBoundary?.privacyMode !== boundary.privacyMode) {
+      this.clearTimelineState();
+    }
     this.managementBoundary = boundary;
+  }
+
+  canReuseTimeline(query: string): boolean {
+    return this.timelineInitialized && this.timelineQuery === query.trim() && this.timelineRevision >= 0 &&
+      this.timelineRevision === this.historyFeature.getDataRevision() &&
+      !this.historyFeature.isMutationPending() && !this.hasPendingTimelineDeletion();
+  }
+
+  invalidateTimelineCache(): void {
+    this.timelineInitialized = false;
+    this.timelineRevision = -1;
+  }
+
+  setTimelineErrorListener(listener?: (message: string) => void): void {
+    this.timelineErrorListener = listener;
   }
 
   getTimelineScroller(): ListScroller {
@@ -105,7 +127,11 @@ export class HistoryManagerScreenController {
       this.setTimelineLoading(true);
       return;
     }
+    this.invalidateTimelineCache();
     const sequence = ++this.timelineRequestSequence;
+    const revision = this.historyFeature.getDataRevision();
+    const startedDuringMutation = this.historyFeature.isMutationPending();
+    this.timelineErrorListener?.('');
     this.timelineQuery = normalizedQuery;
     this.timelineSourceOffset = 0;
     this.timelineHasLoadedAll = false;
@@ -114,27 +140,30 @@ export class HistoryManagerScreenController {
     this.activeTimelineFirstPageRequest = request;
     this.activeTimelinePaginationRequest = undefined;
 
-    let task: Promise<HistoryVisit[]>;
-    if (normalizedQuery.length > 0) {
-      task = this.historyFeature.refreshSearchPageForManagement(
+    // Repository visit cache is not revision-tracked, so it cannot prove that
+    // deleted or synced rows are absent. Every accepted first page comes from a
+    // query bounded by the revision captured above.
+    const task: Promise<HistoryVisit[]> = normalizedQuery.length > 0
+      ? this.historyFeature.refreshSearchPageForManagement(
         normalizedQuery,
         0,
         limit,
         this.requireManagementBoundary()
-      );
-    } else {
-      const boundary = this.requireManagementBoundary();
-      const cachedVisits = this.historyFeature.listVisitsForManagement(limit, boundary);
-      task = cachedVisits.length > 0
-        ? Promise.resolve(cachedVisits)
-        : this.historyFeature.refreshPreviewForManagement(limit, boundary);
-    }
+      )
+      : this.historyFeature.refreshPageForManagement(0, limit, this.requireManagementBoundary());
     task
       .then((visits: HistoryVisit[]) => {
         if (!this.isTimelineRequestCurrent(sequence, normalizedQuery)) {
           return;
         }
         this.clearActiveTimelineFirstPageRequest(request);
+        if (startedDuringMutation || !this.acceptTimelineRevision(revision)) {
+          this.timelineErrorListener?.('历史记录已更新，请重试。');
+          this.setTimelineLoading(false);
+          return;
+        }
+        this.timelineInitialized = true;
+        this.timelineRevision = revision;
         this.timelineLoadedVisits = visits.slice();
         this.timelineSourceOffset = visits.length;
         this.timelineHasLoadedAll = visits.length < limit;
@@ -144,6 +173,7 @@ export class HistoryManagerScreenController {
       .catch((_error: Error) => {
         if (this.isTimelineRequestCurrent(sequence, normalizedQuery)) {
           this.clearActiveTimelineFirstPageRequest(request);
+          this.timelineErrorListener?.('加载历史记录失败，请重试。');
           this.setTimelineLoading(false);
         }
       });
@@ -165,10 +195,17 @@ export class HistoryManagerScreenController {
       }
       return;
     }
-    if (this.timelineHasLoadedAll || this.timelineLoading) {
+    if (this.timelineHasLoadedAll || this.timelineLoading || !this.timelineInitialized) {
       return;
     }
+    if (!this.acceptTimelineRevision(this.timelineRevision)) {
+      this.invalidateTimelineCache();
+      this.timelineErrorListener?.('历史记录已更新，请重试。');
+      return;
+    }
+    this.timelineErrorListener?.('');
     const normalizedQuery = this.timelineQuery;
+    const revision = this.timelineRevision;
     const sequence = this.timelineRequestSequence;
     const offset = this.timelineSourceOffset;
     this.setTimelineLoading(true);
@@ -184,6 +221,12 @@ export class HistoryManagerScreenController {
           return;
         }
         this.clearActiveTimelinePaginationRequest(request);
+        if (!this.acceptTimelineRevision(revision)) {
+          this.invalidateTimelineCache();
+          this.timelineErrorListener?.('历史记录已更新，请重试。');
+          this.setTimelineLoading(false);
+          return;
+        }
         this.timelineSourceOffset += visits.length;
         this.timelineLoadedVisits = this.mergeLoadedVisits(visits);
         this.timelineHasLoadedAll = visits.length < limit;
@@ -201,6 +244,7 @@ export class HistoryManagerScreenController {
       .catch((_error: Error) => {
         if (this.isTimelineRequestCurrent(sequence, normalizedQuery)) {
           this.clearActiveTimelinePaginationRequest(request);
+          this.timelineErrorListener?.('加载更多历史记录失败，请重试。');
           this.setTimelineLoading(false);
         }
       });
@@ -208,6 +252,7 @@ export class HistoryManagerScreenController {
 
   beginTimelineDeletion(visitIds: string[]): HistoryTimelineDeletionTransaction {
     this.preserveActiveTimelineRequestForDeletion();
+    this.invalidateTimelineCache();
     this.invalidateTimelineRequests();
     if (this.pendingTimelineFirstPageRequest !== undefined) {
       this.setTimelineLoading(true);
@@ -216,12 +261,8 @@ export class HistoryManagerScreenController {
     const previousCount = this.timelineLoadedVisits.length;
     this.timelineLoadedVisits = this.timelineLoadedVisits.filter((visit: HistoryVisit) => !removingIds.has(visit.id));
     const removedLoadedCount = previousCount - this.timelineLoadedVisits.length;
-    if (visitIds.length === 0) {
-      return {
-        id: 0,
-        visits: this.timelineLoadedVisits.slice()
-      };
-    }
+    // A site deletion may have no rows in the loaded timeline. It still needs
+    // a transaction so reads cannot race the persistent mutation.
     const transactionId = ++this.timelineDeletionSequence;
     this.timelineDeletionLoadedCounts.set(transactionId, removedLoadedCount);
     return {
@@ -256,19 +297,13 @@ export class HistoryManagerScreenController {
     }
 
     const pendingFirstPage = this.pendingTimelineFirstPageRequest;
-    const pendingPagination = this.pendingTimelinePaginationRequest;
     this.pendingTimelineFirstPageRequest = undefined;
     this.pendingTimelinePaginationRequest = undefined;
     if (pendingFirstPage !== undefined) {
       this.loadTimelineFirstPage(pendingFirstPage.query, pendingFirstPage.limit, pendingFirstPage.publish);
-    } else if (pendingPagination !== undefined) {
-      this.requestNextTimelinePages(
-        pendingPagination.limit,
-        pendingPagination.previousDisplayCount,
-        pendingPagination.publish
-      );
     }
-    return { shouldReload: false };
+    // Site mode may also have deferred its first page during this mutation.
+    return { shouldReload: true };
   }
 
   hasLoadedTimelineVisits(): boolean {
@@ -277,6 +312,7 @@ export class HistoryManagerScreenController {
 
   clearTimelineState(): void {
     this.cancelTimelineRequests();
+    this.invalidateTimelineCache();
     this.timelineQuery = '';
     this.timelineSourceOffset = 0;
     this.timelineLoadedVisits = [];
@@ -361,6 +397,7 @@ export class HistoryManagerScreenController {
   clearBackHandler(): void {
     this.backHandler = undefined;
     this.clearTimelineLoadingListener();
+    this.setTimelineErrorListener(undefined);
     this.cancelTimelineRequests();
     this.resetTimelineSwipeActions();
   }
@@ -370,6 +407,10 @@ export class HistoryManagerScreenController {
       return false;
     }
     return this.backHandler();
+  }
+
+  private acceptTimelineRevision(revision: number): boolean {
+    return revision === this.historyFeature.getDataRevision() && !this.historyFeature.isMutationPending();
   }
 
   private isTimelineRequestCurrent(sequence: number, query: string): boolean {

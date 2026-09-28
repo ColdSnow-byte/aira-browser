@@ -192,6 +192,8 @@ export interface BookmarkRepositoryCachePatchStats {
 }
 
 export interface HistoryRepository {
+  getDataRevision?(): number;
+  isMutationPending?(): boolean;
   listVisits(limit?: number): HistoryVisit[];
   initialize(): Promise<void>;
   refreshPreview(limit: number): Promise<HistoryVisit[]>;
@@ -1977,6 +1979,14 @@ export class RdbHistoryRepository implements HistoryRepository {
     this.database = database;
   }
 
+  getDataRevision(): number {
+    return this.database.getHistoryDataRevision();
+  }
+
+  isMutationPending(): boolean {
+    return this.database.isHistoryMutationPending();
+  }
+
   setSyncContextProvider(provider: HistorySyncRepositoryContextProvider): void {
     this.syncContextProvider = provider;
   }
@@ -2170,6 +2180,11 @@ export class RdbHistoryRepository implements HistoryRepository {
   }
 
   async importVisits(visits: HistoryTransferVisit[]): Promise<number> {
+    // Keep the whole import pending, including gaps between individual upserts.
+    return this.database.runHistoryMutation(() => this.importVisitsMutation(visits));
+  }
+
+  private async importVisitsMutation(visits: HistoryTransferVisit[]): Promise<number> {
     await this.initialize();
     let imported = 0;
     for (const visit of visits) {

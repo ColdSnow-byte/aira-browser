@@ -408,7 +408,11 @@ export class BrowserSearchInvocationSessionCoordinator {
       '',
       reason === 'context_destroyed' ? 'context_destroyed' : ''
     ));
-    this.surfaceAdapter?.end(this.authorityId, reason);
+    // Retire the session BEFORE notifying the surface adapter. An adapter's end() may
+    // synchronously re-enter the shell's release path (the floating host releases address
+    // focus), and a reentrant end() must observe an inactive session instead of looping
+    // end -> release -> end until the stack overflows.
+    const authorityToEnd = this.authorityId;
     this.phase = 'ended';
     this.pendingReason = '';
     this.scene = undefined;
@@ -417,11 +421,35 @@ export class BrowserSearchInvocationSessionCoordinator {
     this.sessionActiveContextId = '';
     this.sessionActiveContextKnown = false;
     this.activeDeferred = undefined;
+    this.surfaceAdapter?.end(authorityToEnd, reason);
     return true;
   }
 
   currentAuthorityId(): string {
     return this.authorityId;
+  }
+
+  /**
+   * Re-present the current session on whatever surface is registered now.
+   * Host changes use this so the draft stays with the session instead of
+   * starting a second one. A committed session keeps its selection.
+   */
+  refreshPresentation(): boolean {
+    if (!this.isSessionActive() || this.backgrounded) {
+      return false;
+    }
+    if (this.phase !== 'committed' &&
+      this.phase !== 'pending_window' &&
+      this.phase !== 'pending_protected_flow' &&
+      this.phase !== 'background_suspended') {
+      return false;
+    }
+    this.presentationAttempt += 1;
+    this.pendingReason = '';
+    // Keep the canonical draft and caret. A host change must not reselect the
+    // address the way a fresh address-bar tap does.
+    this.startPresentation(false);
+    return true;
   }
 
   snapshot(): BrowserSearchInvocationSnapshot {

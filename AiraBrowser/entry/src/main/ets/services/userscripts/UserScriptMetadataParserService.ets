@@ -38,7 +38,7 @@ interface UserScriptMetadataResourceField {
 
 const USER_SCRIPT_BEGIN_MARKER = '// ==UserScript==';
 const USER_SCRIPT_END_MARKER = '// ==/UserScript==';
-const MAX_USER_SCRIPT_SOURCE_LENGTH = 5 * 1024 * 1024;
+const MAX_USER_SCRIPT_SOURCE_LENGTH = 50 * 1024 * 1024;
 
 export class UserScriptMetadataParserService {
   private capabilityContract: UserScriptCapabilityContractService = new UserScriptCapabilityContractService();
@@ -54,7 +54,7 @@ export class UserScriptMetadataParserService {
       return this.fail('脚本内容不能为空。');
     }
     if (normalizedSource.length > MAX_USER_SCRIPT_SOURCE_LENGTH) {
-      return this.fail('脚本超过 5 MB，暂不支持安装。');
+      return this.fail('脚本超过 50 MB，无法安装。');
     }
     const header = this.extractHeader(normalizedSource);
     if (header.length === 0) {

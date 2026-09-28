@@ -2,7 +2,7 @@ import { common } from '@kit.AbilityKit';
 import { fileIo, picker } from '@kit.CoreFileKit';
 import buffer from '@ohos.buffer';
 
-const MAX_LOCAL_USER_SCRIPT_CHARS: number = 5 * 1024 * 1024;
+const MAX_LOCAL_USER_SCRIPT_CHARS: number = 50 * 1024 * 1024;
 
 export class UserScriptLocalFileService {
   pickScriptFileUri(context: common.UIAbilityContext): Promise<string | undefined> {
@@ -26,7 +26,7 @@ export class UserScriptLocalFileService {
         if (bytesRead > 0) {
           totalLength += bytesRead;
           if (totalLength > MAX_LOCAL_USER_SCRIPT_CHARS) {
-            throw new Error('脚本超过 5 MB，暂不支持安装。');
+            throw new Error('脚本超过 50 MB，无法安装。');
           }
           chunks.push(buffer.from(data, 0, bytesRead).toString('utf8'));
         }
