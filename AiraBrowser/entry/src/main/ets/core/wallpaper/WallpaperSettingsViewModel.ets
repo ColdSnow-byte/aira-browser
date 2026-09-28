@@ -1,4 +1,9 @@
 import {
+  findHomeWallpaperChoice,
+  HomeWallpaperChoice,
+  HomeWallpaperChoiceKind,
+  listHomeWallpaperChoices,
+  normalizeHomeWallpaperSolidColorId,
   WallpaperAsset,
   WallpaperAssetSource,
   WallpaperMode,
@@ -26,10 +31,20 @@ export interface WallpaperImageOptionViewState {
   isEnabled: boolean;
 }
 
+export interface WallpaperColorChoiceViewState {
+  id: string;
+  label: string;
+  kind: HomeWallpaperChoiceKind;
+  /** Empty for the auto and follow-theme choices, which paint more than one color. */
+  color: string;
+  isSelected: boolean;
+  isEnabled: boolean;
+}
+
 export interface WallpaperSettingsViewState {
   mode: WallpaperMode;
   modeTitle: string;
-  themeOption: WallpaperModeOptionViewState;
+  colorChoices: WallpaperColorChoiceViewState[];
   imageOptions: WallpaperImageOptionViewState[];
   bingPreviewStatus: WallpaperBingPreviewStatus;
   bingPreviewStatusText: string;
@@ -49,13 +64,8 @@ export class WallpaperSettingsViewModel {
     const footerText = '必应壁纸每天自动检查更新，仅用于 Aira 原生主页；自定义主页和隐私主页不会显示。';
     return {
       mode: settings.mode,
-      modeTitle: this.getModeTitle(settings.mode),
-      themeOption: this.buildModeOption(
-        'theme',
-        settings,
-        true,
-        '首页背景跟随当前主题色，保持中性灰阶'
-      ),
+      modeTitle: this.resolveModeTitle(settings),
+      colorChoices: this.buildColorChoices(settings),
       imageOptions: this.buildImageOptions(snapshot),
       bingPreviewStatus: bingPreviewStatus,
       bingPreviewStatusText: bingPreviewStatusText,
@@ -64,14 +74,62 @@ export class WallpaperSettingsViewModel {
     };
   }
 
+  /** Auto black/white first, then the flat colors, then follow-theme last. */
+  private buildColorChoices(settings: WallpaperSettings): WallpaperColorChoiceViewState[] {
+    const choices: WallpaperColorChoiceViewState[] = [];
+    listHomeWallpaperChoices().forEach((choice: HomeWallpaperChoice) => {
+      choices.push({
+        id: choice.id,
+        label: choice.label,
+        kind: choice.kind,
+        color: choice.color,
+        isSelected: this.isChoiceSelected(settings, choice),
+        isEnabled: true
+      });
+    });
+    return choices;
+  }
+
+  private isChoiceSelected(settings: WallpaperSettings, choice: HomeWallpaperChoice): boolean {
+    if (choice.kind === 'auto') {
+      return settings.mode === 'auto';
+    }
+    if (choice.kind === 'theme') {
+      return settings.mode === 'theme';
+    }
+    return settings.mode === 'solid' &&
+      normalizeHomeWallpaperSolidColorId(settings.solidColorId) === choice.id;
+  }
+
   buildSettingsWithMode(settings: WallpaperSettings, mode: WallpaperMode): WallpaperSettings {
     return {
       mode: mode,
+      solidColorId: settings.solidColorId,
       bingWallpaperId: settings.bingWallpaperId,
       customWallpaperId: settings.customWallpaperId,
       bing: settings.bing,
       updatedAt: Date.now()
     };
+  }
+
+  buildSettingsWithSolidColor(settings: WallpaperSettings, solidColorId: string): WallpaperSettings {
+    return {
+      mode: 'solid',
+      solidColorId: normalizeHomeWallpaperSolidColorId(solidColorId),
+      bingWallpaperId: settings.bingWallpaperId,
+      customWallpaperId: settings.customWallpaperId,
+      bing: settings.bing,
+      updatedAt: Date.now()
+    };
+  }
+
+  /** Names the current wallpaper, so the settings row can show what is actually painted. */
+  private resolveModeTitle(settings: WallpaperSettings): string {
+    if (settings.mode === 'solid') {
+      const choice = findHomeWallpaperChoice(settings.solidColorId);
+      return choice === undefined ? this.getModeTitle('solid') : choice.label;
+    }
+    return this.getModeTitle(settings.mode);
   }
 
   private buildImageOptions(snapshot: WallpaperRepositorySnapshot): WallpaperImageOptionViewState[] {
@@ -130,25 +188,14 @@ export class WallpaperSettingsViewModel {
     return asset.displayPath.trim();
   }
 
-  private buildModeOption(
-    mode: WallpaperMode,
-    settings: WallpaperSettings,
-    enabled: boolean,
-    summary: string
-  ): WallpaperModeOptionViewState {
-    return {
-      id: mode,
-      title: this.getModeTitle(mode),
-      summary: summary,
-      isSelected: settings.mode === mode,
-      isEnabled: enabled
-    };
-  }
-
   private getModeTitle(mode: WallpaperMode): string {
     switch (mode) {
+      case 'auto':
+        return '自动黑白';
       case 'theme':
         return '跟随主题色';
+      case 'solid':
+        return '纯色背景';
       case 'bing':
         return '必应壁纸';
       case 'custom':

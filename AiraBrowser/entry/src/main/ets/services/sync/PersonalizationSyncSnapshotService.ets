@@ -673,7 +673,9 @@ export class PersonalizationSyncSnapshotService {
   }
 
   private sanitizeWallpaperMode(value: WallpaperMode | undefined): WallpaperMode | undefined {
-    return value === 'theme' || value === 'bing' || value === 'custom' ? value : undefined;
+    // The mode travels; which flat color was picked stays on the device that picked it.
+    return value === 'auto' || value === 'theme' || value === 'solid' ||
+      value === 'bing' || value === 'custom' ? value : undefined;
   }
 
   private sanitizeFiniteNumber(value: number | undefined): number | undefined {

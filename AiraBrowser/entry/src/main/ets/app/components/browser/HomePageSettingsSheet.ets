@@ -8,8 +8,20 @@ import {
 import { WallpaperMode } from '../../../common/models/WallpaperModels';
 import { WallpaperSettingsCoordinator } from '../../../core/wallpaper/WallpaperSettingsCoordinator';
 import { WallpaperSettingsViewState } from '../../../core/wallpaper/WallpaperSettingsViewModel';
-import { sharedWallpaperRepository } from '../../bootstrap/BrowserAppRuntime';
+import {
+  HOME_LOGO_BUILTIN_ID,
+  HomeLogoPickSource,
+  HomeLogoSelection,
+  resolveHomeLogoRowLabel
+} from '../../../common/models/HomeLogoModels';
+import { HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY } from '../../../common/constants/HomePagePresentationStorageKeys';
+import { HomeLogoSettingsCoordinator } from '../../../core/settings/HomeLogoSettingsCoordinator';
+import {
+  sharedHomePagePresentationSettingsRepository,
+  sharedWallpaperRepository
+} from '../../bootstrap/BrowserAppRuntime';
 import { HomeNativeSettingsContent } from '../settings/HomeNativeSettingsContent';
+import { HomeLogoSettingsContent } from '../settings/HomeLogoSettingsScreen';
 import { WallpaperSettingsContent } from '../wallpaper/WallpaperSettingsScreen';
 import {
   BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
@@ -24,7 +36,7 @@ import { BrowserPhoneSettingsSheetHeader } from './BrowserPhoneSettingsSheetHead
 import { CENTERED_DIALOG_SYSTEM_HUG_DEFINITE_SURFACE_MODIFIER } from '../common/CenteredDialogSurface';
 
 export type HomePageSettingsLayoutMode = 'phone' | 'large_screen';
-type HomePageSettingsSheetPage = 'main' | 'wallpaper';
+type HomePageSettingsSheetPage = 'main' | 'wallpaper' | 'logo';
 const HOME_PAGE_SHEET_POP_GUARD_MS: number = 450;
 const HOME_SETTINGS_HEADER_ALLOWANCE_VP: number = 72;
 const HOME_SETTINGS_PHONE_CHROME_VP: number = 96;
@@ -140,6 +152,8 @@ export struct HomePageSettingsDialog {
 export struct HomePageSettingsContent {
   private wallpaperCoordinator: WallpaperSettingsCoordinator =
     new WallpaperSettingsCoordinator(sharedWallpaperRepository);
+  private logoCoordinator: HomeLogoSettingsCoordinator =
+    new HomeLogoSettingsCoordinator(sharedHomePagePresentationSettingsRepository);
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
   @StorageProp(BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY) private storedFloatingSurfaceColor: string = '#FFFFFF';
   @Prop privateModeVisible: boolean = false;
@@ -147,18 +161,26 @@ export struct HomePageSettingsContent {
   onWallpaperChanged: () => void = () => {};
   onClose: () => void = () => {};
   @State private wallpaperState: WallpaperSettingsViewState = this.wallpaperCoordinator.getCurrentState();
+  @State private logoSelection: HomeLogoSelection = {
+    id: HOME_LOGO_BUILTIN_ID,
+    customAssets: []
+  };
+  @State private logoBusy: boolean = false;
   @State private sheetPage: HomePageSettingsSheetPage = 'main';
   @State private contentMaxHeightVp: number = HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP;
   @State private mainBodyHeightVp: number = 0;
   @State private wallpaperBodyHeightVp: number = 0;
+  @State private logoBodyHeightVp: number = 0;
   private mainSheetScroller: Scroller = new Scroller();
   private wallpaperSheetScroller: Scroller = new Scroller();
+  private logoSheetScroller: Scroller = new Scroller();
   private sheetNavigationPopGuardUntilMs: number = 0;
   private readonly consumeSheetBack: () => boolean = (): boolean => this.popSheetNavigation();
 
   aboutToAppear(): void {
     this.contentMaxHeightVp = resolveHomeSettingsScrollMaxHeightVp(this.layoutMode);
     this.refreshWallpaperState();
+    this.refreshLogoSelection();
     homePageSettingsSheetNavigation.bind(this.consumeSheetBack);
   }
 
@@ -179,9 +201,9 @@ export struct HomePageSettingsContent {
   private buildLargeScreenPage() {
     Column({ space: 0 }) {
       BrowserLargeScreenModalHeader({
-        title: this.sheetPage === 'wallpaper' ? '壁纸设置' : '主页设置',
+        title: this.resolveSheetTitle(),
         dialogMode: true,
-        showBackButton: this.sheetPage === 'wallpaper',
+        showBackButton: this.sheetPage !== 'main',
         onBack: (): void => {
           this.popSheetNavigation();
         },
@@ -190,6 +212,8 @@ export struct HomePageSettingsContent {
 
       if (this.sheetPage === 'wallpaper') {
         this.buildWallpaperScroll()
+      } else if (this.sheetPage === 'logo') {
+        this.buildLogoScroll()
       } else {
         this.buildMainScroll()
       }
@@ -206,6 +230,8 @@ export struct HomePageSettingsContent {
         this.buildPhoneHeader()
         if (this.sheetPage === 'wallpaper') {
           this.buildWallpaperScroll()
+        } else if (this.sheetPage === 'logo') {
+          this.buildLogoScroll()
         } else {
           this.buildMainScroll()
         }
@@ -247,7 +273,11 @@ export struct HomePageSettingsContent {
           isEnabled: true,
           iconAppearanceEnabled: !this.privateModeVisible,
           wallpaperLabel: this.wallpaperState.modeTitle,
+          logoLabel: resolveHomeLogoRowLabel(this.logoSelection),
           dialogPresentation: this.layoutMode === 'large_screen',
+          onOpenLogoSettings: () => {
+            this.openLogoSettings();
+          },
           onOpenWallpaperSettings: () => {
             this.openWallpaperSettings();
           }
@@ -274,6 +304,9 @@ export struct HomePageSettingsContent {
       Column({ space: 16 }) {
         WallpaperSettingsContent({
           state: this.wallpaperState,
+          onColorSelect: (choiceId: string) => {
+            this.applyWallpaperColor(choiceId);
+          },
           onModeSelect: (mode: WallpaperMode) => {
             this.applyWallpaperMode(mode);
           },
@@ -298,10 +331,43 @@ export struct HomePageSettingsContent {
   }
 
   @Builder
+  private buildLogoScroll() {
+    Scroll(this.logoSheetScroller) {
+      Column({ space: 16 }) {
+        HomeLogoSettingsContent({
+          selection: this.logoSelection,
+          busy: this.logoBusy,
+          onSelectLogo: (id: string) => {
+            this.selectLogo(id);
+          },
+          onAddCustom: (source: HomeLogoPickSource) => {
+            this.addCustomLogo(source);
+          },
+          onScaleCommit: (scaleRatio: number) => {
+            this.commitLogoScale(scaleRatio);
+          }
+        })
+      }
+      .width('100%')
+      .padding(this.resolveScrollPadding())
+      .alignItems(HorizontalAlign.Start)
+      .onAreaChange((_oldArea: Area, newArea: Area) => {
+        this.updatePageBodyHeight('logo', newArea.height);
+      })
+    }
+    .width('100%')
+    .height(this.resolveLogoScrollHeight())
+    .constraintSize({ maxHeight: this.contentMaxHeightVp })
+    .scrollBar(BarState.Auto)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
+    .clip(this.layoutMode === 'large_screen')
+  }
+
+  @Builder
   private buildPhoneHeader() {
     BrowserPhoneSettingsSheetHeader({
-      title: this.sheetPage === 'wallpaper' ? '壁纸设置' : '主页设置',
-      showBackButton: this.sheetPage === 'wallpaper',
+      title: this.resolveSheetTitle(),
+      showBackButton: this.sheetPage !== 'main',
       backAccessibilityText: '返回主页设置',
       onBack: (): void => {
         this.popSheetNavigation();
@@ -331,12 +397,20 @@ export struct HomePageSettingsContent {
     this.sheetPage = 'wallpaper';
   }
 
+  private openLogoSettings(): void {
+    this.refreshLogoSelection();
+    if (this.sheetPage === 'logo') {
+      return;
+    }
+    this.sheetPage = 'logo';
+  }
+
   private popSheetNavigation(): boolean {
     const now = Date.now();
     if (now < this.sheetNavigationPopGuardUntilMs) {
       return true;
     }
-    if (this.sheetPage !== 'wallpaper') {
+    if (this.sheetPage === 'main') {
       return false;
     }
     this.sheetNavigationPopGuardUntilMs = now + HOME_PAGE_SHEET_POP_GUARD_MS;
@@ -361,6 +435,12 @@ export struct HomePageSettingsContent {
       }
       return;
     }
+    if (page === 'logo') {
+      if (next !== this.logoBodyHeightVp) {
+        this.logoBodyHeightVp = next;
+      }
+      return;
+    }
     if (next !== this.mainBodyHeightVp) {
       this.mainBodyHeightVp = next;
     }
@@ -379,12 +459,92 @@ export struct HomePageSettingsContent {
     return Math.min(measured, this.contentMaxHeightVp);
   }
 
+  private resolveLogoScrollHeight(): number {
+    const measured = this.logoBodyHeightVp > 0 ? this.logoBodyHeightVp : this.contentMaxHeightVp;
+    return Math.min(measured, this.contentMaxHeightVp);
+  }
+
+  private resolveSheetTitle(): string {
+    if (this.sheetPage === 'wallpaper') {
+      return '壁纸设置';
+    }
+    if (this.sheetPage === 'logo') {
+      return 'Logo设置';
+    }
+    return '主页设置';
+  }
+
+  private refreshLogoSelection(): void {
+    this.logoSelection = this.logoCoordinator.getSelection();
+  }
+
+  private selectLogo(id: string): void {
+    if (this.logoBusy) {
+      return;
+    }
+    this.logoCoordinator.selectLogo(id)
+      .then((selection: HomeLogoSelection) => {
+        this.logoSelection = selection;
+      })
+      .catch((error: Error) => {
+        this.refreshLogoSelection();
+        this.showToast(error.message.length > 0 ? error.message : '选择 Logo 失败，请稍后重试。');
+      });
+  }
+
+  private commitLogoScale(scaleRatio: number): void {
+    this.logoCoordinator.setScaleRatio(scaleRatio)
+      .then((ratio: number) => {
+        AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY, ratio);
+      })
+      .catch((_error: Error) => {
+        // Snap back to what is actually stored so the slider cannot drift from the saved value.
+        AppStorage.setOrCreate(
+          HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
+          this.logoCoordinator.getScaleRatio()
+        );
+      });
+  }
+
+  private addCustomLogo(source: HomeLogoPickSource): void {
+    if (this.logoBusy) {
+      return;
+    }
+    this.logoBusy = true;
+    this.logoCoordinator.importCustomLogo(source)
+      .then((selection: HomeLogoSelection | undefined) => {
+        this.logoBusy = false;
+        if (selection !== undefined) {
+          this.logoSelection = selection;
+        }
+      })
+      .catch((error: Error) => {
+        this.logoBusy = false;
+        this.refreshLogoSelection();
+        this.showToast(error.message.length > 0 ? error.message : '上传 Logo 失败，请稍后重试。');
+      });
+  }
+
   private refreshWallpaperState(): void {
     this.wallpaperCoordinator.loadState((state: WallpaperSettingsViewState) => {
       this.wallpaperState = state;
     })
       .catch((_error: Error) => {
         this.wallpaperState = this.wallpaperCoordinator.getCurrentState();
+      });
+  }
+
+  private applyWallpaperColor(choiceId: string): void {
+    this.wallpaperCoordinator.selectColor(choiceId, (state: WallpaperSettingsViewState) => {
+      this.wallpaperState = state;
+    })
+      .then((state: WallpaperSettingsViewState) => {
+        this.wallpaperState = state;
+        this.onWallpaperChanged();
+      })
+      .catch((error: Error) => {
+        this.refreshWallpaperState();
+        this.showToast(error.message.length > 0 ? error.message : '选择壁纸失败，请稍后重试。');
       });
   }
 

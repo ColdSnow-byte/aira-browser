@@ -9,11 +9,11 @@ import {
   CENTERED_HOME_SEARCH_GEOMETRY_ID,
   CENTERED_HOME_SEARCH_HEIGHT,
   CENTERED_HOME_WORDMARK_HEIGHT,
-  CENTERED_HOME_WORDMARK_SEARCH_GAP,
-  CENTERED_HOME_WORDMARK_WIDTH
+  CENTERED_HOME_WORDMARK_SEARCH_GAP
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { AiraIcon } from '../common/AiraIcon';
 import { BrowserLargeScreenOmniboxSearchSurface } from './BrowserLargeScreenOmniboxSearchSurface';
+import { HomeLogoMark } from './HomeLogoMark';
 
 const CENTERED_HOME_SEARCH_RADIUS: number = 24;
 const CENTERED_HOME_SEARCH_BORDER_WIDTH: number = 2;
@@ -69,6 +69,7 @@ export struct CenteredHomeHeader {
   private appliedSearchDismissVersion: number = 0;
   @State private inlineQuery: string = '';
   @State private inlineFocused: boolean = false;
+  @State private logoMaxWidthVp: number = 320;
 
   aboutToDisappear(): void {
     this.clearInlineBlurTimer();
@@ -76,23 +77,24 @@ export struct CenteredHomeHeader {
 
   build() {
     Column({ space: CENTERED_HOME_WORDMARK_SEARCH_GAP }) {
-      Image($rawfile('home_centered_wordmark.svg'))
-        .width(CENTERED_HOME_WORDMARK_WIDTH)
-        .height(CENTERED_HOME_WORDMARK_HEIGHT)
-        .objectFit(ImageFit.Contain)
-        .fillColor(this.textColor)
-        .draggable(false)
-        .accessibilityText(this.wordmarkOpensSettings ? '主页设置' : 'Aira')
-        .onClick(() => {
-          if (this.wordmarkOpensSettings) {
-            this.onOpenSettings();
-          }
-        })
+      HomeLogoMark({
+        heightVp: CENTERED_HOME_WORDMARK_HEIGHT,
+        maxWidthVp: this.logoMaxWidthVp,
+        tintColor: this.textColor,
+        clickable: this.wordmarkOpensSettings,
+        label: this.wordmarkOpensSettings ? '主页设置' : 'Aira',
+        onLogoClick: () => {
+          this.onOpenSettings();
+        }
+      })
 
       this.buildSearchSlot()
     }
     .width('100%')
     .alignItems(HorizontalAlign.Center)
+    .onAreaChange((_oldArea: Area, newArea: Area) => {
+      this.updateLogoMaxWidth(newArea.width);
+    })
     .padding({ bottom: CENTERED_HOME_HEADER_BOTTOM_GAP })
     .clip(false)
   }
@@ -311,6 +313,17 @@ export struct CenteredHomeHeader {
     }
     clearTimeout(this.inlineBlurTimer);
     this.inlineBlurTimer = -1;
+  }
+
+  private updateLogoMaxWidth(width: Length): void {
+    const parsed = Number.parseFloat(`${width}`);
+    if (!Number.isFinite(parsed) || parsed <= 0) {
+      return;
+    }
+    const next = Math.ceil(parsed);
+    if (next !== this.logoMaxWidthVp) {
+      this.logoMaxWidthVp = next;
+    }
   }
 
   private applyInlineSearchDismiss(): void {

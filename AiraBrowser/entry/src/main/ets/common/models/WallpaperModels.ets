@@ -1,14 +1,87 @@
 import { BrowserHomepageBackdropAppearanceState } from './BackdropAppearanceModels';
 
-export type WallpaperMode = 'theme' | 'bing' | 'custom';
+export type WallpaperMode = 'auto' | 'theme' | 'solid' | 'bing' | 'custom';
 
 export type WallpaperAssetSource = 'bing' | 'custom' | 'builtin';
 
 export type WallpaperAssetMediaType = 'image';
 
-export type HomeWallpaperPresentationKind = 'default' | 'image';
+export type HomeWallpaperPresentationKind = 'default' | 'auto' | 'solid' | 'image';
 
 export type HomeWallpaperForegroundTone = 'lightText' | 'darkText';
+
+/**
+ * One background the user can pick, in swatch order.
+ *
+ * `auto` is the black-and-white swatch: it paints white in light mode and black in dark mode,
+ * so it needs no fixed color of its own. `solid` carries one color. `theme` follows the palette.
+ */
+export type HomeWallpaperChoiceKind = 'auto' | 'solid' | 'theme';
+
+export interface HomeWallpaperChoice {
+  id: string;
+  label: string;
+  kind: HomeWallpaperChoiceKind;
+  /** Painted color for a solid choice; empty for auto and theme. */
+  color: string;
+  /** Text tone over a solid choice. Auto and theme take the theme's own tone instead. */
+  foregroundTone: HomeWallpaperForegroundTone;
+}
+
+export const HOME_WALLPAPER_AUTO_CHOICE_ID: string = 'auto';
+export const HOME_WALLPAPER_THEME_CHOICE_ID: string = 'theme';
+/** The auto swatch stands for "whatever the current light or dark mode needs". */
+export const HOME_WALLPAPER_AUTO_LIGHT_COLOR: string = '#FFFFFF';
+export const HOME_WALLPAPER_AUTO_DARK_COLOR: string = '#000000';
+
+export const HOME_WALLPAPER_CHOICES: HomeWallpaperChoice[] = [
+  { id: HOME_WALLPAPER_AUTO_CHOICE_ID, label: '自动黑白', kind: 'auto', color: '', foregroundTone: 'darkText' },
+  { id: 'mist', label: '雾蓝', kind: 'solid', color: '#E3EBF5', foregroundTone: 'darkText' },
+  { id: 'sage', label: '浅绿', kind: 'solid', color: '#E6EFE7', foregroundTone: 'darkText' },
+  { id: 'blush', label: '浅粉', kind: 'solid', color: '#F5E7EC', foregroundTone: 'darkText' }
+];
+
+/** The follow-the-theme swatch always closes the row. */
+export const HOME_WALLPAPER_THEME_CHOICE: HomeWallpaperChoice = {
+  id: HOME_WALLPAPER_THEME_CHOICE_ID,
+  label: '跟随主题色',
+  kind: 'theme',
+  color: '',
+  foregroundTone: 'darkText'
+};
+
+export function listHomeWallpaperChoices(): HomeWallpaperChoice[] {
+  return HOME_WALLPAPER_CHOICES.concat([HOME_WALLPAPER_THEME_CHOICE]);
+}
+
+export function findHomeWallpaperChoice(id: string | undefined): HomeWallpaperChoice | undefined {
+  const candidate = (id ?? '').trim();
+  const choices = listHomeWallpaperChoices();
+  for (let index = 0; index < choices.length; index += 1) {
+    if (choices[index].id === candidate) {
+      return choices[index];
+    }
+  }
+  return undefined;
+}
+
+/** Only a flat color can be a `solidColorId`; auto and theme are modes of their own. */
+export function normalizeHomeWallpaperSolidColorId(value: string | undefined): string {
+  const candidate = findHomeWallpaperChoice(value);
+  if (candidate !== undefined && candidate.kind === 'solid') {
+    return candidate.id;
+  }
+  for (let index = 0; index < HOME_WALLPAPER_CHOICES.length; index += 1) {
+    if (HOME_WALLPAPER_CHOICES[index].kind === 'solid') {
+      return HOME_WALLPAPER_CHOICES[index].id;
+    }
+  }
+  return '';
+}
+
+export function resolveHomeWallpaperAutoColor(darkMode: boolean): string {
+  return darkMode ? HOME_WALLPAPER_AUTO_DARK_COLOR : HOME_WALLPAPER_AUTO_LIGHT_COLOR;
+}
 
 export const HOME_WALLPAPER_FOREGROUND_ALGORITHM_VERSION: number = 4;
 
@@ -63,6 +136,7 @@ export interface WallpaperBingState {
 
 export interface WallpaperSettings {
   mode: WallpaperMode;
+  solidColorId: string;
   bingWallpaperId: string;
   customWallpaperId: string;
   bing: WallpaperBingState;
@@ -74,6 +148,7 @@ export interface HomeWallpaperPresentationState {
   mode: WallpaperMode;
   foregroundTone: HomeWallpaperForegroundTone;
   imagePath: string;
+  solidColor: string;
   maskOpacity: number;
   assetId: string;
   updatedAt: number;
@@ -94,7 +169,9 @@ export const DEFAULT_WALLPAPER_BING_STATE: WallpaperBingState = {
 };
 
 export const DEFAULT_WALLPAPER_SETTINGS: WallpaperSettings = {
-  mode: 'theme',
+  // New installs start on the neutral auto black/white rather than a palette-tinted background.
+  mode: 'auto',
+  solidColorId: normalizeHomeWallpaperSolidColorId('mist'),
   bingWallpaperId: '',
   customWallpaperId: '',
   bing: DEFAULT_WALLPAPER_BING_STATE,
@@ -106,6 +183,7 @@ export const DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE: HomeWallpaperPresentatio
   mode: DEFAULT_WALLPAPER_SETTINGS.mode,
   foregroundTone: 'darkText',
   imagePath: '',
+  solidColor: '',
   maskOpacity: 0,
   assetId: '',
   updatedAt: 0
@@ -119,6 +197,7 @@ export function cloneHomeWallpaperPresentationState(
     mode: state.mode,
     foregroundTone: state.foregroundTone,
     imagePath: state.imagePath,
+    solidColor: state.solidColor,
     maskOpacity: state.maskOpacity,
     assetId: state.assetId,
     updatedAt: state.updatedAt
@@ -133,7 +212,25 @@ export function isSameHomeWallpaperPresentationState(
     left.mode === right.mode &&
     left.foregroundTone === right.foregroundTone &&
     left.imagePath === right.imagePath &&
+    left.solidColor === right.solidColor &&
     left.maskOpacity === right.maskOpacity &&
     left.assetId === right.assetId &&
     left.updatedAt === right.updatedAt;
+}
+
+/**
+ * A flat color, the auto black/white and a photo all paint the whole home edge to edge, so the
+ * chrome clears over any of them. The theme-color home paints a color that already matches the
+ * chrome instead.
+ */
+export function paintsHomeBackdrop(kind: HomeWallpaperPresentationKind): boolean {
+  return kind !== 'default';
+}
+
+/**
+ * A photo or a chosen flat color says what its own text tone is. Auto takes the theme's tone,
+ * because it is white in light mode and black in dark mode, exactly like the theme surface.
+ */
+export function usesOwnHomeForegroundTone(kind: HomeWallpaperPresentationKind): boolean {
+  return kind === 'image' || kind === 'solid';
 }

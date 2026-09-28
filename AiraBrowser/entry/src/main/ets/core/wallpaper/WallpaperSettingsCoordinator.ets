@@ -1,4 +1,5 @@
 import {
+  findHomeWallpaperChoice,
   HomeWallpaperVisibleCropInput,
   WallpaperMode,
   WallpaperRepositorySnapshot
@@ -78,6 +79,49 @@ export class WallpaperSettingsCoordinator {
     }
     onStateChange(state);
     return state;
+  }
+
+  /**
+   * Every swatch in the row arrives here, so the coordinator routes each one to its own mode:
+   * auto black/white and follow-theme are modes with no color, a swatch with a color is solid.
+   */
+  async selectColor(
+    choiceId: string,
+    onStateChange: WallpaperSettingsStateListener
+  ): Promise<WallpaperSettingsViewState> {
+    const choice = findHomeWallpaperChoice(choiceId);
+    if (choice === undefined) {
+      return this.getCurrentState();
+    }
+    if (choice.kind === 'theme') {
+      return this.selectMode('theme', onStateChange);
+    }
+    if (choice.kind === 'auto') {
+      return this.selectMode('auto', onStateChange);
+    }
+    const revision = ++this.modeSelectionRevision;
+    onStateChange(this.buildPendingSolidColorState(choiceId));
+    const snapshot = await this.ensureSnapshot();
+    if (revision !== this.modeSelectionRevision) {
+      return this.getCurrentState();
+    }
+    await this.repository.saveSettings(
+      this.viewModel.buildSettingsWithSolidColor(snapshot.settings, choiceId)
+    );
+    const state = await this.getState();
+    if (revision !== this.modeSelectionRevision) {
+      return this.getCurrentState();
+    }
+    onStateChange(state);
+    return state;
+  }
+
+  private buildPendingSolidColorState(colorId: string): WallpaperSettingsViewState {
+    const snapshot = this.repository.getSnapshot();
+    return this.viewModel.buildState({
+      settings: this.viewModel.buildSettingsWithSolidColor(snapshot.settings, colorId),
+      assets: snapshot.assets
+    }, this.bingPreviewStatus);
   }
 
   async retryBingPreview(onStateChange: WallpaperSettingsStateListener): Promise<WallpaperSettingsViewState> {

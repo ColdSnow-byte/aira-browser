@@ -3,6 +3,7 @@ import { normalizeBrowserHomePageStyle } from '../main/ets/common/models/HomePag
 import {
   applyCenteredHomeShortcutLayout,
   centeredHomeSearchCenterOffset,
+  centeredHomeHeaderBlockHeight,
   CENTERED_HOME_ICON_CORNER_RADIUS_RATIO,
   CENTERED_HOME_LARGE_SCREEN_SEARCH_MAX_WIDTH,
   CENTERED_HOME_SEARCH_CENTER_LIFT_VP,
@@ -90,6 +91,40 @@ export default function centeredHomeShortcutLayoutPolicyTest(): void {
       });
       expect(frame.headerTop >= 40).assertTrue();
       expect(frame.iconRegionHeight >= 0).assertTrue();
+    });
+
+    // The logo size slider grows the header block, so the frame has to reserve the taller mark
+    // or the pinned search field would drift off the vertical center.
+    it('reserves_the_user_logo_height_in_the_header_block', 0, () => {
+      const shipped = centeredHomeHeaderBlockHeight();
+      const taller = centeredHomeHeaderBlockHeight(106);
+      expect(taller).assertEqual(shipped + 53);
+      expect(centeredHomeSearchCenterOffset(106)).assertEqual(centeredHomeSearchCenterOffset() + 53);
+
+      const input = {
+        viewportHeight: 800,
+        topSafeInset: 40,
+        bottomChromeReserve: 80
+      };
+      const shippedFrame = resolveCenteredHomeFrame(input);
+      const tallerFrame = resolveCenteredHomeFrame({
+        viewportHeight: 800,
+        topSafeInset: 40,
+        bottomChromeReserve: 80,
+        logoHeightVp: 106
+      });
+      // A taller mark starts the header higher so the search field stays where it was.
+      expect(tallerFrame.headerTop < shippedFrame.headerTop).assertTrue();
+      expect(shippedFrame.headerTop - tallerFrame.headerTop).assertEqual(53);
+      expect(shippedFrame.headerTop + centeredHomeSearchCenterOffset())
+        .assertEqual(tallerFrame.headerTop + centeredHomeSearchCenterOffset(106));
+      // An invalid height falls back to the shipped one instead of collapsing the header.
+      expect(resolveCenteredHomeFrame({
+        viewportHeight: 800,
+        topSafeInset: 40,
+        bottomChromeReserve: 80,
+        logoHeightVp: 0
+      }).headerTop).assertEqual(shippedFrame.headerTop);
     });
   });
 }

@@ -215,6 +215,8 @@ export interface SearchSuggestionPreferences {
   bookmarksEnabled: boolean;
   shortcutsEnabled: boolean;
   historyEnabled: boolean;
+  browsingHistoryEnabled: boolean;
+  navigationSuggestionsChosen: boolean;
   remoteEnabled: boolean;
 }
 

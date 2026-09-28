@@ -1,8 +1,10 @@
 import {
   DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
+  findHomeWallpaperChoice,
   HomeWallpaperForegroundTone,
   HomeWallpaperPresentationKind,
   HomeWallpaperPresentationState,
+  normalizeHomeWallpaperSolidColorId,
   WallpaperAsset,
   WallpaperMode,
   WallpaperRepositorySnapshot,
@@ -17,6 +19,7 @@ interface WallpaperPresentationContentState {
   mode: WallpaperMode;
   foregroundTone: HomeWallpaperForegroundTone;
   imagePath: string;
+  solidColor: string;
   assetId: string;
   updatedAt: number;
 }
@@ -28,6 +31,10 @@ export class WallpaperPresentationService {
   ): HomeWallpaperPresentationState {
     const settings = snapshot.settings;
     switch (settings.mode) {
+      case 'auto':
+        return this.buildAutoPresentationState(settings);
+      case 'solid':
+        return this.buildSolidPresentationState(settings);
       case 'bing':
         return this.buildBingPresentationState(settings, snapshot.assets);
       case 'custom':
@@ -40,6 +47,37 @@ export class WallpaperPresentationService {
 
   buildDefaultPresentationState(): HomeWallpaperPresentationState {
     return this.clonePresentationState(DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE);
+  }
+
+  /**
+   * Auto black/white carries no color of its own: the layer paints white or black from the
+   * current light or dark mode, and the tone stays the theme's, which already matches.
+   */
+  private buildAutoPresentationState(settings: WallpaperSettings): HomeWallpaperPresentationState {
+    return this.withSharedSettings(settings, {
+      kind: 'auto',
+      mode: 'auto',
+      foregroundTone: 'darkText',
+      imagePath: '',
+      solidColor: '',
+      assetId: '',
+      updatedAt: settings.updatedAt
+    });
+  }
+
+  /** A flat color paints the home the way a photo does, minus the readability mask. */
+  private buildSolidPresentationState(settings: WallpaperSettings): HomeWallpaperPresentationState {
+    const solidColorId = normalizeHomeWallpaperSolidColorId(settings.solidColorId);
+    const choice = findHomeWallpaperChoice(solidColorId);
+    return this.withSharedSettings(settings, {
+      kind: 'solid',
+      mode: 'solid',
+      foregroundTone: choice === undefined ? 'darkText' : choice.foregroundTone,
+      imagePath: '',
+      solidColor: choice === undefined ? '#FFFFFF' : choice.color,
+      assetId: solidColorId,
+      updatedAt: settings.updatedAt
+    });
   }
 
   private buildBingPresentationState(
@@ -59,6 +97,7 @@ export class WallpaperPresentationService {
       mode: 'bing',
       foregroundTone: asset.foregroundTone,
       imagePath: asset.displayPath,
+      solidColor: '',
       assetId: asset.id,
       updatedAt: this.resolveContentUpdatedAt(asset.updatedAt, settings.updatedAt)
     });
@@ -78,6 +117,7 @@ export class WallpaperPresentationService {
       mode: 'custom',
       foregroundTone: asset.foregroundTone,
       imagePath: asset.displayPath,
+      solidColor: '',
       assetId: asset.id,
       updatedAt: this.resolveContentUpdatedAt(asset.updatedAt, settings.updatedAt)
     });
@@ -114,6 +154,7 @@ export class WallpaperPresentationService {
       mode: state.mode,
       foregroundTone: state.foregroundTone,
       imagePath: state.imagePath,
+      solidColor: state.solidColor,
       maskOpacity: state.kind === 'image' ? HOME_IMAGE_WALLPAPER_MASK_OPACITY : 0,
       assetId: state.assetId,
       updatedAt: this.resolveContentUpdatedAt(state.updatedAt, settings.updatedAt)

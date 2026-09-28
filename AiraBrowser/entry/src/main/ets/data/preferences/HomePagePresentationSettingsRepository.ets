@@ -1,6 +1,11 @@
 import { preferences } from '@kit.ArkData';
 import { AppRuntimeContext } from '../../app/runtime/AppRuntimeContext';
 import {
+  HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_HEIGHT_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_URI_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_WIDTH_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_ID_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
   HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
@@ -8,10 +13,22 @@ import {
   HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY
 } from '../../common/constants/HomePagePresentationStorageKeys';
 import {
+  findHomeLogoCustomAsset,
+  HOME_LOGO_BUILTIN_ID,
+  HomeLogoCustomAsset,
+  HomeLogoSelection,
+  normalizeHomeLogoCustomAssets,
+  normalizeHomeLogoSelection
+} from '../../common/models/HomeLogoModels';
+import {
   BrowserHomePageStyle,
   HomePagePresentationSettings,
   normalizeBrowserHomePageStyle
 } from '../../common/models/HomePagePresentationSettingsModels';
+import {
+  HOME_LOGO_SCALE_DEFAULT_RATIO,
+  normalizeHomeLogoScaleRatio
+} from '../../core/settings/HomeLogoSettingsPolicy';
 import {
   PersonalizationSettingsChangeOrigin,
   PersonalizationSettingsLocalChangeHandler
@@ -25,7 +42,10 @@ export const DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS: HomePagePresentationSettin
   showShortcutNames: true,
   showRecentlyClosedTitle: true,
   showSettingsButton: true,
-  homePageStyle: 'classic'
+  homePageStyle: 'classic',
+  homeLogoId: HOME_LOGO_BUILTIN_ID,
+  homeLogoCustomAssets: [],
+  homeLogoScaleRatio: HOME_LOGO_SCALE_DEFAULT_RATIO
 };
 
 export class HomePagePresentationSettingsRepository {
@@ -66,6 +86,26 @@ export class HomePagePresentationSettingsRepository {
     return this.persistSettings(next, 'local');
   }
 
+  async setHomeLogoSelection(
+    selection: HomeLogoSelection,
+    origin: PersonalizationSettingsChangeOrigin = 'local'
+  ): Promise<HomePagePresentationSettings> {
+    const next = this.getSettings();
+    const normalized = normalizeHomeLogoSelection(selection);
+    next.homeLogoId = normalized.id;
+    next.homeLogoCustomAssets = normalized.customAssets;
+    return this.persistSettings(next, origin);
+  }
+
+  async setHomeLogoScaleRatio(
+    scaleRatio: number,
+    origin: PersonalizationSettingsChangeOrigin = 'local'
+  ): Promise<HomePagePresentationSettings> {
+    const next = this.getSettings();
+    next.homeLogoScaleRatio = normalizeHomeLogoScaleRatio(scaleRatio);
+    return this.persistSettings(next, origin);
+  }
+
   private async persistSettings(
     settings: HomePagePresentationSettings,
     origin: PersonalizationSettingsChangeOrigin
@@ -90,7 +130,22 @@ export class HomePagePresentationSettingsRepository {
       left.showShortcutNames === right.showShortcutNames &&
       left.showRecentlyClosedTitle === right.showRecentlyClosedTitle &&
       left.showSettingsButton === right.showSettingsButton &&
-      left.homePageStyle === right.homePageStyle;
+      left.homePageStyle === right.homePageStyle &&
+      left.homeLogoId === right.homeLogoId &&
+      left.homeLogoScaleRatio === right.homeLogoScaleRatio &&
+      this.isSameLogoAssets(left.homeLogoCustomAssets, right.homeLogoCustomAssets);
+  }
+
+  private isSameLogoAssets(left: HomeLogoCustomAsset[], right: HomeLogoCustomAsset[]): boolean {
+    if (left.length !== right.length) {
+      return false;
+    }
+    for (let index = 0; index < left.length; index += 1) {
+      if (left[index].id !== right[index].id || left[index].uri !== right[index].uri) {
+        return false;
+      }
+    }
+    return true;
   }
 
   private publishSettings(): void {
@@ -114,6 +169,28 @@ export class HomePagePresentationSettingsRepository {
       HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
       this.settings.homePageStyle
     );
+    AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_HOME_LOGO_ID_KEY, this.settings.homeLogoId);
+    // The mark resolves through these three keys, so they publish the selected custom asset.
+    const selectedAsset = findHomeLogoCustomAsset(
+      this.settings.homeLogoCustomAssets,
+      this.settings.homeLogoId
+    );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_URI_KEY,
+      selectedAsset === undefined ? '' : selectedAsset.uri
+    );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_WIDTH_KEY,
+      selectedAsset === undefined ? 0 : selectedAsset.width
+    );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_HEIGHT_KEY,
+      selectedAsset === undefined ? 0 : selectedAsset.height
+    );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
+      this.settings.homeLogoScaleRatio
+    );
   }
 
   private parseSettings(value: string): HomePagePresentationSettings | undefined {
@@ -130,6 +207,7 @@ export class HomePagePresentationSettingsRepository {
   private normalizeSettings(
     settings: HomePagePresentationSettings | undefined
   ): HomePagePresentationSettings {
+    const logo = this.normalizeLogoSelection(settings);
     return {
       showFavoritesTitle: typeof settings?.showFavoritesTitle === 'boolean'
         ? settings.showFavoritesTitle
@@ -143,8 +221,20 @@ export class HomePagePresentationSettingsRepository {
       showSettingsButton: typeof settings?.showSettingsButton === 'boolean'
         ? settings.showSettingsButton
         : DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS.showSettingsButton,
-      homePageStyle: normalizeBrowserHomePageStyle(settings?.homePageStyle)
+      homePageStyle: normalizeBrowserHomePageStyle(settings?.homePageStyle),
+      homeLogoId: logo.id,
+      homeLogoCustomAssets: logo.customAssets,
+      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings?.homeLogoScaleRatio)
     };
+  }
+
+  private normalizeLogoSelection(
+    settings: HomePagePresentationSettings | undefined
+  ): HomeLogoSelection {
+    return normalizeHomeLogoSelection({
+      id: settings?.homeLogoId ?? HOME_LOGO_BUILTIN_ID,
+      customAssets: normalizeHomeLogoCustomAssets(settings?.homeLogoCustomAssets)
+    });
   }
 
   private copySettings(settings: HomePagePresentationSettings): HomePagePresentationSettings {
@@ -153,8 +243,26 @@ export class HomePagePresentationSettingsRepository {
       showShortcutNames: settings.showShortcutNames,
       showRecentlyClosedTitle: settings.showRecentlyClosedTitle,
       showSettingsButton: settings.showSettingsButton,
-      homePageStyle: normalizeBrowserHomePageStyle(settings.homePageStyle)
+      homePageStyle: normalizeBrowserHomePageStyle(settings.homePageStyle),
+      homeLogoId: settings.homeLogoId,
+      homeLogoCustomAssets: this.copyLogoAssets(settings.homeLogoCustomAssets),
+      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings.homeLogoScaleRatio)
     };
+  }
+
+  private copyLogoAssets(assets: HomeLogoCustomAsset[]): HomeLogoCustomAsset[] {
+    const copy: HomeLogoCustomAsset[] = [];
+    for (let index = 0; index < assets.length; index += 1) {
+      const asset = assets[index];
+      copy.push({
+        id: asset.id,
+        uri: asset.uri,
+        fileName: asset.fileName,
+        width: asset.width,
+        height: asset.height
+      });
+    }
+    return copy;
   }
 
   private async getStore(): Promise<preferences.Preferences> {

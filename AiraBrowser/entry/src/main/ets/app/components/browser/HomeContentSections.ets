@@ -13,6 +13,7 @@ import { BrowserTabHomeContentAction } from '../../../core/browser/BrowserTabHom
 import { SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import {
   CenteredHomeFrame,
+  CENTERED_HOME_WORDMARK_HEIGHT,
   resolveCenteredHomeFrame
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { CenteredHomeHeader } from './CenteredHomeHeader';
@@ -22,8 +23,13 @@ import { HomeSettingsActionRow } from './HomeSettingsActionRow';
 import {
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
-  HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY
+  HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY
 } from '../../../common/constants/HomePagePresentationStorageKeys';
+import {
+  HOME_LOGO_SCALE_DEFAULT_RATIO,
+  resolveHomeLogoHeightVp
+} from '../../../core/settings/HomeLogoSettingsPolicy';
 
 const HOME_SECTION_CONTENT_INSET: number = 10;
 
@@ -37,6 +43,8 @@ export struct HomeContentSections {
   private storedShowRecentlyClosedTitle: boolean = true;
   @StorageProp(HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY)
   private storedShowSettingsButton: boolean = true;
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
+  private storedLogoScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
   @Prop showShortcuts: boolean = true;
   @Prop centeredStyle: boolean = false;
   /** Centered shows the shortcut grid. Minimal keeps the same header and leaves this off. */
@@ -337,7 +345,9 @@ export struct HomeContentSections {
     return resolveCenteredHomeFrame({
       viewportHeight: this.resolveCenteredSurfaceHeight(),
       topSafeInset: this.centeredTopSafeInset,
-      bottomChromeReserve: Math.max(0, this.centeredBottomReserve)
+      bottomChromeReserve: Math.max(0, this.centeredBottomReserve),
+      // A larger logo grows the header block, and the frame keeps the search field centered.
+      logoHeightVp: resolveHomeLogoHeightVp(CENTERED_HOME_WORDMARK_HEIGHT, this.storedLogoScaleRatio)
     });
   }
 

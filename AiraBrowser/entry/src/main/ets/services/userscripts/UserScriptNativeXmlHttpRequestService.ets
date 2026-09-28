@@ -59,7 +59,7 @@ export class UserScriptNativeXmlHttpRequestService {
   private base64Helper: util.Base64Helper = new util.Base64Helper();
   private textDecoder: util.TextDecoder = util.TextDecoder.create('utf-8');
 
-  request(payloadJson: string, controller: webview.WebviewController): void {
+  request(payloadJson: string, controller: webview.WebviewController, incognito: boolean = false): void {
     const payload = this.parsePayload(payloadJson);
     if (payload.id.length === 0) {
       return;
@@ -70,7 +70,7 @@ export class UserScriptNativeXmlHttpRequestService {
     }
     const request = http.createHttp();
     this.activeRequests[payload.id] = request;
-    const headers = this.buildHeaders(payload);
+    const headers = this.buildHeaders(payload, incognito);
     const extraData = this.resolveRequestBody(payload);
     request.request(payload.url, {
       method: this.toRequestMethod(payload.method),
@@ -88,7 +88,7 @@ export class UserScriptNativeXmlHttpRequestService {
       }
       const responseText = this.resolveResponseText(response.result);
       const responseBase64 = this.resolveResponseBase64(response.result);
-      this.persistResponseCookies(payload.url, response);
+      this.persistResponseCookies(payload.url, response, incognito);
       const responseHeaders = this.serializeResponseHeaders(response.header, response.cookies);
       this.dispatch(controller, {
         id: payload.id,
@@ -225,7 +225,10 @@ export class UserScriptNativeXmlHttpRequestService {
     return normalized;
   }
 
-  private buildHeaders(payload: UserScriptNativeXmlHttpRequestPayload): Record<string, string> {
+  private buildHeaders(
+    payload: UserScriptNativeXmlHttpRequestPayload,
+    incognito: boolean = false
+  ): Record<string, string> {
     const normalized = this.emptyHeaders();
     const headers = payload.headers;
     if (headers === undefined) {
@@ -237,14 +240,14 @@ export class UserScriptNativeXmlHttpRequestService {
         normalized[name.trim()] = value.trim();
       }
     });
-    const cookie = this.resolveCookieHeader(payload);
+    const cookie = this.resolveCookieHeader(payload, incognito);
     if (cookie.length > 0 && !this.hasHeader(normalized, 'Cookie')) {
       normalized['Cookie'] = cookie;
     }
     return normalized;
   }
 
-  private resolveCookieHeader(payload: UserScriptNativeXmlHttpRequestPayload): string {
+  private resolveCookieHeader(payload: UserScriptNativeXmlHttpRequestPayload, incognito: boolean): string {
     if (payload.anonymous || payload.credentials === 'omit') {
       return '';
     }
@@ -253,7 +256,9 @@ export class UserScriptNativeXmlHttpRequestService {
       return '';
     }
     try {
-      return webview.WebCookieManager.fetchCookieSync(normalizedUrl, false).trim();
+      // Private tabs own an incognito cookie store; reading the regular one there would
+      // send another session's cookies from a private page.
+      return webview.WebCookieManager.fetchCookieSync(normalizedUrl, incognito).trim();
     } catch (_error) {
       return '';
     }
@@ -395,7 +400,7 @@ export class UserScriptNativeXmlHttpRequestService {
     });
   }
 
-  private persistResponseCookies(url: string, response: http.HttpResponse): void {
+  private persistResponseCookies(url: string, response: http.HttpResponse, incognito: boolean): void {
     const cookies = String(response.cookies ?? '').trim();
     if (cookies.length <= 0) {
       return;
@@ -406,7 +411,7 @@ export class UserScriptNativeXmlHttpRequestService {
         return;
       }
       try {
-        webview.WebCookieManager.configCookieSync(url, cookie, false, true);
+        webview.WebCookieManager.configCookieSync(url, cookie, incognito, true);
       } catch (_error) {
       }
     });

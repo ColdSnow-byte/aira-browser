@@ -2,10 +2,18 @@ import {
   BrowserBottomToolbarScrollBehavior,
   BrowserToolbarChromeStyle
 } from '../../common/models/BrowserModels';
-import { HomeWallpaperPresentationKind } from '../../common/models/WallpaperModels';
+import { HomeWallpaperPresentationKind, paintsHomeBackdrop } from '../../common/models/WallpaperModels';
 import { BrowserHomeForegroundBackdropSource } from './BrowserHomeSurfaceProfileViewModel';
 
-/** Height of the address pill row under the status bar, in vp. */
+/** Resting height of the address or search pill itself, in vp. */
+export const SPLIT_TOOLBAR_PILL_ROW_VP: number = 46;
+/** Gap the top row keeps under its pill, inside its own opaque background, in vp. */
+export const SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP: number = 8;
+/**
+ * Space the web page keeps under the split address row, in vp. It is the painted row
+ * (`SPLIT_TOOLBAR_PILL_ROW_VP` + `SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP`) plus the breathing
+ * room below it, so a page that honours this reserve can never slide under the row.
+ */
 export const SPLIT_TOOLBAR_ADDRESS_BLOCK_VP: number = 62;
 /** Side inset of the split address and search pills, in vp. */
 export const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP: number = 16;
@@ -13,6 +21,92 @@ export const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP: number = 16;
 export const SPLIT_TOOLBAR_BOTTOM_BAR_VP: number = 56;
 /** Matches the floating toolbar's scroll transition, so both bars leave and return together. */
 export const SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS: number = 180;
+
+/** Painted height of the split address row, including its own top safe padding, in vp. */
+export function resolveSplitToolbarTopRowHeightVp(topSafeInsetVp: number): number {
+  return Math.max(0, Math.ceil(toFiniteVp(topSafeInsetVp))) +
+    SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP;
+}
+
+/** Painted height of the split bottom row, including the system gesture inset, in vp. */
+export function resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp: number): number {
+  return SPLIT_TOOLBAR_BOTTOM_BAR_VP + Math.max(0, Math.ceil(toFiniteVp(bottomSafeInsetVp)));
+}
+
+/**
+ * Top reserve the web page keeps for the split address row. The row paints with its own safe
+ * padding (`topSafeInsetVp`), so the reserve is built from that same inset and never from the
+ * smaller strip a hidden status bar reports. It is always at least the painted row height.
+ */
+export function resolveSplitToolbarTopRowReserveVp(topSafeInsetVp: number, contentGapVp: number): number {
+  const safeTopVp = Math.max(0, Math.ceil(toFiniteVp(topSafeInsetVp)));
+  const contentGap = Math.max(0, Math.ceil(toFiniteVp(contentGapVp)));
+  return safeTopVp + contentGap + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
+}
+
+/** Bottom reserve the web page keeps for the split bottom row, in vp. */
+export function resolveSplitToolbarBottomReserveVp(bottomSafeInsetVp: number): number {
+  return resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp);
+}
+
+export interface SplitToolbarWebReserveInput {
+  /** System strip above the chrome: the status bar or cutout area, without any chrome content gap. */
+  statusBarStripVp: number;
+  /** Gap the floating chrome keeps between that strip and the page. */
+  contentGapVp: number;
+  /** A hidden status bar stops reserving its strip; the rows still reserve their own height. */
+  statusBarVisible: boolean;
+  /**
+   * Height of the chrome rows stacked between that strip and the page (the quick search row).
+   * They are ordinary top chrome, so their height adds to the reserve instead of replacing it.
+   */
+  stackedChromeHeightVp: number;
+  /** The address row's own top safe padding; it is what the row actually paints with. */
+  addressRowSafeInsetVp: number;
+  bottomRowSafeInsetVp: number;
+  /** The address row is on screen for this frame (not home, not scrolled or immersed away). */
+  addressRowPainted: boolean;
+  /** The bottom row is on screen for this frame (not home, not scrolled away). */
+  bottomRowPainted: boolean;
+}
+
+export interface SplitToolbarWebReserve {
+  topVp: number;
+  bottomVp: number;
+}
+
+/**
+ * The two hard edges of a phone split frame. The web page lives between them: it never slides
+ * under a painted row or under the chrome stacked above it, and it keeps the full height while
+ * the rows are away.
+ *
+ * The two top edges are not the same measurement. A floating pill only floats over the page, so
+ * the page clears the status bar strip and the content gap. The split address row is an opaque
+ * row that already covers that strip with its own safe padding, so once it is on screen the page
+ * and every stacked row clear the painted row itself, `SPLIT_TOOLBAR_ADDRESS_BLOCK_VP` tall.
+ * Adding the strip's content gap on top of a painted row is what leaves a band of empty chrome
+ * under the address row.
+ */
+export function resolveSplitToolbarWebReserve(input: SplitToolbarWebReserveInput): SplitToolbarWebReserve {
+  const stackedHeightVp = Math.max(0, Math.ceil(toFiniteVp(input.stackedChromeHeightVp)));
+  const statusBarStripVp = input.statusBarVisible ?
+    Math.max(0, Math.ceil(toFiniteVp(input.statusBarStripVp))) : 0;
+  // The floating content gap belongs to that strip: with nothing above the page, nothing is left
+  // to breathe under and the stacked rows sit at the very top.
+  const contentGapVp = input.statusBarVisible ? Math.max(0, Math.ceil(toFiniteVp(input.contentGapVp))) : 0;
+  const addressRowClearanceVp = input.addressRowPainted ?
+    Math.max(statusBarStripVp, Math.max(0, Math.ceil(toFiniteVp(input.addressRowSafeInsetVp)))) +
+    SPLIT_TOOLBAR_ADDRESS_BLOCK_VP :
+    statusBarStripVp + contentGapVp;
+  return {
+    topVp: stackedHeightVp + addressRowClearanceVp,
+    bottomVp: input.bottomRowPainted ? resolveSplitToolbarBottomReserveVp(input.bottomRowSafeInsetVp) : 0
+  };
+}
+
+function toFiniteVp(value: number): number {
+  return Number.isFinite(value) ? value : 0;
+}
 
 export interface SplitToolbarChromeActivityInput {
   style: BrowserToolbarChromeStyle;
@@ -266,7 +360,7 @@ export function resolveSplitToolbarCanGoForward(
  * Homepage bars follow the painted home backdrop. A theme-color home blends the bars into that
  * color. A classic-frame wallpaper or a custom web home keeps the neutral light/dark surface,
  * because those backdrops are not a single theme color. Centered and minimal homes clear the
- * bars over an image wallpaper instead; see shouldClearSplitToolbarOverWallpaper.
+ * bars over a painted wallpaper instead; see shouldClearSplitToolbarOverWallpaper.
  */
 export type SplitToolbarHomeBackdrop = 'theme_color' | 'wallpaper' | 'web_home';
 
@@ -274,7 +368,7 @@ export function resolveSplitToolbarHomeBackdrop(
   wallpaperKind: HomeWallpaperPresentationKind,
   foregroundBackdropSource: BrowserHomeForegroundBackdropSource
 ): SplitToolbarHomeBackdrop {
-  if (wallpaperKind === 'image') {
+  if (paintsHomeBackdrop(wallpaperKind)) {
     return 'wallpaper';
   }
   if (foregroundBackdropSource === 'web_home') {
@@ -302,16 +396,16 @@ export function resolveSplitToolbarBarBackgroundColor(input: SplitToolbarBarBack
 export const SPLIT_TOOLBAR_CLEARED_BAR_COLOR: string = '#00000000';
 
 /**
- * 简约 and 极简 paint an image wallpaper edge to edge. Their split bars drop the fill so that
- * wallpaper shows through, and their icons follow the same black-or-white tone as the wordmark.
- * A theme-color home, the classic frame, and any web page keep the normal bar fill.
+ * 简约 and 极简 paint the wallpaper edge to edge, photo or flat color. Their split bars drop the
+ * fill so that wallpaper shows through, and their icons follow the same black-or-white tone as
+ * the wordmark. A theme-color home, the classic frame, and any web page keep the normal bar fill.
  */
 export function shouldClearSplitToolbarOverWallpaper(
   homeScene: boolean,
   centeredHomeFrame: boolean,
   wallpaperKind: HomeWallpaperPresentationKind
 ): boolean {
-  return homeScene && centeredHomeFrame && wallpaperKind === 'image';
+  return homeScene && centeredHomeFrame && paintsHomeBackdrop(wallpaperKind);
 }
 
 /**

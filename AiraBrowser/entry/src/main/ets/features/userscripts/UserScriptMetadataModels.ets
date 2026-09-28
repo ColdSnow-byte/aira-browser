@@ -27,6 +27,9 @@ export type UserScriptGrant =
   'GM_saveTab' |
   'GM_getTabs' |
   'GM_setClipboard' |
+  'GM_cookie' |
+  'GM_cookieSet' |
+  'GM_cookieDelete' |
   'GM_log' |
   'GM_notification' |
   'GM_info' |

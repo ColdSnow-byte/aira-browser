@@ -1,6 +1,6 @@
 import {
+  WallpaperColorChoiceViewState,
   WallpaperImageOptionViewState,
-  WallpaperModeOptionViewState,
   WallpaperSettingsViewState
 } from '../../../core/wallpaper/WallpaperSettingsViewModel';
 import {
@@ -8,9 +8,6 @@ import {
   WallpaperSettingsLayoutState
 } from '../../../core/wallpaper/WallpaperSettingsLayoutPolicy';
 import { WallpaperMode } from '../../../common/models/WallpaperModels';
-import {
-  SettingsOptionRow
-} from '../settings/SettingsRows';
 import {
   SettingsFooterText,
   SettingsGroupCard,
@@ -33,6 +30,12 @@ const WALLPAPER_CUSTOM_REPLACE_CAPSULE_WIDTH: number = 60;
 const WALLPAPER_CUSTOM_REPLACE_CAPSULE_HEIGHT: number = 28;
 const WALLPAPER_CUSTOM_REPLACE_CAPSULE_BOTTOM_MARGIN: number = 14;
 const WALLPAPER_CUSTOM_REPLACE_CAPSULE_END_MARGIN: number = 14;
+const WALLPAPER_COLOR_SWATCH_SIZE: number = 34;
+/** The selection ring sits outside the swatch, so the ring is fully drawn and never covers it. */
+const WALLPAPER_COLOR_SWATCH_RING_GAP: number = 4;
+const WALLPAPER_COLOR_SWATCH_RING_WIDTH: number = 2;
+/** A white swatch on a white card still needs an edge. */
+const WALLPAPER_COLOR_SWATCH_EDGE_COLOR: string = '#1F000000';
 
 @Component
 export struct WallpaperSettingsContent {
@@ -48,12 +51,13 @@ export struct WallpaperSettingsContent {
     containerWidth: 390,
     containerHeight: 844
   });
+  onColorSelect: (choiceId: string) => void = (_choiceId: string) => {};
   onModeSelect: (mode: WallpaperMode) => void = (_mode: WallpaperMode) => {};
   onBingRetry: () => void = () => {};
 
   build() {
     Column({ space: 16 }) {
-      this.buildThemeModeSection()
+      this.buildColorSection()
       this.buildImageModeSection()
     }
     .width('100%')
@@ -65,29 +69,144 @@ export struct WallpaperSettingsContent {
     })
   }
 
+  /** One row of round swatches: the flat colors, then the follow-theme gradient last. */
   @Builder
-  private buildThemeModeSection() {
+  private buildColorSection() {
     SettingsSection({
-      title: '壁纸来源',
+      title: '壁纸颜色',
       secondaryTextColor: this.storedSecondaryTextColor
     }) {
       SettingsGroupCard({ surfaceColor: this.storedSurfaceBackgroundColor }) {
-        this.buildThemeModeOption(this.state.themeOption)
+        // Space-between keeps every swatch on one line on a narrow phone, where fixed gaps
+        // would push the last one out of the card.
+        Row() {
+          ForEach(this.state.colorChoices, (choice: WallpaperColorChoiceViewState) => {
+            this.buildColorSwatch(choice)
+          }, (choice: WallpaperColorChoiceViewState) => `${choice.id}:${choice.isSelected ? '1' : '0'}`)
+        }
+        .width('100%')
+        .padding({ left: 14, right: 14, top: 16, bottom: 16 })
+        .justifyContent(FlexAlign.SpaceBetween)
+        .alignItems(VerticalAlign.Center)
       }
     }
   }
 
   @Builder
-  private buildThemeModeOption(option: WallpaperModeOptionViewState) {
-    SettingsOptionRow({
-      title: option.title,
-      rowPosition: 'single',
-      isSelected: option.id === this.state.mode,
-      isEnabled: option.isEnabled,
-      onAction: () => {
-        this.onModeSelect(option.id);
+  private buildColorSwatch(choice: WallpaperColorChoiceViewState) {
+    Stack({ alignContent: Alignment.Center }) {
+      if (choice.kind === 'auto') {
+        this.buildAutoBlackWhiteSwatch()
+      } else if (choice.kind === 'theme') {
+        this.buildMeshGradientSwatch()
+      } else {
+        Row()
+          .width(WALLPAPER_COLOR_SWATCH_SIZE)
+          .height(WALLPAPER_COLOR_SWATCH_SIZE)
+          .borderRadius(WALLPAPER_COLOR_SWATCH_SIZE / 2)
+          .backgroundColor(choice.color)
+          .border({ width: 1, color: WALLPAPER_COLOR_SWATCH_EDGE_COLOR })
+      }
+    }
+    .width(this.resolveSwatchOuterSize())
+    .height(this.resolveSwatchOuterSize())
+    .borderRadius(this.resolveSwatchOuterSize() / 2)
+    .border({
+      width: choice.isSelected ? WALLPAPER_COLOR_SWATCH_RING_WIDTH : 0,
+      color: choice.isSelected ? this.storedAccentColor : Color.Transparent
+    })
+    .enabled(choice.isEnabled)
+    .accessibilityText(choice.isSelected ? `${choice.label}，已选中` : choice.label)
+    .onClick(() => {
+      if (choice.isEnabled) {
+        this.onColorSelect(choice.id);
       }
     })
+  }
+
+  /**
+   * One swatch for both neutrals: white half and black half. It means "white in light mode,
+   * black in dark mode", so the two are no longer separate choices.
+   */
+  @Builder
+  private buildAutoBlackWhiteSwatch() {
+    Row() {
+      Row()
+        .layoutWeight(1)
+        .height('100%')
+        .backgroundColor('#FFFFFF')
+        .borderRadius({
+          topLeft: WALLPAPER_COLOR_SWATCH_SIZE / 2,
+          bottomLeft: WALLPAPER_COLOR_SWATCH_SIZE / 2
+        })
+      Row()
+        .layoutWeight(1)
+        .height('100%')
+        .backgroundColor('#000000')
+        .borderRadius({
+          topRight: WALLPAPER_COLOR_SWATCH_SIZE / 2,
+          bottomRight: WALLPAPER_COLOR_SWATCH_SIZE / 2
+        })
+    }
+    .width(WALLPAPER_COLOR_SWATCH_SIZE)
+    .height(WALLPAPER_COLOR_SWATCH_SIZE)
+    .borderRadius(WALLPAPER_COLOR_SWATCH_SIZE / 2)
+    .border({ width: 1, color: WALLPAPER_COLOR_SWATCH_EDGE_COLOR })
+    .clip(true)
+  }
+
+  /**
+   * Stands in for "follow the theme": the theme color is whatever the palette picks, so the
+   * swatch shows a mix of hues instead of one flat color.
+   *
+   * Every layer carries the circle radius itself. A gradient is not rounded by the parent's
+   * clip, and without this the swatch shows square corners. The radii are wide so the blobs
+   * cover the whole disc, with no pale gaps left at the edge.
+   */
+  @Builder
+  private buildMeshGradientSwatch() {
+    Stack() {
+      this.buildMeshLayer('#F1F2F7', '', '', 0)
+      this.buildMeshLayer('#FF7A59', '16%', '18%', 100)
+      this.buildMeshLayer('#7B6CFF', '84%', '22%', 96)
+      this.buildMeshLayer('#35D0BA', '20%', '86%', 100)
+      this.buildMeshLayer('#FFC24B', '86%', '84%', 94)
+    }
+    .width(WALLPAPER_COLOR_SWATCH_SIZE)
+    .height(WALLPAPER_COLOR_SWATCH_SIZE)
+    .borderRadius(WALLPAPER_COLOR_SWATCH_SIZE / 2)
+    .border({ width: 1, color: WALLPAPER_COLOR_SWATCH_EDGE_COLOR })
+    .clip(true)
+  }
+
+  @Builder
+  private buildMeshLayer(
+    color: string,
+    centerX: string,
+    centerY: string,
+    radiusPercent: number
+  ) {
+    if (radiusPercent <= 0) {
+      Row()
+        .width('100%')
+        .height('100%')
+        .backgroundColor(color)
+        .borderRadius(WALLPAPER_COLOR_SWATCH_SIZE / 2)
+    } else {
+      Row()
+        .width('100%')
+        .height('100%')
+        .borderRadius(WALLPAPER_COLOR_SWATCH_SIZE / 2)
+        .radialGradient({
+          center: [centerX, centerY],
+          radius: `${radiusPercent}%`,
+          colors: [[color, 0.0], [`#00${color.substring(1)}`, 1.0]]
+        })
+    }
+  }
+
+  private resolveSwatchOuterSize(): number {
+    return WALLPAPER_COLOR_SWATCH_SIZE + WALLPAPER_COLOR_SWATCH_RING_GAP * 2;
   }
 
   @Builder

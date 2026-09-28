@@ -242,10 +242,12 @@ export class PersonalizationSyncSnapshotValidationService {
 
   private isValidSearchSuggestionPreferences(value: Object | undefined): boolean {
     if (!this.isRecord(value)) return false;
-    return this.hasBooleanFields(value as Record<string, Object>, [
+    const record = value as Record<string, Object>;
+    return this.hasBooleanFields(record, [
       'regularEnabled', 'privateEnabled', 'openTabsEnabled', 'bookmarksEnabled',
       'shortcutsEnabled', 'historyEnabled', 'remoteEnabled'
-    ]);
+    ]) && this.isOptionalBoolean(record.browsingHistoryEnabled) &&
+      this.isOptionalBoolean(record.navigationSuggestionsChosen);
   }
 
   private isValidSearchFallback(value: Object | undefined): boolean {

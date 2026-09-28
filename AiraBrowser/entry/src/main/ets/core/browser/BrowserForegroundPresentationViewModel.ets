@@ -1,6 +1,10 @@
 import { AppChromeIconTone } from '../resources/AppIconResources';
 import { BrowserHomepageBackdropAppearanceState } from '../../common/models/BackdropAppearanceModels';
-import { HomeWallpaperPresentationState } from '../../common/models/WallpaperModels';
+import {
+  HomeWallpaperPresentationState,
+  paintsHomeBackdrop,
+  usesOwnHomeForegroundTone
+} from '../../common/models/WallpaperModels';
 import { BrowserHomeForegroundBackdropSource } from './BrowserHomeSurfaceProfileViewModel';
 
 export type BrowserForegroundTone = 'light' | 'dark';
@@ -80,7 +84,7 @@ export class BrowserForegroundPresentationViewModel {
       return this.resolveThemePresentation(input);
     }
     const tone = this.resolveHomeTone(input.wallpaperState, input.themeBackgroundColor);
-    if (input.wallpaperState.kind === 'image') {
+    if (paintsHomeBackdrop(input.wallpaperState.kind)) {
       return this.resolveImagePresentation(tone, `home:${input.wallpaperState.assetId}:${input.wallpaperState.updatedAt}`);
     }
     return this.resolveThemePresentation(input);
@@ -173,7 +177,7 @@ export class BrowserForegroundPresentationViewModel {
     if (tintColor === undefined) {
       return baseTone;
     }
-    const baseLuminance = wallpaperState.kind === 'image'
+    const baseLuminance = usesOwnHomeForegroundTone(wallpaperState.kind)
       ? (baseTone === 'dark' ? REPRESENTATIVE_LIGHT_LUMINANCE : REPRESENTATIVE_DARK_LUMINANCE)
       : this.resolveColorLuminance(this.parseHexColor(`${themeBackgroundColor}`) ?? tintColor);
     const tintLuminance = this.resolveColorLuminance(tintColor);
@@ -185,7 +189,7 @@ export class BrowserForegroundPresentationViewModel {
     wallpaperState: HomeWallpaperPresentationState,
     themeBackgroundColor: ResourceColor
   ): BrowserForegroundTone {
-    if (wallpaperState.kind === 'image') {
+    if (usesOwnHomeForegroundTone(wallpaperState.kind)) {
       return wallpaperState.foregroundTone === 'lightText' ? 'light' : 'dark';
     }
     return this.resolveThemeTone(themeBackgroundColor);

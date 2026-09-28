@@ -1,5 +1,6 @@
 import {
-  HomeWallpaperPresentationState
+  HomeWallpaperPresentationState,
+  paintsHomeBackdrop
 } from '../../common/models/WallpaperModels';
 
 export interface HomeWallpaperInteractionColorState {
@@ -15,7 +16,8 @@ export class HomeWallpaperInteractionColorViewModel {
     wallpaperState: HomeWallpaperPresentationState,
     themedPressedBackgroundColor: ResourceColor
   ): HomeWallpaperInteractionColorState {
-    if (wallpaperState.kind === 'image') {
+    // A flat color needs the same tone-following overlay a photo gets.
+    if (paintsHomeBackdrop(wallpaperState.kind)) {
       return {
         pressedBackgroundColor: wallpaperState.foregroundTone === 'darkText'
           ? HOME_IMAGE_PRESSED_DARK_OVERLAY

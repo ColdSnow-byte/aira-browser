@@ -17,7 +17,10 @@ export type UserScriptNativeBridgeRequestKind =
   'deleteValue' |
   'deleteValues' |
   'setClipboard' |
-  'openInTab';
+  'openInTab' |
+  'cookieList' |
+  'cookieSet' |
+  'cookieDelete';
 
 export type UserScriptNativeBridgeExecutorKind =
   'xml_http_request' |
@@ -33,7 +36,10 @@ export type UserScriptNativeBridgeExecutorKind =
   'value_delete' |
   'values_delete' |
   'clipboard' |
-  'open_in_tab';
+  'open_in_tab' |
+  'cookie_list' |
+  'cookie_set' |
+  'cookie_delete';
 
 export interface UserScriptNativeBridgeRoute {
   requestKind: UserScriptNativeBridgeRequestKind;
@@ -71,6 +77,7 @@ export interface RawUserScriptNativeBridgePayload {
   errorCount?: number;
   errorCategory?: string;
   tab?: Record<string, Object | string | number | boolean | null>;
+  cookieJson?: string;
 }
 
 export interface UserScriptNativeBridgeValidation {

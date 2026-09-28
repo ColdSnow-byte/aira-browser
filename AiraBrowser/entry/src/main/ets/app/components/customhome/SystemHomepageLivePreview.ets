@@ -6,12 +6,14 @@ import {
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_RECENTLY_CLOSED_TITLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_SETTINGS_BUTTON_KEY,
-  HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY
+  HOME_PAGE_PRESENTATION_SHOW_SHORTCUT_NAMES_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY
 } from '../../../common/constants/HomePagePresentationStorageKeys';
 import { BrowserHomeShortcutLayoutDensity, ShortcutRecord } from '../../../common/models/BrowserModels';
 import {
   DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
-  HomeWallpaperPresentationState
+  HomeWallpaperPresentationState,
+  resolveHomeWallpaperAutoColor
 } from '../../../common/models/WallpaperModels';
 import { BrowserForegroundPresentationViewModel } from '../../../core/browser/BrowserForegroundPresentationViewModel';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
@@ -21,6 +23,7 @@ import {
   BROWSER_APPEARANCE_STORAGE_SITE_ICON_CORNER_RATIO_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
+  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
@@ -29,7 +32,12 @@ import {
   resolveHomeSystemShortcutDefinitionByUrl
 } from '../../../services/shortcuts/HomeSystemShortcutCatalog';
 import { resolveHomeWallpaperRenderedMaskOpacity } from '../../../services/wallpaper/HomeWallpaperAnalysisPolicy';
+import {
+  HOME_LOGO_SCALE_DEFAULT_RATIO,
+  resolveHomeLogoHeightVp
+} from '../../../core/settings/HomeLogoSettingsPolicy';
 import { resolveSiteIconFallbackLabel } from '../../../common/utils/SiteIconFallbackUtils';
+import { HomeLogoMark } from '../browser/HomeLogoMark';
 import { AiraIcon } from '../common/AiraIcon';
 import {
   RECORD_LIST_ROW_CONTENT_SPACE,
@@ -46,7 +54,6 @@ import {
   CENTERED_HOME_SEARCH_HEIGHT,
   CENTERED_HOME_WORDMARK_HEIGHT,
   CENTERED_HOME_WORDMARK_SEARCH_GAP,
-  CENTERED_HOME_WORDMARK_WIDTH,
   resolveCenteredHomeFrame,
   resolveCenteredHomeSearchFieldWidth
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
@@ -118,6 +125,9 @@ export struct SystemHomepageLivePreview {
   private homeLayoutViewModel: HomeResponsiveLayoutViewModel = new HomeResponsiveLayoutViewModel();
   private shortcutLogicService: HomeShortcutLogicService = new HomeShortcutLogicService();
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = '#F4F6F8';
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
+  private storedLogoScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
@@ -213,11 +223,11 @@ export struct SystemHomepageLivePreview {
         Column()
           .width('100%')
           .height(this.desktopCenteredHeaderTop())
-        Image($rawfile('home_centered_wordmark.svg'))
-          .width(this.desktopUnit(CENTERED_HOME_WORDMARK_WIDTH))
-          .height(this.desktopUnit(CENTERED_HOME_WORDMARK_HEIGHT))
-          .objectFit(ImageFit.Contain)
-          .fillColor(this.resolvePrimaryText())
+        HomeLogoMark({
+          heightVp: this.desktopUnit(CENTERED_HOME_WORDMARK_HEIGHT),
+          maxWidthVp: this.desktopRailWidth(),
+          tintColor: this.resolvePrimaryText()
+        })
         this.buildDesktopSearch()
         if (this.style === 'centered') {
           Column() {
@@ -508,11 +518,11 @@ export struct SystemHomepageLivePreview {
           .width('100%')
           .height(this.style === 'minimal' ?
             Math.max(this.resolveCenteredHeaderTop(), this.unit(104)) : this.resolveCenteredHeaderTop())
-        Image($rawfile('home_centered_wordmark.svg'))
-          .width(this.unit(150))
-          .height(this.unit(45))
-          .objectFit(ImageFit.Contain)
-          .fillColor(this.resolvePrimaryText())
+        HomeLogoMark({
+          heightVp: this.unit(CENTERED_HOME_WORDMARK_HEIGHT),
+          maxWidthVp: Math.max(1, this.cardWidth - this.unit(24)),
+          tintColor: this.resolvePrimaryText()
+        })
         this.buildOutlinedSearch('搜索或输入网址')
         if (this.style === 'centered') {
           Column() {
@@ -583,7 +593,17 @@ export struct SystemHomepageLivePreview {
   @Builder
   private buildWallpaperLayer() {
     Stack() {
-      if (this.hasImageWallpaper()) {
+      if (this.wallpaper.kind === 'auto') {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(resolveHomeWallpaperAutoColor(this.storedResolvedThemeMode === 'dark'))
+      } else if (this.wallpaper.kind === 'solid' && this.wallpaper.solidColor.length > 0) {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.wallpaper.solidColor)
+      } else if (this.hasPaintedWallpaper()) {
         Image(this.wallpaper.imagePath)
           .width('100%')
           .height('100%')
@@ -1007,20 +1027,27 @@ export struct SystemHomepageLivePreview {
     return this.closedItems.slice(0, PREVIEW_CLOSED_ROW_LIMIT);
   }
 
-  private hasImageWallpaper(): boolean {
+  /** A photo paints an image; a flat color and auto black/white paint themselves. */
+  private hasPaintedWallpaper(): boolean {
+    if (this.wallpaper.kind === 'auto') {
+      return true;
+    }
+    if (this.wallpaper.kind === 'solid') {
+      return this.wallpaper.solidColor.length > 0;
+    }
     return this.wallpaper.kind === 'image' && this.wallpaper.imagePath.length > 0;
   }
 
   private resolveContentBackground(): ResourceColor {
-    return this.hasImageWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
+    return this.hasPaintedWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
   }
 
   /**
-   * 简约 and 极简 clear the split bar over an image wallpaper, same as the live homepage.
+   * 简约 and 极简 clear the split bar over a painted wallpaper, same as the live homepage.
    * A theme-color card keeps the page fill, which already matches the content behind it.
    */
   private resolveSplitBarBackground(): ResourceColor {
-    return this.hasImageWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
+    return this.hasPaintedWallpaper() ? Color.Transparent : this.storedPageBackgroundColor;
   }
 
   private resolvePrimaryText(): ResourceColor {
@@ -1119,7 +1146,13 @@ export struct SystemHomepageLivePreview {
   }
 
   private resolveCenteredHeaderTop(): number {
-    const searchCenterOffset = this.unit(53 + 32 + 18);
+    const logoHeight = resolveHomeLogoHeightVp(
+      this.unit(CENTERED_HOME_WORDMARK_HEIGHT),
+      this.storedLogoScaleRatio
+    );
+    const searchCenterOffset = logoHeight +
+      this.unit(CENTERED_HOME_WORDMARK_SEARCH_GAP) +
+      this.unit(CENTERED_HOME_SEARCH_HEIGHT / 2);
     const liftedCenter = this.cardHeight / 2 - this.unit(36);
     return Math.max(this.unit(12), liftedCenter - searchCenterOffset);
   }
@@ -1212,7 +1245,11 @@ export struct SystemHomepageLivePreview {
     const frame = resolveCenteredHomeFrame({
       viewportHeight: this.viewportHeight,
       topSafeInset: 0,
-      bottomChromeReserve: 0
+      bottomChromeReserve: 0,
+      logoHeightVp: resolveHomeLogoHeightVp(
+        CENTERED_HOME_WORDMARK_HEIGHT,
+        this.storedLogoScaleRatio
+      )
     });
     return this.desktopUnit(frame.headerTop);
   }

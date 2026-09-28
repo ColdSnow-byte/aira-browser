@@ -8,6 +8,8 @@ const DIRECT_SCRIPT_URL: string = 'https://update.greasyfork.org/scripts/438656.
 const XBEXT_DEAD_URL: string =
   'https://www.xbext.com/useful-user-scripts/east-auto-page-robot.user.js';
 const SCRIPTCAT_PREVIEW_URL: string = 'https://pre.scriptcat.org/scripts/code/1/demo.user.js?v=2';
+const GITEE_REDIRECT_SCRIPT_URL: string =
+  'https://gitee.com/link?target=https%3A%2F%2Fupdate.greasyfork.org%2Fscripts%2F483475.user.js';
 
 export default function userScriptInstallSourceResolverTest(): void {
   describe('UserScript install source resolver', () => {
@@ -45,6 +47,15 @@ export default function userScriptInstallSourceResolverTest(): void {
       expect(previewUrls[0]).assertEqual(SCRIPTCAT_PREVIEW_URL);
       expect(previewUrls[1]).assertEqual('https://scriptcat.org/scripts/code/1/demo.user.js?v=2');
       expect(resolver.resolveSourceUrls(stableUrl)[0]).assertEqual(stableUrl);
+    });
+
+    it('resolves a Gitee external link to the script it wraps', 0, () => {
+      const resolver = new UserScriptInstallSourceResolver();
+      const urls = resolver.resolveSourceUrls(GITEE_REDIRECT_SCRIPT_URL);
+
+      expect(urls.length).assertEqual(1);
+      expect(urls[0]).assertEqual('https://update.greasyfork.org/scripts/483475.user.js');
+      expect(urls.indexOf(GITEE_REDIRECT_SCRIPT_URL)).assertEqual(-1);
     });
   });
 }

@@ -1,7 +1,8 @@
 import {
   BrowserDataScope,
   BrowserProfileId,
-  BrowserSessionPrivacyMode
+  BrowserSessionPrivacyMode,
+  HistoryVisit
 } from '../../common/models/BrowserModels';
 import { HistoryFeature } from '../../features/history/HistoryFeature';
 import { ActivitySearchUrlService } from '../../services/activity/ActivitySearchUrlService';
@@ -64,6 +65,7 @@ export interface BrowserHistoryVisitRecordingHost {
   resolvePrivacyMode: (tabId: string) => BrowserSessionPrivacyMode;
   resolveDataScope: (tabId: string) => BrowserDataScope;
   invalidateSearchSuggestionCache: () => void;
+  noteOmniboxHistoryVisit?: (visit: HistoryVisit) => void;
 }
 
 export class BrowserHistoryVisitPersistenceCoordinator {
@@ -168,7 +170,7 @@ export class BrowserHistoryVisitPersistenceCoordinator {
       dataScope: input.dataScope
     });
     input.historyFeature.addVisitIfAllowed(command)
-      .then((visit) => {
+      .then((visit: HistoryVisit | undefined) => {
         if (visit !== undefined) {
           input.activityTracker.recordPageVisit(command.visitedAt ?? Date.now());
           if (this.searchUrlService.isSearchResultUrl(command.url)) {
@@ -176,6 +178,9 @@ export class BrowserHistoryVisitPersistenceCoordinator {
           }
         } else {
           this.notifySkipped(input, 'history_disabled');
+        }
+        if (visit !== undefined && this.host.noteOmniboxHistoryVisit !== undefined) {
+          this.host.noteOmniboxHistoryVisit(visit);
         }
         input.onHistoryChanged();
       })

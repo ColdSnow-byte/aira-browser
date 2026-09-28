@@ -1,6 +1,7 @@
 import {
   DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
-  HomeWallpaperPresentationState
+  HomeWallpaperPresentationState,
+  resolveHomeWallpaperAutoColor
 } from '../../../common/models/WallpaperModels';
 import { resolveHomeWallpaperRenderedMaskOpacity } from '../../../services/wallpaper/HomeWallpaperAnalysisPolicy';
 import { BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY } from '../../../core/theme/BrowserThemeStorageKeys';
@@ -20,6 +21,16 @@ export struct HomeWallpaperLayer {
           .objectFit(ImageFit.Cover)
           .interpolation(ImageInterpolation.Medium)
           .backgroundColor(this.resolveThemeBackgroundColor())
+      } else if (this.state.kind === 'solid' && this.state.solidColor.length > 0) {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(this.state.solidColor)
+      } else if (this.state.kind === 'auto') {
+        Row()
+          .width('100%')
+          .height('100%')
+          .backgroundColor(resolveHomeWallpaperAutoColor(this.darkModeActive))
       } else {
         Row()
           .width('100%')
@@ -39,7 +50,8 @@ export struct HomeWallpaperLayer {
   }
 
   private resolveOverlayOpacity(state: HomeWallpaperPresentationState): number {
-    if (state.kind === 'default') {
+    // Only a photo needs the readability mask; a flat color carries its own contrast.
+    if (state.kind !== 'image') {
       return 0;
     }
     return resolveHomeWallpaperRenderedMaskOpacity(state.maskOpacity);

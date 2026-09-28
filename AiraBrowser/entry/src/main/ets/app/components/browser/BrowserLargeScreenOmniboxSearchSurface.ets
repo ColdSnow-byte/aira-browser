@@ -29,6 +29,7 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { sharedExternalAppSearchPreferencesRepository } from '../../bootstrap/BrowserAppRuntime';
 import { SearchEngineIconResources } from '../search/SearchEngineIconResources';
+import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { FloatingGlassMaterialSurface } from '../common/FloatingGlassMaterialSurface';
 import { ExternalAppSearchStrip } from './ExternalAppSearchStrip';
@@ -51,8 +52,6 @@ const LARGE_SCREEN_SUGGESTION_HEADER_ACTION_SIZE: number = 12;
 const LARGE_SCREEN_SUGGESTION_HEADER_ACTION_HEIGHT_VP: number = 24;
 const LARGE_SCREEN_SUGGESTION_LEADING_ICON_SIZE_VP: number = 18;
 const LARGE_SCREEN_SUGGESTION_LEADING_ICON_GAP_VP: number = 8;
-const LARGE_SCREEN_SUGGESTION_DELETE_BUTTON_SIZE_VP: number = 28;
-const LARGE_SCREEN_SUGGESTION_DELETE_ICON_SIZE_VP: number = 16;
 const LARGE_SCREEN_SEARCH_ENGINE_BUTTON_SIZE_VP: number = 28;
 const LARGE_SCREEN_SEARCH_ENGINE_ICON_SIZE_VP: number = 18;
 const LARGE_SCREEN_SEARCH_ENGINE_POPUP_WIDTH_VP: number = 236;
@@ -81,7 +80,6 @@ struct BrowserLargeScreenSuggestionRow {
     target: ''
   };
   @Prop selected: boolean = false;
-  @State private deleteHovered: boolean = false;
   onOpen: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
   onDelete: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
   onHighlight: (suggestion: SearchSuggestion) => void = (_suggestion: SearchSuggestion): void => {};
@@ -90,15 +88,6 @@ struct BrowserLargeScreenSuggestionRow {
     Row({ space: 8 }) {
       Button() {
         Row({ space: LARGE_SCREEN_SUGGESTION_LEADING_ICON_GAP_VP }) {
-          // The source icon leads the row so it reads as part of the entry, with
-          // the label immediately after it; the delete action keeps the far edge.
-          AiraIcon({
-            airaIconId: this.isHistorySuggestion() ? 'membership.inviteRecordClock' : 'browser.toolbar.search',
-            iconSize: LARGE_SCREEN_SUGGESTION_LEADING_ICON_SIZE_VP,
-            iconColor: this.storedSecondaryTextColor
-          })
-            .hitTestBehavior(HitTestMode.None)
-
           Text(this.suggestion.title)
             .layoutWeight(1)
             .constraintSize({ minWidth: 0 })
@@ -108,6 +97,13 @@ struct BrowserLargeScreenSuggestionRow {
             .maxLines(1)
             .textOverflow({ overflow: TextOverflow.Ellipsis })
             .textAlign(TextAlign.Start)
+
+          AiraIcon({
+            airaIconId: this.resolveSuggestionIcon(),
+            iconSize: LARGE_SCREEN_SUGGESTION_LEADING_ICON_SIZE_VP,
+            iconColor: this.storedSecondaryTextColor
+          })
+            .hitTestBehavior(HitTestMode.None)
         }
         .width('100%')
         .height('100%')
@@ -128,32 +124,6 @@ struct BrowserLargeScreenSuggestionRow {
         this.onOpen(this.suggestion);
       })
 
-      if (this.isHistorySuggestion()) {
-        Button() {
-          AiraIcon({
-            airaIconId: 'browser.tabs.delete',
-            iconSize: LARGE_SCREEN_SUGGESTION_DELETE_ICON_SIZE_VP,
-            iconColor: this.storedSecondaryTextColor
-          })
-            .hitTestBehavior(HitTestMode.None)
-        }
-        .width(LARGE_SCREEN_SUGGESTION_DELETE_BUTTON_SIZE_VP)
-        .height(LARGE_SCREEN_SUGGESTION_DELETE_BUTTON_SIZE_VP)
-        .padding(0)
-        .type(ButtonType.Circle)
-        .backgroundColor(this.deleteHovered ? this.storedControlBackgroundColor : Color.Transparent)
-        .stateEffect(false)
-        .hoverEffect(HoverEffect.None)
-        .focusable(false)
-        .focusOnTouch(false)
-        .accessibilityText('删除搜索记录')
-        .onHover((hovered: boolean): void => {
-          this.deleteHovered = hovered;
-        })
-        .onClick((): void => {
-          this.onDelete(this.suggestion);
-        })
-      }
     }
     .width('100%')
     .height(LARGE_SCREEN_SUGGESTION_ROW_HEIGHT_VP)
@@ -169,8 +139,21 @@ struct BrowserLargeScreenSuggestionRow {
     })
   }
 
-  private isHistorySuggestion(): boolean {
-    return this.suggestion.source === 'search_history';
+  private usesHistoryIcon(): boolean {
+    return this.suggestion.source === 'search_history' || this.suggestion.source === 'history';
+  }
+
+  private resolveSuggestionIcon(): AiraRenderableIconId {
+    if (this.usesHistoryIcon()) {
+      return 'membership.inviteRecordClock';
+    }
+    if (this.suggestion.source === 'bookmarks') {
+      return 'browser.shortcut.bookmarks';
+    }
+    if (this.suggestion.source === 'tabs') {
+      return 'browser.toolbar.tabs';
+    }
+    return 'browser.toolbar.search';
   }
 }
 

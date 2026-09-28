@@ -310,12 +310,25 @@ export const DEFAULT_BROWSER_APP_SERVICE_MODE: BrowserAppServiceMode = 'full';
 export const DEFAULT_SEARCH_SUGGESTION_PREFERENCES: SearchSuggestionPreferences = {
   regularEnabled: true,
   privateEnabled: false,
-  openTabsEnabled: false,
-  bookmarksEnabled: false,
+  openTabsEnabled: true,
+  bookmarksEnabled: true,
   shortcutsEnabled: false,
-  historyEnabled: true,
+  historyEnabled: false,
+  browsingHistoryEnabled: false,
+  navigationSuggestionsChosen: true,
   remoteEnabled: true
 };
+
+function resolveNavigationSuggestionEnabled(
+  chosen: boolean,
+  stored: boolean | undefined,
+  fallback: boolean
+): boolean {
+  if (!chosen) {
+    return true;
+  }
+  return typeof stored === 'boolean' ? stored : fallback;
+}
 
 export const DEFAULT_SITE_PERMISSION_DEFAULT_SETTINGS: SitePermissionDefaultSettings = {
   camera: 'ask',
@@ -1923,18 +1936,26 @@ export class PreferencesRepository {
       privateEnabled: typeof value?.privateEnabled === 'boolean'
         ? value.privateEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.privateEnabled,
-      openTabsEnabled: typeof value?.openTabsEnabled === 'boolean'
-        ? value.openTabsEnabled
-        : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.openTabsEnabled,
-      bookmarksEnabled: typeof value?.bookmarksEnabled === 'boolean'
-        ? value.bookmarksEnabled
-        : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.bookmarksEnabled,
+      openTabsEnabled: resolveNavigationSuggestionEnabled(
+        value?.navigationSuggestionsChosen === true,
+        value?.openTabsEnabled,
+        DEFAULT_SEARCH_SUGGESTION_PREFERENCES.openTabsEnabled
+      ),
+      bookmarksEnabled: resolveNavigationSuggestionEnabled(
+        value?.navigationSuggestionsChosen === true,
+        value?.bookmarksEnabled,
+        DEFAULT_SEARCH_SUGGESTION_PREFERENCES.bookmarksEnabled
+      ),
       shortcutsEnabled: typeof value?.shortcutsEnabled === 'boolean'
         ? value.shortcutsEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.shortcutsEnabled,
       historyEnabled: typeof value?.historyEnabled === 'boolean'
         ? value.historyEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.historyEnabled,
+      browsingHistoryEnabled: typeof value?.browsingHistoryEnabled === 'boolean'
+        ? value.browsingHistoryEnabled
+        : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.browsingHistoryEnabled,
+      navigationSuggestionsChosen: true,
       remoteEnabled: typeof value?.remoteEnabled === 'boolean'
         ? value.remoteEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.remoteEnabled

@@ -1,3 +1,5 @@
+import { HomeLogoCustomAsset } from './HomeLogoModels';
+
 /**
  * System homepage frame.
  * `classic` is the original home.
@@ -38,4 +40,14 @@ export interface HomePagePresentationSettings {
    * Built-in homepage frame. Synced with the other core preferences.
    */
   homePageStyle: BrowserHomePageStyle;
+  /**
+   * Wordmark used by the centered and minimal frames. Custom files stay on this device.
+   */
+  homeLogoId: string;
+  homeLogoCustomAssets: HomeLogoCustomAsset[];
+  /**
+   * Logo size as a multiple of the shipped wordmark height, so it adapts to the screen instead
+   * of pinning one pixel size.
+   */
+  homeLogoScaleRatio: number;
 }

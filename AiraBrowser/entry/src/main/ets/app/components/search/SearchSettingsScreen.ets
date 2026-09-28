@@ -50,7 +50,10 @@ export struct SearchSettingsScreen {
     fallbackInfoText: '',
     builtInEngines: [],
     customEngines: [],
-    historySuggestionsEnabled: true,
+    historySuggestionsEnabled: false,
+    browsingHistorySuggestionsEnabled: false,
+    bookmarkSuggestionsEnabled: true,
+    openTabSuggestionsEnabled: true,
     remoteSuggestionsEnabled: true
   };
   @Prop dataScope: string = '';
@@ -83,6 +86,9 @@ export struct SearchSettingsScreen {
   onOpenFallbackEngine: () => void = () => {};
   onFallbackNoticeEnabledChange: (enabled: boolean) => void = (_enabled: boolean) => {};
   onHistorySuggestionsChange: (enabled: boolean) => void = (_enabled: boolean) => {};
+  onBrowsingHistorySuggestionsChange: (enabled: boolean) => void = (_enabled: boolean) => {};
+  onBookmarkSuggestionsChange: (enabled: boolean) => void = (_enabled: boolean) => {};
+  onOpenTabSuggestionsChange: (enabled: boolean) => void = (_enabled: boolean) => {};
   onRemoteSuggestionsChange: (enabled: boolean) => void = (_enabled: boolean) => {};
   onOpenExternalAppSearchSettings: () => void = () => {};
   onClearSearchHistory: () => void = () => {};
@@ -320,6 +326,72 @@ export struct SearchSettingsScreen {
         }
         SettingsGroupDivider({ dividerColor: this.storedDividerColor })
         SettingsTargetRevealRegion({
+          targetId: 'browsing_history_suggestions',
+          highlightedTargetId: this.highlightedTargetId,
+          accentColor: this.resolveAccentColor(),
+          onAreaChanged: (targetId: string, area: Area): void => {
+            this.revealController.rememberTargetArea(targetId, area);
+          }
+        }) {
+          SettingsSwitchRow({
+            title: '历史记录建议',
+            desktopPresentation: this.desktopPresentation,
+            checked: this.state.browsingHistorySuggestionsEnabled,
+            primaryTextColor: this.resolvePrimaryTextColor(),
+            secondaryTextColor: this.resolveSecondaryTextColor(),
+            pressedBackgroundColor: this.resolvePressedBackground(),
+            rowPosition: 'middle',
+            onChange: (enabled: boolean) => {
+              this.onBrowsingHistorySuggestionsChange(enabled);
+            }
+          })
+        }
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsTargetRevealRegion({
+          targetId: 'bookmark_suggestions',
+          highlightedTargetId: this.highlightedTargetId,
+          accentColor: this.resolveAccentColor(),
+          onAreaChanged: (targetId: string, area: Area): void => {
+            this.revealController.rememberTargetArea(targetId, area);
+          }
+        }) {
+          SettingsSwitchRow({
+            title: '书签建议',
+            desktopPresentation: this.desktopPresentation,
+            checked: this.state.bookmarkSuggestionsEnabled,
+            primaryTextColor: this.resolvePrimaryTextColor(),
+            secondaryTextColor: this.resolveSecondaryTextColor(),
+            pressedBackgroundColor: this.resolvePressedBackground(),
+            rowPosition: 'middle',
+            onChange: (enabled: boolean) => {
+              this.onBookmarkSuggestionsChange(enabled);
+            }
+          })
+        }
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsTargetRevealRegion({
+          targetId: 'open_tab_suggestions',
+          highlightedTargetId: this.highlightedTargetId,
+          accentColor: this.resolveAccentColor(),
+          onAreaChanged: (targetId: string, area: Area): void => {
+            this.revealController.rememberTargetArea(targetId, area);
+          }
+        }) {
+          SettingsSwitchRow({
+            title: '已打开的标签页',
+            desktopPresentation: this.desktopPresentation,
+            checked: this.state.openTabSuggestionsEnabled,
+            primaryTextColor: this.resolvePrimaryTextColor(),
+            secondaryTextColor: this.resolveSecondaryTextColor(),
+            pressedBackgroundColor: this.resolvePressedBackground(),
+            rowPosition: 'middle',
+            onChange: (enabled: boolean) => {
+              this.onOpenTabSuggestionsChange(enabled);
+            }
+          })
+        }
+        SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        SettingsTargetRevealRegion({
           targetId: 'remote_search_suggestions',
           highlightedTargetId: this.highlightedTargetId,
           accentColor: this.resolveAccentColor(),
@@ -342,7 +414,7 @@ export struct SearchSettingsScreen {
         }
         }
         SettingsFooterText({
-          text: '搜索历史保存在本机；网络搜索建议会在输入搜索词时获取联想词。',
+          text: '书签、已打开的标签页、搜索历史和访问记录都在本机匹配。网络搜索建议会在输入时获取联想词。',
           secondaryTextColor: this.resolveSecondaryTextColor()
         })
       }

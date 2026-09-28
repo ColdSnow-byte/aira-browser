@@ -303,7 +303,8 @@ const HISTORY_URL_SCHEMA_SQL: string[] = [
   `CREATE UNIQUE INDEX IF NOT EXISTS idx_history_urls_hash ON ${HISTORY_URLS_TABLE}(url_hash)`,
   `CREATE INDEX IF NOT EXISTS idx_history_urls_last_visit ON ${HISTORY_URLS_TABLE}(last_visit_at DESC)`,
   `CREATE INDEX IF NOT EXISTS idx_history_urls_host_last_visit ON ${HISTORY_URLS_TABLE}(host, last_visit_at DESC)`,
-  `CREATE INDEX IF NOT EXISTS idx_history_urls_title ON ${HISTORY_URLS_TABLE}(title)`
+  `CREATE INDEX IF NOT EXISTS idx_history_urls_title ON ${HISTORY_URLS_TABLE}(title)`,
+  `CREATE INDEX IF NOT EXISTS idx_history_urls_visible_last_visit ON ${HISTORY_URLS_TABLE}(hidden, last_visit_at DESC)`
 ];
 const HISTORY_VISITS_TABLE = 'history_visits';
 const HISTORY_VISIT_COLUMNS: string[] = [
@@ -1303,6 +1304,30 @@ export class BrowserDatabase {
     } catch (error) {
       hilog.error(DOMAIN, TAG, 'Failed to search history visits: %{public}s', JSON.stringify(error));
       return this.searchHistoryVisitsFromLoadedData(normalizedQuery, normalizedOffset, normalizedLimit);
+    }
+  }
+
+  /**
+   * Recent unique URLs for address-bar suggestions. Uses the last-visit index and a
+   * hard cap so suggestion warmup never materializes the full visit table.
+   */
+  async listRecentHistoryUrls(limit: number): Promise<HistoryUrlRecord[]> {
+    const normalizedLimit = Math.max(1, Math.min(8000, Math.floor(limit)));
+    try {
+      const startedAt = Date.now();
+      const store = await this.getStore();
+      const resultSet = await store.querySql(
+        `SELECT ${HISTORY_URL_COLUMNS.join(', ')} FROM ${HISTORY_URLS_TABLE} ` +
+          `WHERE hidden = 0 ORDER BY last_visit_at DESC LIMIT ${normalizedLimit}`
+      );
+      const urls = this.mapHistoryUrlRows(resultSet);
+      hilog.info(DOMAIN, TAG,
+        'Loaded recent history urls count=%{public}d limit=%{public}d durationMs=%{public}d',
+        urls.length, normalizedLimit, Date.now() - startedAt);
+      return urls;
+    } catch (error) {
+      hilog.error(DOMAIN, TAG, 'Failed to load recent history urls: %{public}s', JSON.stringify(error));
+      return [];
     }
   }
 

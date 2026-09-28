@@ -180,6 +180,15 @@ export struct SearchSettingsHost {
         onHistorySuggestionsChange: (enabled: boolean) => {
           this.updateSearchHistorySuggestions(enabled);
         },
+        onBrowsingHistorySuggestionsChange: (enabled: boolean) => {
+          this.updateBrowsingHistorySuggestions(enabled);
+        },
+        onBookmarkSuggestionsChange: (enabled: boolean) => {
+          this.updateBookmarkSuggestions(enabled);
+        },
+        onOpenTabSuggestionsChange: (enabled: boolean) => {
+          this.updateOpenTabSuggestions(enabled);
+        },
         onRemoteSuggestionsChange: (enabled: boolean) => {
           this.updateRemoteSearchSuggestions(enabled);
         },
@@ -306,15 +315,53 @@ export struct SearchSettingsHost {
   }
 
   private updateSearchHistorySuggestions(enabled: boolean): void {
-    const nextPreferences: SearchSuggestionPreferences =
-      this.viewModel.buildSearchSuggestionPreferences(enabled, this.state.remoteSuggestionsEnabled);
-    this.updateSearchSuggestionPreferences(nextPreferences);
+    this.updateSearchSuggestionPreferences(this.viewModel.buildSearchSuggestionPreferences(
+      enabled,
+      this.state.remoteSuggestionsEnabled,
+      this.state.browsingHistorySuggestionsEnabled,
+      this.state.bookmarkSuggestionsEnabled,
+      this.state.openTabSuggestionsEnabled
+    ));
+  }
+
+  private updateBrowsingHistorySuggestions(enabled: boolean): void {
+    this.updateSearchSuggestionPreferences(this.viewModel.buildSearchSuggestionPreferences(
+      this.state.historySuggestionsEnabled,
+      this.state.remoteSuggestionsEnabled,
+      enabled,
+      this.state.bookmarkSuggestionsEnabled,
+      this.state.openTabSuggestionsEnabled
+    ));
+  }
+
+  private updateBookmarkSuggestions(enabled: boolean): void {
+    this.updateSearchSuggestionPreferences(this.viewModel.buildSearchSuggestionPreferences(
+      this.state.historySuggestionsEnabled,
+      this.state.remoteSuggestionsEnabled,
+      this.state.browsingHistorySuggestionsEnabled,
+      enabled,
+      this.state.openTabSuggestionsEnabled
+    ));
+  }
+
+  private updateOpenTabSuggestions(enabled: boolean): void {
+    this.updateSearchSuggestionPreferences(this.viewModel.buildSearchSuggestionPreferences(
+      this.state.historySuggestionsEnabled,
+      this.state.remoteSuggestionsEnabled,
+      this.state.browsingHistorySuggestionsEnabled,
+      this.state.bookmarkSuggestionsEnabled,
+      enabled
+    ));
   }
 
   private updateRemoteSearchSuggestions(enabled: boolean): void {
-    const nextPreferences: SearchSuggestionPreferences =
-      this.viewModel.buildSearchSuggestionPreferences(this.state.historySuggestionsEnabled, enabled);
-    this.updateSearchSuggestionPreferences(nextPreferences);
+    this.updateSearchSuggestionPreferences(this.viewModel.buildSearchSuggestionPreferences(
+      this.state.historySuggestionsEnabled,
+      enabled,
+      this.state.browsingHistorySuggestionsEnabled,
+      this.state.bookmarkSuggestionsEnabled,
+      this.state.openTabSuggestionsEnabled
+    ));
   }
 
   private updateSearchSuggestionPreferences(nextPreferences: SearchSuggestionPreferences): void {

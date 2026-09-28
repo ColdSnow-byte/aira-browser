@@ -25,6 +25,9 @@ export interface SearchEngineManagementState {
   builtInEngines: SearchEngineRowView[];
   customEngines: SearchEngineRowView[];
   historySuggestionsEnabled: boolean;
+  browsingHistorySuggestionsEnabled: boolean;
+  bookmarkSuggestionsEnabled: boolean;
+  openTabSuggestionsEnabled: boolean;
   remoteSuggestionsEnabled: boolean;
 }
 
@@ -79,6 +82,9 @@ export class SearchEngineManagementViewModel {
         return row.isEditable;
       }),
       historySuggestionsEnabled: settings.searchSuggestions.historyEnabled,
+      browsingHistorySuggestionsEnabled: settings.searchSuggestions.browsingHistoryEnabled,
+      bookmarkSuggestionsEnabled: settings.searchSuggestions.bookmarksEnabled,
+      openTabSuggestionsEnabled: settings.searchSuggestions.openTabsEnabled,
       remoteSuggestionsEnabled: settings.searchSuggestions.remoteEnabled
     };
   }
@@ -175,14 +181,22 @@ export class SearchEngineManagementViewModel {
     return `删除 ${engine.name} 后，如果它是默认搜索引擎，将自动切回 Bing。`;
   }
 
-  buildSearchSuggestionPreferences(historyEnabled: boolean, remoteEnabled: boolean): SearchSuggestionPreferences {
+  buildSearchSuggestionPreferences(
+    historyEnabled: boolean,
+    remoteEnabled: boolean,
+    browsingHistoryEnabled: boolean,
+    bookmarksEnabled: boolean,
+    openTabsEnabled: boolean
+  ): SearchSuggestionPreferences {
     return {
       regularEnabled: true,
       privateEnabled: false,
-      openTabsEnabled: false,
-      bookmarksEnabled: false,
+      openTabsEnabled: openTabsEnabled,
+      bookmarksEnabled: bookmarksEnabled,
       shortcutsEnabled: false,
       historyEnabled: historyEnabled,
+      browsingHistoryEnabled: browsingHistoryEnabled,
+      navigationSuggestionsChosen: true,
       remoteEnabled: remoteEnabled
     };
   }

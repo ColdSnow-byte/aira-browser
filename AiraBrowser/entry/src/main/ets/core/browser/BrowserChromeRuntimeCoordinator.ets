@@ -61,13 +61,6 @@ export class BrowserChromeRuntimeCoordinator {
     };
   }
 
-  buildWebTopChromeInsetPx(
-    systemTopInsetVp: number,
-    contentGapVp: number
-  ): number {
-    return Math.max(0, Math.ceil(systemTopInsetVp + contentGapVp));
-  }
-
   buildStableWebViewportBottomInsetPx(
     bottomSafeInsetVp: number,
     _homeSearchOverlayVisible: boolean,

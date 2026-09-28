@@ -70,6 +70,8 @@ import { NativeHttpProxyResolutionService } from '../../services/network/NativeH
 import { SearchEngineAvailabilityProbeService } from '../../services/search/SearchEngineAvailabilityProbeService';
 import { SearchEngineRoutingService } from '../../services/search/SearchEngineRoutingService';
 import { SearchQueryHistoryService } from '../../services/search/SearchQueryHistoryService';
+import { HistoryOmniboxSuggestionService } from '../../services/search/HistoryOmniboxSuggestionService';
+import { BookmarkOmniboxSuggestionService } from '../../services/search/BookmarkOmniboxSuggestionService';
 import {
   WebNetworkAvailabilityService,
   WebNetworkAvailabilitySnapshot
@@ -418,6 +420,10 @@ export const sharedSearchQueryHistoryRepository: SearchQueryHistoryRepository =
   new SearchQueryHistoryRepository(sharedBrowserDatabase);
 export const sharedSearchQueryHistoryService: SearchQueryHistoryService =
   new SearchQueryHistoryService(sharedSearchQueryHistoryRepository);
+export const sharedHistoryOmniboxSuggestionService: HistoryOmniboxSuggestionService =
+  new HistoryOmniboxSuggestionService(sharedBrowserDatabase);
+export const sharedBookmarkOmniboxSuggestionService: BookmarkOmniboxSuggestionService =
+  new BookmarkOmniboxSuggestionService(sharedBookmarkRepository);
 export const sharedSearchEngineAvailabilityProbeService: SearchEngineAvailabilityProbeService =
   new SearchEngineAvailabilityProbeService();
 export const sharedSearchEngineRoutingService: SearchEngineRoutingService =

@@ -37,6 +37,8 @@ export interface CenteredHomeFrameInput {
   viewportHeight: number;
   topSafeInset: number;
   bottomChromeReserve: number;
+  /** Drawn wordmark height. Defaults to the shipped height when the caller does not resize it. */
+  logoHeightVp?: number;
 }
 
 export interface CenteredHomeFrame {
@@ -57,17 +59,22 @@ export function resolveCenteredHomeSearchFieldWidth(largeScreen: boolean, availa
 }
 
 /** Distance from the top of the fixed header to the vertical center of the search field. */
-export function centeredHomeSearchCenterOffset(): number {
-  return CENTERED_HOME_WORDMARK_HEIGHT +
+export function centeredHomeSearchCenterOffset(logoHeightVp?: number): number {
+  return resolveCenteredLogoHeight(logoHeightVp) +
     CENTERED_HOME_WORDMARK_SEARCH_GAP +
     CENTERED_HOME_SEARCH_HEIGHT / 2;
 }
 
-export function centeredHomeHeaderBlockHeight(): number {
-  return CENTERED_HOME_WORDMARK_HEIGHT +
+export function centeredHomeHeaderBlockHeight(logoHeightVp?: number): number {
+  return resolveCenteredLogoHeight(logoHeightVp) +
     CENTERED_HOME_WORDMARK_SEARCH_GAP +
     CENTERED_HOME_SEARCH_HEIGHT +
     CENTERED_HOME_HEADER_BOTTOM_GAP;
+}
+
+function resolveCenteredLogoHeight(logoHeightVp: number | undefined): number {
+  return typeof logoHeightVp === 'number' && Number.isFinite(logoHeightVp) && logoHeightVp > 0 ?
+    logoHeightVp : CENTERED_HOME_WORDMARK_HEIGHT;
 }
 
 /**
@@ -78,13 +85,14 @@ export function resolveCenteredHomeFrame(input: CenteredHomeFrameInput): Centere
   const viewportHeight = Math.max(0, input.viewportHeight);
   const topSafeInset = Math.max(0, input.topSafeInset);
   const bottomReserve = Math.max(0, input.bottomChromeReserve);
-  const headerHeight = centeredHomeHeaderBlockHeight();
+  const logoHeight = resolveCenteredLogoHeight(input.logoHeightVp);
+  const headerHeight = centeredHomeHeaderBlockHeight(logoHeight);
   if (viewportHeight <= 0) {
     return { headerTop: topSafeInset, iconRegionHeight: 0 };
   }
   const unclampedHeaderTop = viewportHeight / 2 -
     CENTERED_HOME_SEARCH_CENTER_LIFT_VP -
-    centeredHomeSearchCenterOffset();
+    centeredHomeSearchCenterOffset(logoHeight);
   const maxHeaderTop = viewportHeight - bottomReserve - headerHeight;
   const headerTop = maxHeaderTop > topSafeInset ?
     Math.min(Math.max(unclampedHeaderTop, topSafeInset), maxHeaderTop) :

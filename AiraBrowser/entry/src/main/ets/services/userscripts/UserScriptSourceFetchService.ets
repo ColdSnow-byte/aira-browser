@@ -6,6 +6,14 @@ import { UserScriptInstallUrlService } from './UserScriptInstallUrlService';
 export interface UserScriptSourceFetchResult {
   ok: boolean;
   source: string;
+  /**
+   * The address the returned source actually came from.
+   *
+   * A resolved install source can differ from the requested URL (a Gitee external link, a GreasyFork
+   * mirror page, a ScriptCat preview URL), and the stored `sourceUrl` decides how a relative `@icon`
+   * resolves and which address update checks revisit later.
+   */
+  sourceUrl: string;
   errorMessage: string;
 }
 
@@ -157,6 +165,7 @@ export class UserScriptSourceFetchService {
       return {
         ok: true,
         source: source,
+        sourceUrl: url,
         errorMessage: ''
       };
     } catch (error) {
@@ -229,6 +238,7 @@ export class UserScriptSourceFetchService {
     return {
       ok: false,
       source: '',
+      sourceUrl: '',
       errorMessage: message
     };
   }

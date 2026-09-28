@@ -34,10 +34,12 @@ export type DefaultSearchEngineChangeHandler = (engineId: SearchEngineId) => voi
 export const DEFAULT_SEARCH_SUGGESTION_PREFERENCES: SearchSuggestionPreferences = {
   regularEnabled: true,
   privateEnabled: false,
-  openTabsEnabled: false,
-  bookmarksEnabled: false,
+  openTabsEnabled: true,
+  bookmarksEnabled: true,
   shortcutsEnabled: false,
-  historyEnabled: true,
+  historyEnabled: false,
+  browsingHistoryEnabled: false,
+  navigationSuggestionsChosen: true,
   remoteEnabled: true
 };
 
@@ -530,10 +532,12 @@ export class SearchEngineRepository {
       privateEnabled: typeof value?.privateEnabled === 'boolean'
         ? value.privateEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.privateEnabled,
-      openTabsEnabled: typeof value?.openTabsEnabled === 'boolean'
+      openTabsEnabled: value?.navigationSuggestionsChosen === true &&
+        typeof value?.openTabsEnabled === 'boolean'
         ? value.openTabsEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.openTabsEnabled,
-      bookmarksEnabled: typeof value?.bookmarksEnabled === 'boolean'
+      bookmarksEnabled: value?.navigationSuggestionsChosen === true &&
+        typeof value?.bookmarksEnabled === 'boolean'
         ? value.bookmarksEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.bookmarksEnabled,
       shortcutsEnabled: typeof value?.shortcutsEnabled === 'boolean'
@@ -542,6 +546,10 @@ export class SearchEngineRepository {
       historyEnabled: typeof value?.historyEnabled === 'boolean'
         ? value.historyEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.historyEnabled,
+      browsingHistoryEnabled: typeof value?.browsingHistoryEnabled === 'boolean'
+        ? value.browsingHistoryEnabled
+        : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.browsingHistoryEnabled,
+      navigationSuggestionsChosen: true,
       remoteEnabled: typeof value?.remoteEnabled === 'boolean'
         ? value.remoteEnabled
         : DEFAULT_SEARCH_SUGGESTION_PREFERENCES.remoteEnabled
@@ -609,15 +617,15 @@ export class SearchEngineRepository {
   }
 
   private shouldRestoreRemoteSearchSuggestions(settings: SearchEngineSettings | undefined): boolean {
-    const preferences = this.normalizeSuggestionPreferences(settings?.searchSuggestions);
+    const preferences = settings?.searchSuggestions;
     return this.normalizeTimestamp(settings?.updatedAt) < REMOTE_SEARCH_SUGGESTION_RESTORE_CUTOFF_AT &&
-      preferences.regularEnabled &&
-      !preferences.privateEnabled &&
-      !preferences.openTabsEnabled &&
-      !preferences.bookmarksEnabled &&
-      !preferences.shortcutsEnabled &&
-      preferences.historyEnabled &&
-      !preferences.remoteEnabled;
+      preferences?.regularEnabled !== false &&
+      preferences?.privateEnabled !== true &&
+      preferences?.openTabsEnabled !== true &&
+      preferences?.bookmarksEnabled !== true &&
+      preferences?.shortcutsEnabled !== true &&
+      preferences?.historyEnabled !== false &&
+      preferences?.remoteEnabled === false;
   }
 
   private restoreRemoteSearchSuggestions(preferences: SearchSuggestionPreferences): SearchSuggestionPreferences {
@@ -628,6 +636,8 @@ export class SearchEngineRepository {
       bookmarksEnabled: preferences.bookmarksEnabled,
       shortcutsEnabled: preferences.shortcutsEnabled,
       historyEnabled: preferences.historyEnabled,
+      browsingHistoryEnabled: preferences.browsingHistoryEnabled,
+      navigationSuggestionsChosen: preferences.navigationSuggestionsChosen,
       remoteEnabled: true
     };
   }
@@ -640,6 +650,8 @@ export class SearchEngineRepository {
       bookmarksEnabled: value.bookmarksEnabled,
       shortcutsEnabled: value.shortcutsEnabled,
       historyEnabled: value.historyEnabled,
+      browsingHistoryEnabled: value.browsingHistoryEnabled,
+      navigationSuggestionsChosen: value.navigationSuggestionsChosen,
       remoteEnabled: value.remoteEnabled
     };
   }

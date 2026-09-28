@@ -10,7 +10,9 @@ import {
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
   SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP,
   SPLIT_TOOLBAR_BOTTOM_BAR_VP,
-  SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS
+  SPLIT_TOOLBAR_PILL_ROW_VP,
+  SPLIT_TOOLBAR_SCROLL_COLLAPSE_DURATION_MS,
+  SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP
 } from '../../../core/browser/BrowserToolbarChromeStylePolicy';
 import { BrowserAddressBarTabSwipeEvent } from '../../../core/browser/BrowserAddressBarTabSwipePolicy';
 import {
@@ -34,7 +36,9 @@ import {
 } from '../../../services/search/ExternalAppSearchService';
 import { sharedExternalAppSearchPreferencesRepository } from '../../bootstrap/BrowserAppRuntime';
 
-const SPLIT_TOOLBAR_PILL_HEIGHT: number = 46;
+const SPLIT_TOOLBAR_PILL_HEIGHT: number = SPLIT_TOOLBAR_PILL_ROW_VP;
+/** Under-pill gap of the top row. The web reserve is built from the policy, so it lives there. */
+const SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP: number = SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP;
 const SPLIT_TOOLBAR_SEARCH_PILL_BORDER: number = 2;
 const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN: number = SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP;
 const SPLIT_TOOLBAR_TAB_COUNT_LIMIT: number = 99;
@@ -238,7 +242,7 @@ export struct BrowserSplitToolbarChrome {
       top: this.resolveTopInset(),
       left: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
       right: SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN,
-      bottom: 8
+      bottom: SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP
     })
     .backgroundColor(this.resolveBarBackground())
     .hitTestBehavior(this.shouldCollapseAddressBar() ? HitTestMode.None : HitTestMode.BLOCK_HIERARCHY)

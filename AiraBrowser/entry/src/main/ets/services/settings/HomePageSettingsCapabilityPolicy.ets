@@ -5,8 +5,8 @@ import { HomePageRecoveryEntry } from './HomePageRecoveryEntryPolicyService';
  * Which homepage-settings controls a frame actually honors.
  *
  * Classic owns the full sheet. Centered keeps only controls that change that frame:
- * wallpaper, favorites visibility, icon names, and icon size. Minimal keeps the centered
- * wordmark and search field but has no shortcut grid, so only wallpaper remains.
+ * logo, wallpaper, favorites visibility, icon names, and icon size. Minimal keeps the centered
+ * wordmark and search field but has no shortcut grid, so only logo and wallpaper remain.
  * Compact layout, section titles, icon radius, recently closed, system search, and the
  * settings button are classic-only.
  *
@@ -14,6 +14,7 @@ import { HomePageRecoveryEntry } from './HomePageRecoveryEntryPolicyService';
  * frame has a stored settings-button toggle. `settingsButton` stays false there.
  */
 export interface HomePageSettingsCapabilities {
+  logo: boolean;
   wallpaper: boolean;
   favorites: boolean;
   compactFavorites: boolean;
@@ -31,6 +32,7 @@ export function resolveHomePageSettingsCapabilities(
 ): HomePageSettingsCapabilities {
   if (style === 'minimal') {
     return {
+      logo: true,
       wallpaper: true,
       favorites: false,
       compactFavorites: false,
@@ -45,6 +47,7 @@ export function resolveHomePageSettingsCapabilities(
   }
   if (style === 'centered') {
     return {
+      logo: true,
       wallpaper: true,
       favorites: true,
       compactFavorites: false,
@@ -58,6 +61,7 @@ export function resolveHomePageSettingsCapabilities(
     };
   }
   return {
+    logo: false,
     wallpaper: true,
     favorites: true,
     compactFavorites: true,

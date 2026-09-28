@@ -21,8 +21,6 @@ const SUGGESTION_ROW_GAP: number = 12;
 const SUGGESTION_MULTI_COLUMN_CARD_HORIZONTAL_PADDING: number = 16;
 const SUGGESTION_MULTI_COLUMN_TITLE_SIZE: number = 15;
 const SUGGESTION_TRAILING_ICON_SIZE: number = 18;
-const SUGGESTION_DELETE_BUTTON_SIZE: number = 36;
-const SUGGESTION_DELETE_ICON_SIZE: number = 18;
 const CURRENT_SUGGESTION_CARD_RADIUS: number = 18;
 const CURRENT_SUGGESTION_CARD_HORIZONTAL_PADDING: number = SUGGESTION_MULTI_COLUMN_CARD_HORIZONTAL_PADDING;
 const CURRENT_SUGGESTION_CARD_VERTICAL_PADDING: number = 8;
@@ -456,9 +454,6 @@ struct BrowserSearchSuggestionCard {
         this.buildCompactTrailingActionRegion()
       } else {
         this.buildExpandedSuggestionOpenButton()
-        if (this.canDeleteHistorySuggestion()) {
-          this.buildDeleteHistorySuggestionButton()
-        }
       }
     }
     .width('100%')
@@ -517,46 +512,12 @@ struct BrowserSearchSuggestionCard {
 
   @Builder
   private buildCompactTrailingActionRegion() {
-    Row({ space: 4 }) {
+    Row() {
       this.buildTrailingIcon()
-      if (this.canDeleteHistorySuggestion()) {
-        this.buildDeleteHistorySuggestionButton()
-      }
     }
-    .width(SUGGESTION_TRAILING_ICON_SIZE +
-      (this.canDeleteHistorySuggestion() ? 4 + SUGGESTION_DELETE_BUTTON_SIZE : 0))
+    .width(SUGGESTION_TRAILING_ICON_SIZE)
     .height(this.resolveRowContentFrameHeight())
     .alignItems(VerticalAlign.Center)
-  }
-
-  @Builder
-  private buildDeleteHistorySuggestionButton() {
-    Button() {
-      Row() {
-        AiraIcon({
-          airaIconId: 'browser.tabs.delete',
-          iconSize: SUGGESTION_DELETE_ICON_SIZE,
-          iconColor: this.resolveSecondaryTextColor()
-        })
-      }
-      .width('100%')
-      .height('100%')
-      .justifyContent(this.compactContent ? FlexAlign.Start : FlexAlign.End)
-      .alignItems(VerticalAlign.Center)
-    }
-    .width(SUGGESTION_DELETE_BUTTON_SIZE)
-    .height(this.resolveRowContentFrameHeight())
-    .padding(0)
-    .type(ButtonType.Normal)
-    .backgroundColor($r('sys.color.ohos_id_color_background_transparent'))
-    .borderRadius(this.resolveRowContentFrameHeight() / 2)
-    .stateEffect(true)
-    .focusable(false)
-    .focusOnTouch(false)
-    .accessibilityText('删除搜索记录')
-    .onClick(() => {
-      this.onDeleteHistorySuggestion(this.suggestion);
-    })
   }
 
   @Builder
@@ -738,11 +699,11 @@ struct BrowserSearchSuggestionCard {
   @Builder
   private buildTrailingIcon() {
     if (this.suggestion.source === 'history' || this.suggestion.source === 'search_history') {
-      AiraIcon({
-        airaIconId: 'membership.inviteRecordClock',
-        iconSize: SUGGESTION_TRAILING_ICON_SIZE,
-        iconColor: this.resolveSecondaryTextColor()
-      })
+      this.buildSourceTrailingIcon('membership.inviteRecordClock')
+    } else if (this.suggestion.source === 'bookmarks') {
+      this.buildSourceTrailingIcon('browser.shortcut.bookmarks')
+    } else if (this.suggestion.source === 'tabs') {
+      this.buildSourceTrailingIcon('browser.toolbar.tabs')
     } else {
       SymbolGlyph($r('sys.symbol.chevron_right'))
         .fontSize(16)
@@ -751,15 +712,19 @@ struct BrowserSearchSuggestionCard {
     }
   }
 
+  @Builder
+  private buildSourceTrailingIcon(iconId: AiraRenderableIconId) {
+    AiraIcon({
+      airaIconId: iconId,
+      iconSize: SUGGESTION_TRAILING_ICON_SIZE,
+      iconColor: this.resolveSecondaryTextColor()
+    })
+  }
+
   private isCurrentTabSuggestion(): boolean {
     return this.suggestion.source === 'tabs' &&
       this.currentTabSuggestionRefId.length > 0 &&
       this.suggestion.refId === this.currentTabSuggestionRefId;
-  }
-
-  private canDeleteHistorySuggestion(): boolean {
-    return this.suggestion.source === 'search_history' &&
-      this.suggestion.refId !== undefined && this.suggestion.refId.trim().length > 0;
   }
 
   private resolvePrimaryTextColor(): ResourceColor {

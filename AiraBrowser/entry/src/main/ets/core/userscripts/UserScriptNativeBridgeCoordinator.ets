@@ -20,6 +20,7 @@ import { DownloadV2TaskEntity } from '../../domain/downloadv2/DownloadV2TaskEnti
 import { UserScriptNativeClipboardService } from '../../services/userscripts/UserScriptNativeClipboardService';
 import { UserScriptNativeDownloadService } from '../../services/userscripts/UserScriptNativeDownloadService';
 import { UserScriptNativeXmlHttpRequestService } from '../../services/userscripts/UserScriptNativeXmlHttpRequestService';
+import { UserScriptNativeCookieService, UserScriptCookieDetails } from '../../services/userscripts/UserScriptNativeCookieService';
 import { UserScriptNativeBridgePermissionCoordinator } from './UserScriptNativeBridgePermissionCoordinator';
 import { UserScriptRuntimeReadinessCoordinator } from './UserScriptRuntimeReadinessCoordinator';
 import { UserScriptTabStorageService } from './UserScriptTabStorageService';
@@ -29,6 +30,12 @@ export interface UserScriptNativeBridgeHost {
   requestDownload: (request: ManualDownloadRequestInput) => string;
   showMessage: (message: string) => void;
   runMediaSniff: (tabId: string, sourcePageUrl: string) => void;
+  /**
+   * Private tabs use ArkWeb's incognito cookie store, so cookie reads and writes must
+   * follow the tab boundary the script actually runs in. Hosts that cannot answer keep
+   * the regular store.
+   */
+  isTabIncognito?: (tabId: string) => boolean;
 }
 
 export type UserScriptAutomaticDocumentSignalPhase = 'document_start' | 'document_end' | 'post_paint';
@@ -85,6 +92,7 @@ export class UserScriptNativeBridge {
 export class UserScriptNativeBridgeCoordinator {
   private capabilityContract: UserScriptCapabilityContractService = new UserScriptCapabilityContractService();
   private clipboardService: UserScriptNativeClipboardService = new UserScriptNativeClipboardService();
+  private cookieService: UserScriptNativeCookieService = new UserScriptNativeCookieService();
   private downloadService: UserScriptNativeDownloadService = new UserScriptNativeDownloadService();
   private tabStorageService: UserScriptTabStorageService = new UserScriptTabStorageService();
   private xmlHttpRequestService: UserScriptNativeXmlHttpRequestService = new UserScriptNativeXmlHttpRequestService();
@@ -284,7 +292,7 @@ export class UserScriptNativeBridgeCoordinator {
       return;
     }
     if (route.executor === 'xml_http_request') {
-      this.handleXmlHttpRequest(payload, payloadJson, controller, currentUrl, route);
+      this.handleXmlHttpRequest(payload, payloadJson, controller, tabId, currentUrl, route);
     } else if (route.executor === 'download') {
       this.handleDownload(payload, controller, currentUrl, route);
     } else if (route.executor === 'notification') {
@@ -305,6 +313,12 @@ export class UserScriptNativeBridgeCoordinator {
       this.handleDeleteValues(payload, controller, currentUrl, route);
     } else if (route.executor === 'clipboard') {
       this.handleSetClipboard(payload, currentUrl, route);
+    } else if (route.executor === 'cookie_list') {
+      void this.handleCookieList(payload, controller, tabId, currentUrl, route);
+    } else if (route.executor === 'cookie_set') {
+      void this.handleCookieSet(payload, controller, tabId, currentUrl, route);
+    } else if (route.executor === 'cookie_delete') {
+      void this.handleCookieDelete(payload, controller, tabId, currentUrl, route);
     }
   }
 
@@ -354,6 +368,7 @@ export class UserScriptNativeBridgeCoordinator {
     payload: RawUserScriptNativeBridgePayload,
     payloadJson: string,
     controller: webview.WebviewController,
+    tabId: string,
     currentUrl: string,
     route: UserScriptNativeBridgeRoute
   ): void {
@@ -369,7 +384,7 @@ export class UserScriptNativeBridgeCoordinator {
       this.dispatchXmlHttpFailure(controller, payload, validation.message);
       return;
     }
-    this.xmlHttpRequestService.request(payloadJson, controller);
+    this.xmlHttpRequestService.request(payloadJson, controller, this.resolveTabIncognito(tabId));
   }
 
   private handleDownload(
@@ -660,6 +675,106 @@ export class UserScriptNativeBridgeCoordinator {
           validation.scriptId
         );
       });
+  }
+
+  private async handleCookieList(
+    payload: RawUserScriptNativeBridgePayload,
+    controller: webview.WebviewController,
+    tabId: string,
+    currentUrl: string,
+    route: UserScriptNativeBridgeRoute
+  ): Promise<void> {
+    const validation = this.permissionCoordinator.validate(payload, currentUrl, route, this.tokenRecords);
+    if (!validation.ok || validation.scriptId.length === 0) {
+      this.permissionCoordinator.recordBridgeRejected(
+        payload,
+        currentUrl,
+        route.capability,
+        validation.message,
+        validation.scriptId
+      );
+      this.dispatchCookieEvent(controller, payload, false, validation.message);
+      return;
+    }
+    const details: UserScriptCookieDetails = this.cookieService.readDetails(payload);
+    const records = await this.cookieService.listCookies(details, currentUrl, this.resolveTabIncognito(tabId));
+    this.dispatchCookieEvent(controller, payload, true, '', this.cookieService.serializeRecords(records));
+  }
+
+  private async handleCookieSet(
+    payload: RawUserScriptNativeBridgePayload,
+    controller: webview.WebviewController,
+    tabId: string,
+    currentUrl: string,
+    route: UserScriptNativeBridgeRoute
+  ): Promise<void> {
+    const validation = this.permissionCoordinator.validate(payload, currentUrl, route, this.tokenRecords);
+    if (!validation.ok || validation.scriptId.length === 0) {
+      this.permissionCoordinator.recordBridgeRejected(
+        payload,
+        currentUrl,
+        route.capability,
+        validation.message,
+        validation.scriptId
+      );
+      this.dispatchCookieEvent(controller, payload, false, validation.message);
+      return;
+    }
+    const details: UserScriptCookieDetails = this.cookieService.readDetails(payload);
+    const written = await this.cookieService.setCookie(details, currentUrl, this.resolveTabIncognito(tabId));
+    this.dispatchCookieEvent(controller, payload, written, written ? '' : 'cookie-set-failed', '[]');
+  }
+
+  private async handleCookieDelete(
+    payload: RawUserScriptNativeBridgePayload,
+    controller: webview.WebviewController,
+    tabId: string,
+    currentUrl: string,
+    route: UserScriptNativeBridgeRoute
+  ): Promise<void> {
+    const validation = this.permissionCoordinator.validate(payload, currentUrl, route, this.tokenRecords);
+    if (!validation.ok || validation.scriptId.length === 0) {
+      this.permissionCoordinator.recordBridgeRejected(
+        payload,
+        currentUrl,
+        route.capability,
+        validation.message,
+        validation.scriptId
+      );
+      this.dispatchCookieEvent(controller, payload, false, validation.message);
+      return;
+    }
+    const details: UserScriptCookieDetails = this.cookieService.readDetails(payload);
+    await this.cookieService.deleteCookies(details, currentUrl, this.resolveTabIncognito(tabId));
+    // A delete that matches no stored cookie is not a failure: the script asked for an
+    // absent cookie to be gone, and it is.
+    this.dispatchCookieEvent(controller, payload, true, '', '[]');
+  }
+
+  private dispatchCookieEvent(
+    controller: webview.WebviewController,
+    payload: RawUserScriptNativeBridgePayload,
+    success: boolean,
+    message: string = '',
+    cookiesJson: string = '[]'
+  ): void {
+    const requestId = String(payload.id ?? '').trim();
+    if (requestId.length === 0) {
+      return;
+    }
+    void controller.runJavaScript(this.cookieService.buildDispatchScript(requestId, success, message, cookiesJson));
+  }
+
+  private resolveTabIncognito(tabId: string): boolean {
+    const resolver = this.host.isTabIncognito;
+    if (resolver === undefined) {
+      return false;
+    }
+    try {
+      return resolver(tabId) === true;
+    } catch (_error) {
+      return false;
+    }
   }
 
   private normalizeInlineMutations(mutations: UserScriptValueMutation[] | undefined): UserScriptValueMutation[] {

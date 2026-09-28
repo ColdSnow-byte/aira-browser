@@ -20,8 +20,15 @@ import {
   shouldReserveSplitToolbarHomeInsets,
   shouldRouteCenteredHomeSearchToFloatingToolbar,
   shouldSuppressLegacyFloatingToolbar,
+  resolveSplitToolbarBottomReserveVp,
+  resolveSplitToolbarBottomRowHeightVp,
+  resolveSplitToolbarTopRowHeightVp,
+  resolveSplitToolbarTopRowReserveVp,
+  resolveSplitToolbarWebReserve,
   SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
-  SPLIT_TOOLBAR_BOTTOM_BAR_VP
+  SPLIT_TOOLBAR_BOTTOM_BAR_VP,
+  SPLIT_TOOLBAR_PILL_ROW_VP,
+  SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP
 } from '../main/ets/core/browser/BrowserToolbarChromeStylePolicy';
 import { BrowserToolbarScrollBehaviorSettingsViewModel } from '../main/ets/core/settings/BrowserToolbarScrollBehaviorSettingsViewModel';
 
@@ -70,6 +77,101 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(SPLIT_TOOLBAR_BOTTOM_BAR_VP).assertLarger(0);
   });
 
+  it('keeps the web page between the two split rows in every chrome state', 0, () => {
+    const contentGapVp = 16;
+    const statusBarStripVp = 36;
+    const topRowSafeInsetVp = 36;
+    const bottomRowSafeInsetVp = 12;
+    const buildReserve = (
+      statusBarStrip: number,
+      statusBarVisible: boolean,
+      stackedHeightVp: number,
+      addressRowPainted: boolean,
+      bottomRowPainted: boolean
+    ): SplitToolbarWebReserve => resolveSplitToolbarWebReserve({
+      statusBarStripVp: statusBarStrip,
+      statusBarVisible: statusBarVisible,
+      stackedChromeHeightVp: stackedHeightVp,
+      addressRowSafeInsetVp: topRowSafeInsetVp,
+      bottomRowSafeInsetVp: bottomRowSafeInsetVp,
+      contentGapVp: contentGapVp,
+      addressRowPainted: addressRowPainted,
+      bottomRowPainted: bottomRowPainted
+    });
+    expect(SPLIT_TOOLBAR_ADDRESS_BLOCK_VP).assertEqual(
+      SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP + 8);
+    // The page clears the row that is painted, and the row paints with its own safe padding.
+    for (const safeInsetVp of [0, 24, 36, 48]) {
+      expect(resolveSplitToolbarTopRowReserveVp(safeInsetVp, contentGapVp))
+        .assertLarger(resolveSplitToolbarTopRowHeightVp(safeInsetVp));
+    }
+    expect(resolveSplitToolbarBottomReserveVp(0)).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP);
+    expect(resolveSplitToolbarBottomReserveVp(bottomRowSafeInsetVp))
+      .assertEqual(resolveSplitToolbarBottomRowHeightVp(bottomRowSafeInsetVp));
+
+    // A painted split row is an opaque row, not a floating pill: the page clears that row, so the
+    // empty band under it is only the block's own breathing room instead of the strip gap as well.
+    const restingRows = buildReserve(statusBarStripVp, true, 0, true, true);
+    expect(restingRows.topVp).assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
+    expect(restingRows.topVp - resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp))
+      .assertEqual(SPLIT_TOOLBAR_ADDRESS_BLOCK_VP - SPLIT_TOOLBAR_PILL_ROW_VP -
+        SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP);
+    expect(restingRows.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + bottomRowSafeInsetVp);
+    // A visible status bar whose strip is shorter than the row keeps the row's own safe padding.
+    expect(buildReserve(16, true, 0, true, true).topVp)
+      .assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
+    // A hidden status bar keeps the painted row: this is the top coverage the reserve exists for.
+    const hiddenStatusBar = buildReserve(16, false, 0, true, true);
+    expect(hiddenStatusBar.topVp).assertLarger(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
+    expect(hiddenStatusBar.topVp).assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
+    expect(hiddenStatusBar.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + bottomRowSafeInsetVp);
+    // The bottom row owns the bottom edge while it is on screen, keyboard or not.
+    expect(buildReserve(statusBarStripVp, true, 0, false, true).bottomVp)
+      .assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + bottomRowSafeInsetVp);
+    // Rows away: the page keeps the clearance of whatever is still covering its edge, and the
+    // floating chrome keeps its content gap.
+    const rowsAway = buildReserve(statusBarStripVp, true, 0, false, false);
+    expect(rowsAway.topVp).assertEqual(statusBarStripVp + contentGapVp);
+    expect(rowsAway.bottomVp).assertEqual(0);
+    expect(buildReserve(16, false, 0, false, false).topVp).assertEqual(0);
+  });
+
+  it('stacks chrome rows above the page instead of trading one for the other', 0, () => {
+    const contentGapVp = 16;
+    const statusBarStripVp = 36;
+    const topRowSafeInsetVp = 36;
+    const stackedChromeHeightVp = 48;
+    for (const statusBarVisible of [true, false]) {
+      const withRow = resolveSplitToolbarWebReserve({
+        statusBarStripVp: statusBarStripVp,
+        statusBarVisible: statusBarVisible,
+        stackedChromeHeightVp: stackedChromeHeightVp,
+        addressRowSafeInsetVp: topRowSafeInsetVp,
+        bottomRowSafeInsetVp: 12,
+        contentGapVp: contentGapVp,
+        addressRowPainted: true,
+        bottomRowPainted: true
+      });
+      const withoutRow = resolveSplitToolbarWebReserve({
+        statusBarStripVp: statusBarStripVp,
+        statusBarVisible: statusBarVisible,
+        stackedChromeHeightVp: stackedChromeHeightVp,
+        addressRowSafeInsetVp: topRowSafeInsetVp,
+        bottomRowSafeInsetVp: 12,
+        contentGapVp: contentGapVp,
+        addressRowPainted: false,
+        bottomRowPainted: false
+      });
+      // The stacked row (the quick search row) keeps its own height and the address row keeps
+      // its clearance, so the row that is on screen is never pushed under the other one.
+      expect(withRow.topVp - stackedChromeHeightVp)
+        .assertLarger(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
+      expect(withRow.topVp - stackedChromeHeightVp)
+        .assertLarger(withoutRow.topVp - stackedChromeHeightVp);
+      expect(withRow.topVp > stackedChromeHeightVp).assertTrue();
+    }
+  });
+
   it('enables split back and forward from the floating toolbar rule', 0, () => {
     expect(resolveSplitToolbarCanGoBack(true, true, true)).assertFalse();
     expect(resolveSplitToolbarCanGoBack(false, false, true)).assertTrue();
@@ -85,6 +187,10 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     expect(resolveSplitToolbarHomeBackdrop('default', 'system_home')).assertEqual('theme_color');
     expect(resolveSplitToolbarHomeBackdrop('default', 'theme')).assertEqual('theme_color');
     expect(resolveSplitToolbarHomeBackdrop('image', 'system_home')).assertEqual('wallpaper');
+    // An auto black/white home and a flat color are painted edge to edge too, so their bars
+    // clear exactly like a photo's.
+    expect(resolveSplitToolbarHomeBackdrop('solid', 'system_home')).assertEqual('wallpaper');
+    expect(resolveSplitToolbarHomeBackdrop('auto', 'system_home')).assertEqual('wallpaper');
     expect(resolveSplitToolbarHomeBackdrop('default', 'web_home')).assertEqual('web_home');
     expect(resolveSplitToolbarBarBackgroundColor({
       homeScene: true,
@@ -118,12 +224,15 @@ describe('BrowserToolbarChromeStylePolicy', () => {
     })).assertEqual('#FFFFFF');
   });
 
-  it('clears centered and minimal bars only over an image wallpaper', 0, () => {
+  it('clears centered and minimal bars only over a painted wallpaper', 0, () => {
     expect(shouldClearSplitToolbarOverWallpaper(true, true, 'image')).assertTrue();
+    expect(shouldClearSplitToolbarOverWallpaper(true, true, 'solid')).assertTrue();
+    expect(shouldClearSplitToolbarOverWallpaper(true, true, 'auto')).assertTrue();
     expect(SPLIT_TOOLBAR_CLEARED_BAR_COLOR).assertEqual('#00000000');
     expect(shouldClearSplitToolbarOverWallpaper(true, true, 'default')).assertFalse();
     expect(shouldClearSplitToolbarOverWallpaper(true, false, 'image')).assertFalse();
     expect(shouldClearSplitToolbarOverWallpaper(false, true, 'image')).assertFalse();
+    expect(shouldClearSplitToolbarOverWallpaper(true, false, 'solid')).assertFalse();
   });
 
   it('keeps split scroll fixed unless the user chose hide, then collapses both bars together', 0, () => {

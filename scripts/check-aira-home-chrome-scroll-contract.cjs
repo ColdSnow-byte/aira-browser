@@ -815,9 +815,10 @@ function checkExpandedSearchPageBackgroundContract() {
     expandedScrimSource.includes('private shouldPaintExpandedPageBackground(): boolean') &&
     expandedScrimSource.includes('return !this.surfaceSuppressed && this.surfaceEligible && this.pageBackgroundVisible;') &&
     expandedScrimSource.includes('.backgroundColor(this.storedPageBackgroundColor)') &&
+    expandedScrimSource.includes('.transition(TransitionEffect.IDENTITY)') &&
     !expandedScrimSource.includes('browser_overlay_scrim') &&
     !expandedScrimSource.includes('start_window_background'),
-  'the committed search interface must paint a full-screen theme page background, not a drag veil or a dim scrim');
+  'the committed search interface must paint a full-screen theme page background without the system appear slide, not a drag veil or a dim scrim');
   assert(addressPanelSource.includes('floatingTopSurfaceChromeVisible: false'),
   'suggestion rows must sit on the full-screen page background instead of owning a separate history plate');
 }

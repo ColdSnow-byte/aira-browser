@@ -353,10 +353,12 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         privateEnabled: typeof parsed.privateEnabled === 'boolean'
           ? parsed.privateEnabled
           : defaultValue.privateEnabled,
-        openTabsEnabled: typeof parsed.openTabsEnabled === 'boolean'
+        openTabsEnabled: parsed.navigationSuggestionsChosen === true &&
+          typeof parsed.openTabsEnabled === 'boolean'
           ? parsed.openTabsEnabled
           : defaultValue.openTabsEnabled,
-        bookmarksEnabled: typeof parsed.bookmarksEnabled === 'boolean'
+        bookmarksEnabled: parsed.navigationSuggestionsChosen === true &&
+          typeof parsed.bookmarksEnabled === 'boolean'
           ? parsed.bookmarksEnabled
           : defaultValue.bookmarksEnabled,
         shortcutsEnabled: typeof parsed.shortcutsEnabled === 'boolean'
@@ -365,6 +367,10 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
         historyEnabled: typeof parsed.historyEnabled === 'boolean'
           ? parsed.historyEnabled
           : defaultValue.historyEnabled,
+        browsingHistoryEnabled: typeof parsed.browsingHistoryEnabled === 'boolean'
+          ? parsed.browsingHistoryEnabled
+          : defaultValue.browsingHistoryEnabled,
+        navigationSuggestionsChosen: true,
         remoteEnabled: typeof parsed.remoteEnabled === 'boolean'
           ? parsed.remoteEnabled
           : defaultValue.remoteEnabled

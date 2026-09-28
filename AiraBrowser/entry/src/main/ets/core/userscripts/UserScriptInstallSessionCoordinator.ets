@@ -643,7 +643,7 @@ export class UserScriptInstallSessionCoordinator {
     if (!result.ok) {
       return this.failed(result.errorMessage);
     }
-    return this.applyLoadedSource(result.source, normalizedUrl, 'url');
+    return this.applyLoadedSource(result.source, result.sourceUrl, 'url');
   }
 
   private async loadFileSource(

@@ -616,6 +616,7 @@ ${compatibilityProfile.postScriptSource}
     var GM_openInTab = __airaRuntime.GM_openInTab;
     var GM_notification = __airaRuntime.GM_notification;
     var GM_setClipboard = __airaRuntime.GM_setClipboard;
+    var GM_cookie = __airaRuntime.GM_cookie;
     var GM_log = __airaRuntime.GM_log;
     var GM_getTab = __airaRuntime.GM_getTab;
     var GM_saveTab = __airaRuntime.GM_saveTab;
@@ -648,6 +649,7 @@ ${compatibilityProfile.postScriptSource}
     window.GM_xmlhttpRequest = GM_xmlhttpRequest;
     window.GM_xmlHttpRequest = GM_xmlhttpRequest;
     window.GM_script = GM_script;
+    window.GM_cookie = GM_cookie;
     window.GM_webextPref = GM_webextPref;
     window.GM_EX_getSearchEngines = GM_EX_getSearchEngines;
     window.GM_EX_getAppSearchEngineUrl = GM_EX_getAppSearchEngineUrl;
@@ -1495,6 +1497,145 @@ ${scriptBodySource}
       delete callbacks[String(event.id || '')];
       callback(event);
     };
+    window.__airaUserScriptCookieCallbacks = window.__airaUserScriptCookieCallbacks || {};
+    window.__airaUserScriptCookieDispatch = window.__airaUserScriptCookieDispatch || function(event) {
+      var callbacks = window.__airaUserScriptCookieCallbacks || {};
+      var requestCallbacks = callbacks[String(event && event.id || '')];
+      if (!requestCallbacks) {
+        return;
+      }
+      delete callbacks[String(event.id || '')];
+      var cookies = [];
+      try {
+        var parsedCookies = JSON.parse(String(event && event.cookiesJson || '[]'));
+        if (Array.isArray(parsedCookies)) {
+          cookies = parsedCookies;
+        }
+      } catch (_error) {
+        cookies = [];
+      }
+      if (event && event.success === true) {
+        requestCallbacks.resolve({ cookies: cookies, error: '' });
+        return;
+      }
+      requestCallbacks.reject(new Error(String(event && event.error || 'cookie-request-failed')));
+    };
+    // Only the documented Tampermonkey/ScriptCat cookie fields cross the bridge, so a
+    // script cannot smuggle extra shape into the native cookie writer.
+    var __airaCookieDetailsJson = function(details) {
+      var source = details || {};
+      var normalized = {};
+      ['url', 'domain', 'path', 'name', 'value', 'sameSite'].forEach(function(key) {
+        if (typeof source[key] === 'string') {
+          normalized[key] = source[key];
+        }
+      });
+      ['secure', 'httpOnly', 'session', 'hostOnly'].forEach(function(key) {
+        if (typeof source[key] === 'boolean') {
+          normalized[key] = source[key];
+        }
+      });
+      ['expirationDate', 'maxAge'].forEach(function(key) {
+        if (typeof source[key] === 'number' || typeof source[key] === 'string') {
+          normalized[key] = source[key];
+        }
+      });
+      return JSON.stringify(normalized);
+    };
+    var __airaRequestCookie = function(route, details) {
+      var bridge = window.__airaUserScriptNativeBridge;
+      if (!route || !bridge || typeof bridge.request !== 'function' || !__airaNativeBridgeToken) {
+        return Promise.reject(new Error('userscript-native-bridge-unavailable'));
+      }
+      var requestId = __airaScriptId + '-cookie-' + (__airaNextNativeRequestId++);
+      return new Promise(function(resolve, reject) {
+        window.__airaUserScriptCookieCallbacks[requestId] = {
+          resolve: resolve,
+          reject: reject
+        };
+        try {
+          bridge.request(JSON.stringify({
+            kind: route.requestKind,
+            id: requestId,
+            scriptId: __airaScriptId,
+            token: __airaNativeBridgeToken,
+            capability: route.capability,
+            cookieJson: __airaCookieDetailsJson(details)
+          }));
+        } catch (error) {
+          delete window.__airaUserScriptCookieCallbacks[requestId];
+          reject(error);
+        }
+      });
+    };
+    var __airaCookieErrorText = function(error) {
+      if (typeof error === 'string') {
+        return error;
+      }
+      return String((error && (error.message || error)) || 'cookie-request-failed');
+    };
+    var __airaSettleCookieCall = function(promise, callback, resultFirst) {
+      if (typeof callback !== 'function') {
+        return promise;
+      }
+      promise.then(function(result) {
+        if (resultFirst) {
+          callback(result, '');
+          return;
+        }
+        callback();
+      }).catch(function(error) {
+        var message = __airaCookieErrorText(error);
+        if (resultFirst) {
+          callback([], message);
+          return;
+        }
+        callback(message);
+      });
+      return promise.catch(function() {});
+    };
+    var __airaCookieGrantError = function(operation, granted) {
+      if (granted === true) {
+        return undefined;
+      }
+      return new Error('Missing userscript grant: ' + operation + ' (declare @grant GM_cookie)');
+    };
+    var __airaListCookies = function(details, granted) {
+      var grantError = __airaCookieGrantError('GM_cookie.list', granted);
+      if (grantError) {
+        return Promise.reject(grantError);
+      }
+      return __airaRequestCookie(__airaNativeRoutes.cookieList, details).then(function(event) {
+        return event.cookies;
+      });
+    };
+    var __airaSetCookie = function(details, granted) {
+      var grantError = __airaCookieGrantError('GM_cookie.set', granted);
+      if (grantError) {
+        return Promise.reject(grantError);
+      }
+      return __airaRequestCookie(__airaNativeRoutes.cookieSet, details).then(function() {});
+    };
+    var __airaDeleteCookie = function(details, granted) {
+      var grantError = __airaCookieGrantError('GM_cookie.delete', granted);
+      if (grantError) {
+        return Promise.reject(grantError);
+      }
+      return __airaRequestCookie(__airaNativeRoutes.cookieDelete, details).then(function() {});
+    };
+    // A script without the grant gets the failure through the callback or the rejected promise
+    // rather than a synchronous throw, so feature-detecting scripts fall back on their own.
+    var GM_cookie = {
+      list: function(details, callback) {
+        return __airaSettleCookieCall(__airaListCookies(details, __airaGrants.cookieList), callback, true);
+      },
+      set: function(details, callback) {
+        return __airaSettleCookieCall(__airaSetCookie(details, __airaGrants.cookieSet), callback, false);
+      },
+      delete: function(details, callback) {
+        return __airaSettleCookieCall(__airaDeleteCookie(details, __airaGrants.cookieDelete), callback, false);
+      }
+    };
     var __airaRequestTabStorage = function(route, value) {
       var bridge = window.__airaUserScriptNativeBridge;
       if (!route || !bridge || typeof bridge.request !== 'function' || !__airaNativeBridgeToken) {
@@ -2240,6 +2381,7 @@ ${scriptBodySource}
       addValueChangeListener: GM_addValueChangeListener,
       removeValueChangeListener: GM_removeValueChangeListener,
       setClipboard: function(data, type) { GM_setClipboard(data, type); return Promise.resolve(); },
+      cookie: GM_cookie,
       log: GM_log,
       notification: GM_notification,
       registerMenuCommand: GM_registerMenuCommand,
@@ -2268,6 +2410,7 @@ ${scriptBodySource}
       GM_openInTab: GM_openInTab,
       GM_notification: GM_notification,
       GM_setClipboard: GM_setClipboard,
+      GM_cookie: GM_cookie,
       GM_log: GM_log,
       GM_getTab: GM_getTab,
       GM_saveTab: GM_saveTab,

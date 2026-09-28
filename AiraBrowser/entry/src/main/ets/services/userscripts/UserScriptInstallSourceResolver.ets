@@ -1,5 +1,6 @@
 import { UserScriptExactInstallAlias } from './UserScriptExactInstallAlias';
 import { UserScriptGforkProxyInstallUrl } from './UserScriptGforkProxyInstallUrl';
+import { UserScriptGiteeRedirectInstallUrl } from './UserScriptGiteeRedirectInstallUrl';
 import { UserScriptInstallSourceAdapter } from './UserScriptInstallSourceAdapter';
 import { UserScriptScriptCatPreviewInstallUrl } from './UserScriptScriptCatPreviewInstallUrl';
 
@@ -7,6 +8,7 @@ export class UserScriptInstallSourceResolver {
   private adapters: UserScriptInstallSourceAdapter[] = [
     new UserScriptExactInstallAlias(),
     new UserScriptGforkProxyInstallUrl(),
+    new UserScriptGiteeRedirectInstallUrl(),
     new UserScriptScriptCatPreviewInstallUrl()
   ];
 

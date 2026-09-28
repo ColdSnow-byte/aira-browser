@@ -23,7 +23,11 @@ export function omniboxSuggestionSelectionKey(suggestion: SearchSuggestion): str
 /** Rows the desktop dropdown actually paints. Keyboard movement must use this same list. */
 export function resolveOmniboxKeyboardSuggestions(suggestions: SearchSuggestion[]): SearchSuggestion[] {
   return suggestions.filter((suggestion: SearchSuggestion): boolean => {
-    return suggestion.source === 'search_history' || suggestion.source === 'suggestions';
+    return suggestion.source === 'search_history' ||
+      suggestion.source === 'history' ||
+      suggestion.source === 'bookmarks' ||
+      suggestion.source === 'tabs' ||
+      suggestion.source === 'suggestions';
   });
 }
 

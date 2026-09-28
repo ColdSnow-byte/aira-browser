@@ -46,11 +46,13 @@ export struct BrowserRootBottomPanelExpandedScrim {
         // progress: a partial page colour behind a capsule that is still moving reads as a veil.
         // Suggestion rows stay transparent and sit on this surface, so the background is the
         // screen, not a plate behind the history block.
+        // A newly committed search page must not use the system appear transition, which slides in from the right.
         Stack()
           .width('100%')
           .height('100%')
           .backgroundColor(this.storedPageBackgroundColor)
           .hitTestBehavior(HitTestMode.None)
+          .transition(TransitionEffect.IDENTITY)
       }
     }
     .width(this.shouldBlockHitTest() ? '100%' : 0)

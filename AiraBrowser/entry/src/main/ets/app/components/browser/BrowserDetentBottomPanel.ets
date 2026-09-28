@@ -339,10 +339,12 @@ export struct BrowserDetentBottomPanel {
 
   @Builder
   private buildFloatingOverlayPanSurface() {
+    // Input layout inserts this full-screen layer. Leave it unguarded and it slides in from the right.
     Column()
       .width('100%')
       .height('100%')
       .hitTestBehavior(HitTestMode.Transparent)
+      .transition(TransitionEffect.IDENTITY)
       .onGestureJudgeBegin((info: GestureInfo, event: BaseGestureEvent) => {
         return this.judgeVerticalPanelPan(info, event, this.floatingOverlayPanEnabled);
       })

@@ -276,7 +276,7 @@ export class UserScriptPackageLifecycleCoordinator {
     if (!fetchResult.ok) {
       return this.fail(fetchResult.errorMessage);
     }
-    const parsed = this.parser.parse(fetchResult.source, 'url', normalizedUrl);
+    const parsed = this.parser.parse(fetchResult.source, 'url', fetchResult.sourceUrl);
     if (!parsed.valid || parsed.candidate === undefined) {
       return this.fail(this.resolveParseError(parsed, '脚本格式不正确。'), parsed.warnings);
     }

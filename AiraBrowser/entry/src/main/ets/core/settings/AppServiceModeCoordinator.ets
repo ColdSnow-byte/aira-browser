@@ -106,6 +106,8 @@ export class AppServiceModeCoordinator {
       bookmarksEnabled: current.bookmarksEnabled,
       shortcutsEnabled: current.shortcutsEnabled,
       historyEnabled: current.historyEnabled,
+      browsingHistoryEnabled: current.browsingHistoryEnabled,
+      navigationSuggestionsChosen: current.navigationSuggestionsChosen,
       remoteEnabled: false
     };
     await this.preferencesRepository.updateSearchSuggestionPreferences(next);

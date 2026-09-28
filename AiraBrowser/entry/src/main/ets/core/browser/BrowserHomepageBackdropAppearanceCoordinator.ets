@@ -197,7 +197,8 @@ export class BrowserHomepageBackdropAppearanceCoordinator {
     input: BrowserHomepageBackdropAppearanceSourceInput
   ): BrowserHomepageBackdropAppearanceState | undefined {
     const settings = input.wallpaperSnapshot.settings;
-    if (!input.preferences.wallpaperEnabled || settings.mode === 'theme') {
+    // A flat color has no pixels to sample, so it carries no stored appearance either.
+    if (!input.preferences.wallpaperEnabled || settings.mode === 'theme' || settings.mode === 'solid') {
       return undefined;
     }
     const selectedAssetId = settings.mode === 'custom' ?

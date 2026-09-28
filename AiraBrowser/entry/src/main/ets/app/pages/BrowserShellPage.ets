@@ -37,7 +37,8 @@ import {
   TabDiscardReason,
   TabRecord,
   TabRestoreReason,
-  TabRuntimeState
+  TabRuntimeState,
+  HistoryVisit
 } from '../../common/models/BrowserModels';
 import {
   QUICK_SEARCH_SWITCHING_PREFERENCES_REVISION_KEY,
@@ -127,6 +128,8 @@ import {
   sharedSearchEngineRepository,
   sharedSearchEngineRoutingService,
   sharedSearchQueryHistoryService,
+  sharedHistoryOmniboxSuggestionService,
+  sharedBookmarkOmniboxSuggestionService,
   sharedShortcutIconResolverService,
   sharedShortcutRepository,
   sharedSitePolicyService,
@@ -235,6 +238,7 @@ import {
   resolveSplitToolbarCanGoBack,
   resolveSplitToolbarCanGoForward,
   resolveSplitToolbarHomeBackdrop,
+  resolveSplitToolbarWebReserve,
   shouldClearSplitToolbarOverWallpaper,
   SPLIT_TOOLBAR_CLEARED_BAR_COLOR,
   canCollapseSplitAddressBarForTopImmersion,
@@ -1347,6 +1351,32 @@ class BrowserColdStartDeferredSurfaceContentFrameCallback extends FrameCallback 
   }
 }
 
+/**
+ * Frame-boundary commit for a bottom-panel search presentation.
+ *
+ * A panel-driven request can arrive while ArkUI is still building the frame that
+ * delivered it. Writing Shell @State from that build is rejected and the frame is
+ * restarted, which is what made the committed search page appear through the system
+ * appear transition. Committing on the next frame boundary keeps the write out of build.
+ */
+class BrowserRootBottomPanelCommitFrameCallback extends FrameCallback {
+  private readonly task: () => void;
+
+  constructor(task: () => void) {
+    super();
+    this.task = task;
+  }
+
+  onFrame(_frameTimeInNano: number): void {
+    try {
+      this.task();
+    } catch (_error) {
+      // A commit can touch UI state that is being torn down. Losing this commit is
+      // survivable; letting it escape would break ArkUI's frame dispatch.
+    }
+  }
+}
+
 @Entry({ useSharedStorage: true })
 @Component
 struct BrowserShellPage {
@@ -1885,7 +1915,10 @@ struct BrowserShellPage {
             tabId,
             sourcePageUrl,
             this.browserMediaDiscoveryHost
-          )
+          ),
+        // Cookie reads and writes must follow the tab's own store: private tabs use ArkWeb's
+        // incognito cookies, and a script in a private tab must not see or change the regular ones.
+        isTabIncognito: (tabId: string): boolean => this.tabScopedEventContextCoordinator.isTabPrivate(tabId)
       }
     );
   private browserHostedWebDocumentStartScriptCoordinator: BrowserHostedWebDocumentStartScriptCoordinator =
@@ -3671,7 +3704,9 @@ struct BrowserShellPage {
     new BrowserSearchSuggestionCoordinator(
       this.browserSearchSuggestionShell,
       sharedSearchQueryHistoryService,
-      this.browserTabSwitchCoordinator
+      this.browserTabSwitchCoordinator,
+      sharedHistoryOmniboxSuggestionService,
+      sharedBookmarkOmniboxSuggestionService
     );
   private browserWindowAvoidAreaCoordinator: BrowserWindowAvoidAreaCoordinator = new BrowserWindowAvoidAreaCoordinator();
   private browserFullscreenInsetRestoreHost: BrowserWindowFullscreenInsetRestoreHost = {
@@ -4440,6 +4475,9 @@ struct BrowserShellPage {
         resolveDataScope: (tabId: string): BrowserDataScope => this.tabScopedEventContextCoordinator.resolveDataScope(tabId),
         invalidateSearchSuggestionCache: (): void => {
           this.browserSearchSuggestionCoordinator.invalidate();
+        },
+        noteOmniboxHistoryVisit: (visit: HistoryVisit): void => {
+          sharedHistoryOmniboxSuggestionService.noteVisit(visit);
         }
       }
     );
@@ -4551,6 +4589,9 @@ struct BrowserShellPage {
     isWebAppActive: (): boolean => this.webAppSessionSnapshot.activeContext !== undefined && this.isWebPageVisible(),
     publishPresentation: (presentation: BrowserQuickSearchSwitchingPresentation): void => {
       this.quickSearchSwitchingPresentation = presentation;
+      // The row occupies layout height, so the split frame has to move the page with it. The
+      // floating chrome receives the same change through the top-immersion inset refresh.
+      this.reconcileSplitToolbarViewportReserve('quick-search-row');
     }
   };
   private browserQuickSearchSwitchingCoordinator: BrowserQuickSearchSwitchingCoordinator =
@@ -6019,6 +6060,12 @@ struct BrowserShellPage {
   @State rootBottomPanelImmediateLowDetentRequestVersion: number = 0;
   @State rootBottomPanelToolbarSystemSheetRequestVersion: number = 0;
   private rootBottomPanelToolbarSystemSheetRequested: boolean = false;
+  /**
+   * Panel-driven search commits waiting for the next frame boundary. See
+   * BrowserRootBottomPanelCommitFrameCallback for why they cannot run inline.
+   */
+  private pendingRootBottomPanelCommits: (() => void)[] = [];
+  private rootBottomPanelCommitFlushScheduled: boolean = false;
   @State
   @Watch('refreshRootBottomPanelLayoutState')
   webBottomAddressFocused: boolean = false;
@@ -6486,6 +6533,9 @@ struct BrowserShellPage {
       this.noteSplitAddressBarScroll(this.activeTabId, this.browserWebScrollInteractionCoordinator.getLastScrollY(), false);
       this.browserWebTopImmersionSessionCoordinator.syncPolicy('appearance');
       this.alignWebViewportVisualTopInsetAfterSafeAreaSync(true, true);
+      // The alignment stays out of the web viewport while the status bar is hidden, so the split
+      // rows still have to take their reserve back after a style change.
+      this.reconcileSplitToolbarViewportReserve('appearance');
       this.syncSearchInvocationPresentationHost();
       this.noteBottomToolbarGuideBrowsingSurface();
     },
@@ -7728,7 +7778,9 @@ struct BrowserShellPage {
       responsiveState: renderContext.responsiveState,
       topSafeInsetVp: this.homeTopSafeInsetVp,
       onPanelDetentChange: (detent: HomeSearchPanelDetent) => {
-        this.applyRootBottomPanelDetent(detent);
+        this.scheduleRootBottomPanelCommit((): void => {
+          this.applyRootBottomPanelDetent(detent);
+        });
       },
       onPanelGestureFrame: (frame: BrowserBottomAddressPanelGestureFrame) => {
         this.handleRootBottomPanelGestureFrame(frame);
@@ -7748,7 +7800,9 @@ struct BrowserShellPage {
         this.browserRootBottomPanelSessionCoordinator.endGestureWithSearchBackdrop(targetDetent);
       },
       onPanelSettled: (detent: HomeSearchPanelDetent) => {
-        this.handleRootBottomPanelSettled(detent);
+        this.scheduleRootBottomPanelCommit((): void => {
+          this.handleRootBottomPanelSettled(detent);
+        });
       },
       onPresentationHostDisconnected: () => {
         this.browserRootBottomPanelSessionCoordinator.reportSearchPresentationHostDisconnected();
@@ -7768,13 +7822,15 @@ struct BrowserShellPage {
         );
       },
       onAddressFocusStateChange: (focused: boolean) => {
-        this.applyRootBottomPanelSessionChromePlan(
-          this.browserRootBottomPanelSessionCoordinator.buildAddressFocusStateChangePlan({
-            focused: focused,
-            isHomeMode: this.isRootBottomPanelEffectiveHomeMode(),
-            isWebMode: this.isRootBottomPanelEffectiveWebMode()
-          })
-        );
+        this.scheduleRootBottomPanelCommit((): void => {
+          this.applyRootBottomPanelSessionChromePlan(
+            this.browserRootBottomPanelSessionCoordinator.buildAddressFocusStateChangePlan({
+              focused: focused,
+              isHomeMode: this.isRootBottomPanelEffectiveHomeMode(),
+              isWebMode: this.isRootBottomPanelEffectiveWebMode()
+            })
+          );
+        });
       },
       onAddressChange: (value: string) => {
         this.protectRootAddressKeyboardSessionFromTransientHide();
@@ -8220,6 +8276,57 @@ struct BrowserShellPage {
   }
 
   private getWebTopChromeStableInsetPx(): number {
+    // This is the target a status bar reveal applies, so it always counts the strip the status bar
+    // will keep, and it never drops the rows or the chrome stacked above the page.
+    return this.resolveChromeRowTopReservePx(true);
+  }
+
+  /**
+   * Top edge the web page keeps for the chrome that this frame really paints. The split address
+   * row and the stacked chrome rows (the quick search row) are hard top chrome inside a split
+   * frame, so their height adds up instead of one replacing the other.
+   */
+  private resolveChromeRowTopReservePx(statusBarVisible: boolean): number {
+    if (this.isLargeScreenShellFamilyActive()) {
+      // The large-screen shell owns its own chrome and keeps its web viewport at the top edge.
+      return 0;
+    }
+    const splitFrameActive = this.isSplitToolbarChromeActiveHere();
+    const rowsOnScreen = this.shouldUseSplitToolbarChrome() && !this.shouldCollapseSplitToolbarBars();
+    return resolveSplitToolbarWebReserve({
+      statusBarStripVp: this.resolveStatusBarStripInsetPx(),
+      statusBarVisible: statusBarVisible,
+      stackedChromeHeightVp: this.quickSearchSwitchingPresentation.occupiedHeightPx,
+      addressRowSafeInsetVp: this.homeTopSafeInsetVp,
+      bottomRowSafeInsetVp: this.homeBottomSafeInsetVp,
+      contentGapVp: WEB_TOP_CHROME_CONTENT_GAP_VP,
+      addressRowPainted: rowsOnScreen && splitFrameActive && !this.splitAddressBarCollapsedByImmersion,
+      bottomRowPainted: rowsOnScreen && splitFrameActive
+    }).topVp;
+  }
+
+  /** Bottom edge the web page keeps for the split bottom row that is on screen. */
+  private resolveChromeRowBottomReservePx(): number {
+    const splitFrameActive = this.isSplitToolbarChromeActiveHere();
+    const rowsOnScreen = this.shouldUseSplitToolbarChrome() && !this.shouldCollapseSplitToolbarBars();
+    return resolveSplitToolbarWebReserve({
+      statusBarStripVp: this.resolveStatusBarStripInsetPx(),
+      statusBarVisible: true,
+      stackedChromeHeightVp: this.quickSearchSwitchingPresentation.occupiedHeightPx,
+      addressRowSafeInsetVp: this.homeTopSafeInsetVp,
+      bottomRowSafeInsetVp: this.homeBottomSafeInsetVp,
+      contentGapVp: WEB_TOP_CHROME_CONTENT_GAP_VP,
+      addressRowPainted: rowsOnScreen && splitFrameActive && !this.splitAddressBarCollapsedByImmersion,
+      bottomRowPainted: rowsOnScreen && splitFrameActive
+    }).bottomVp;
+  }
+
+  /**
+   * System strip above the chrome: the status bar or cutout area, without the chrome content gap.
+   * A painted split address row carries its own safe padding, so the gap belongs to the floating
+   * chrome only and is applied there by the policy.
+   */
+  private resolveStatusBarStripInsetPx(): number {
     if (this.isLargeScreenShellFamilyActive()) {
       return 0;
     }
@@ -8233,19 +8340,34 @@ struct BrowserShellPage {
       reportedBottomAvoidVp: this.homeBottomSafeInsetVp,
       reportedTopAvoidVp: geometry.systemTopInsetVp
     }).contentTopInsetVp : 0;
-    const baseTopInsetPx = this.browserChromeRuntimeCoordinator.buildWebTopChromeInsetPx(
-      Math.max(immersionTopVp, cockpitTopVp),
-      WEB_TOP_CHROME_CONTENT_GAP_VP
-    );
-    const visibleTopInsetPx = BrowserWebViewportCoordinator.resolveVisibleTopChromeInset({
-      baseTopInsetPx: baseTopInsetPx,
-      occupiedChromeHeightPx: this.quickSearchSwitchingPresentation.occupiedHeightPx
-    });
-    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.shouldCollapseSplitToolbarBars() ||
-      this.splitAddressBarCollapsedByImmersion) {
-      return visibleTopInsetPx;
+    return Math.max(immersionTopVp, cockpitTopVp);
+  }
+
+  /** The split chrome owns a hard-edged frame on this surface. */
+  private isSplitToolbarChromeActiveHere(): boolean {
+    return this.shouldUseSplitToolbarChrome() && !this.showHomePage;
+  }
+
+  /**
+   * Put the page back between the two split rows after an event that changed which rows are on
+   * screen or how tall they paint (keyboard, appearance, home to web, quick search row). The
+   * scroll and immersion paths animate the same target themselves, so this is a no-op there.
+   */
+  private reconcileSplitToolbarViewportReserve(source: string): void {
+    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage) {
+      return;
     }
-    return visibleTopInsetPx + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
+    const targetTopInsetPx = this.resolveTargetWebViewportVisualTopInsetPx();
+    if (this.webViewportVisualTopInsetInitialized &&
+      Math.max(0, Math.ceil(this.webViewportVisualTopInset)) === targetTopInsetPx) {
+      this.refreshWebViewportPresentation(targetTopInsetPx);
+      return;
+    }
+    hilog.info(LOG_DOMAIN, LOG_TAG, 'split_toolbar_reserve_realign source=%{public}s inset=%{public}d',
+      source, targetTopInsetPx);
+    this.webViewportVisualTopInset = targetTopInsetPx;
+    this.webViewportVisualTopInsetInitialized = true;
+    this.refreshWebViewportPresentation(targetTopInsetPx);
   }
 
   private isLargeScreenShellFamilyActive(): boolean {
@@ -8396,6 +8518,12 @@ struct BrowserShellPage {
   }
 
   private resolveTargetWebViewportVisualTopInsetPx(): number {
+    if (this.shouldUseSplitToolbarChrome()) {
+      // The split rows are hard edges, so the reserve follows the rows that are on screen right
+      // now. A hidden status bar must not collapse the page into the address row, which is still
+      // painted, and a page behind a row it does not clear is exactly the covered top.
+      return this.resolveChromeRowTopReservePx(this.webStatusBarVisible);
+    }
     if (!this.webStatusBarVisible) {
       return 0;
     }
@@ -9881,6 +10009,7 @@ struct BrowserShellPage {
 
   private syncRootAddressKeyboardOverlayInset(): void {
     this.browserWebBottomSafeAreaCoordinator.reconcile();
+    this.reconcileSplitToolbarViewportReserve('root-keyboard-inset');
     if (!this.resolveRootBottomPanelAddressFocused()) {
       this.rootAddressKeyboardOverlayInsetVp = 0;
       return;
@@ -10116,11 +10245,12 @@ struct BrowserShellPage {
       this.isWebBottomSafeAreaChromeActive() &&
       this.rootKeyboardInsetVp <= 0 && !this.webBottomAddressFocused &&
       !this.shouldHideRootBottomChromeForImmersion() ? this.webBottomSafeAreaInsetVp : 0;
-    if (!this.shouldUseSplitToolbarChrome() || this.showHomePage || this.rootKeyboardInsetVp > 0 ||
-      this.shouldCollapseSplitToolbarBars()) {
+    if (!this.isSplitToolbarChromeActiveHere()) {
       return systemInsetVp;
     }
-    return Math.max(systemInsetVp, SPLIT_TOOLBAR_BOTTOM_BAR_VP + this.homeBottomSafeInsetVp);
+    // The split frame reserves the bottom row from the row itself, so it holds no matter what the
+    // keyboard or the address input does: an on-screen row must never sit over the page.
+    return Math.max(systemInsetVp, this.resolveChromeRowBottomReservePx());
   }
 
   private applyTabsOverviewThemeState(state: BrowserTabsOverviewThemeState): void {
@@ -10200,6 +10330,37 @@ struct BrowserShellPage {
       currentDetent: this.resolveRootBottomPanelDetent(),
       panelExpansionEnabled: this.isRootBottomPanelExpansionEnabled()
     };
+  }
+
+  /**
+   * Queue one panel-driven commit. Several requests can land in the same frame, and the
+   * search presentation must be applied in arrival order, once per frame boundary.
+   */
+  private scheduleRootBottomPanelCommit(commit: () => void): void {
+    this.pendingRootBottomPanelCommits.push(commit);
+    if (this.rootBottomPanelCommitFlushScheduled) {
+      return;
+    }
+    this.rootBottomPanelCommitFlushScheduled = true;
+    try {
+      this.getUIContext().postFrameCallback(new BrowserRootBottomPanelCommitFrameCallback((): void => {
+        this.flushRootBottomPanelCommits();
+      }));
+    } catch (_error) {
+      this.flushRootBottomPanelCommits();
+    }
+  }
+
+  private flushRootBottomPanelCommits(): void {
+    this.rootBottomPanelCommitFlushScheduled = false;
+    const commits = this.pendingRootBottomPanelCommits;
+    if (commits.length <= 0) {
+      return;
+    }
+    this.pendingRootBottomPanelCommits = [];
+    for (let index = 0; index < commits.length; index += 1) {
+      commits[index]();
+    }
   }
 
   private applyRootBottomPanelSessionChromePlan(plan: BrowserRootBottomPanelChromePlan): void {
@@ -12054,6 +12215,9 @@ struct BrowserShellPage {
     }
     if (wasShowingHomePage && !state.showHomePage) {
       this.scheduleWebSafeInsetSettleSync('web-surface-enter');
+      // The address row is painted from the first web frame, so its reserve lands with the page
+      // instead of after the settle delay that the safe insets still need.
+      this.reconcileSplitToolbarViewportReserve('web-surface-enter');
     }
     if (state.resetScrollMask) {
       this.browserWebScrollInteractionCoordinator.resetForNavigation(this.activeTabId);

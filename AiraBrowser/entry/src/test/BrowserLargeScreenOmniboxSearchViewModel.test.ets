@@ -55,6 +55,22 @@ export default function browserLargeScreenOmniboxSearchViewModelTest(): void {
       expect(remoteOnly.searchSuggestions.length).assertEqual(1);
     });
 
+    it('keeps browsing history rows selectable without treating them as search history', 0, () => {
+      const viewModel = new BrowserLargeScreenOmniboxSearchViewModel();
+      const browsingHistory: SearchSuggestion = {
+        id: 'history-url-1',
+        title: 'Aira',
+        source: 'history',
+        target: 'https://aira.example'
+      };
+
+      const presentation = viewModel.resolve(createInput([browsingHistory]));
+
+      expect(presentation.searchSuggestions.length).assertEqual(1);
+      expect(presentation.searchSuggestions[0].source).assertEqual('history');
+      expect(presentation.hasHistorySuggestions).assertFalse();
+    });
+
     it('hides the history header when the list is empty', 0, () => {
       const viewModel = new BrowserLargeScreenOmniboxSearchViewModel();
 

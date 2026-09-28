@@ -15,6 +15,15 @@ import {
   SearchQueryHistoryService
 } from '../../services/search/SearchQueryHistoryService';
 import { QihooSearchSuggestionService } from '../../services/search/QihooSearchSuggestionService';
+import { HISTORY_OMNIBOX_VISIBLE_LIMIT } from '../../services/search/HistoryOmniboxIndex';
+import { HistoryOmniboxSuggestionService } from '../../services/search/HistoryOmniboxSuggestionService';
+import { BookmarkOmniboxSuggestionService } from '../../services/search/BookmarkOmniboxSuggestionService';
+import {
+  OMNIBOX_BOOKMARK_VISIBLE_LIMIT,
+  OMNIBOX_TAB_VISIBLE_LIMIT,
+  matchOpenTabSuggestions,
+  resolveBookmarkSuggestionScope
+} from '../../services/search/LocalOmniboxSuggestionMatcher';
 import { BrowserTabState } from '../tabs/TabManager';
 import { BrowserTabSwitchCoordinator } from './BrowserTabSwitchCoordinator';
 
@@ -88,6 +97,8 @@ export class BrowserSearchSuggestionCoordinator {
   private readonly shell: BrowserSearchSuggestionShell;
   private readonly searchQueryHistoryService: SearchQueryHistoryService;
   private readonly tabSwitchCoordinator: BrowserTabSwitchCoordinator;
+  private readonly historyOmniboxSuggestionService: HistoryOmniboxSuggestionService;
+  private readonly bookmarkOmniboxSuggestionService: BookmarkOmniboxSuggestionService;
   private readonly remoteSearchSuggestionService: QihooSearchSuggestionService = new QihooSearchSuggestionService();
   private snapshot: BrowserSearchSuggestionSnapshot = createHiddenBrowserSearchSuggestionSnapshot();
   private emptyCache?: CachedEmptySuggestions;
@@ -96,6 +107,9 @@ export class BrowserSearchSuggestionCoordinator {
   private prewarmTimeout: number = -1;
   private remoteRefreshGeneration: number = 0;
   private searchHistoryHydrationGeneration: number = 0;
+  private browsingHistoryHydrationGeneration: number = 0;
+  private cachedRemoteSuggestions: SearchSuggestion[] = [];
+  private cachedRemoteQuery: string = '';
   private searchSessionActive: boolean = false;
   private searchSessionAuthorityId: string = '';
   private searchSessionInput?: BrowserSearchSuggestionSessionInput;
@@ -103,11 +117,15 @@ export class BrowserSearchSuggestionCoordinator {
   constructor(
     shell: BrowserSearchSuggestionShell,
     searchQueryHistoryService: SearchQueryHistoryService,
-    tabSwitchCoordinator: BrowserTabSwitchCoordinator
+    tabSwitchCoordinator: BrowserTabSwitchCoordinator,
+    historyOmniboxSuggestionService: HistoryOmniboxSuggestionService,
+    bookmarkOmniboxSuggestionService: BookmarkOmniboxSuggestionService
   ) {
     this.shell = shell;
     this.searchQueryHistoryService = searchQueryHistoryService;
     this.tabSwitchCoordinator = tabSwitchCoordinator;
+    this.historyOmniboxSuggestionService = historyOmniboxSuggestionService;
+    this.bookmarkOmniboxSuggestionService = bookmarkOmniboxSuggestionService;
   }
 
   getSnapshot(): BrowserSearchSuggestionSnapshot {
@@ -125,8 +143,9 @@ export class BrowserSearchSuggestionCoordinator {
     this.clearRevealRefresh();
     this.clearDeferredRefresh();
     const query = this.resolveRuntimeFacts().query;
-    this.publishContent(this.refreshWithQuery(query));
+    this.publishSuggestionContent(query, true);
     this.refreshRemoteSearchSuggestions(query);
+    this.refreshBrowsingHistoryIndex(query);
   }
 
   refreshDeferred(): void {
@@ -159,6 +178,9 @@ export class BrowserSearchSuggestionCoordinator {
 
   prewarm(): void {
     this.clearPrewarm();
+    if (this.shouldUseBrowsingHistory(this.buildRuntimeSource())) {
+      this.historyOmniboxSuggestionService.ensureLoaded().catch((_error: Error) => {});
+    }
     this.prewarmTimeout = setTimeout(() => {
       this.prewarmTimeout = -1;
       this.buildEmptySuggestionsForCache();
@@ -290,6 +312,9 @@ export class BrowserSearchSuggestionCoordinator {
     this.clearPrewarm();
     this.cancelRemoteSearchSuggestions();
     this.cancelSearchHistoryHydration();
+    this.cancelBrowsingHistoryHydration();
+    this.cachedRemoteSuggestions = [];
+    this.cachedRemoteQuery = '';
   }
 
   private publishOverlay(focused: boolean, visible: boolean, showSuggestions: boolean): void {
@@ -395,7 +420,22 @@ export class BrowserSearchSuggestionCoordinator {
       preferences: runtimeSource.preferences,
       limit: SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
     };
-    let suggestions: SearchSuggestion[] = this.searchQueryHistoryService.buildSuggestions(suggestionInput);
+    let suggestions: SearchSuggestion[] = this.buildOpenTabSuggestions(query, runtimeSource);
+    suggestions = this.mergeSearchSuggestions(
+      suggestions,
+      this.buildBookmarkSuggestions(query, runtimeSource),
+      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+    );
+    suggestions = this.mergeSearchSuggestions(
+      suggestions,
+      this.buildBrowsingHistorySuggestions(query, runtimeSource),
+      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+    );
+    suggestions = this.mergeSearchSuggestions(
+      suggestions,
+      this.searchQueryHistoryService.buildSuggestions(suggestionInput),
+      SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+    );
     if (hydrateHistory) {
       this.hydrateSearchHistory(query, suggestionInput);
     }
@@ -411,15 +451,101 @@ export class BrowserSearchSuggestionCoordinator {
           return;
         }
         this.emptyCache = undefined;
-        this.publishContent(this.refreshWithQuery(query, false));
+        this.publishSuggestionContent(query, false);
       })
       .catch((_error: Error) => {});
+  }
+
+  private buildOpenTabSuggestions(
+    query: string,
+    runtimeSource: BrowserSearchSuggestionRuntimeSource
+  ): SearchSuggestion[] {
+    if (!runtimeSource.preferences.openTabsEnabled || query.trim().length === 0) {
+      return [];
+    }
+    return matchOpenTabSuggestions(this.resolveRuntimeFacts().tabs, {
+      query: query,
+      activeTabId: runtimeSource.activeTab?.id ?? '',
+      privacyMode: runtimeSource.boundary.privacyMode,
+      dataScope: runtimeSource.boundary.dataScope,
+      profileId: runtimeSource.boundary.profileId,
+      limit: OMNIBOX_TAB_VISIBLE_LIMIT
+    });
+  }
+
+  private buildBookmarkSuggestions(
+    query: string,
+    runtimeSource: BrowserSearchSuggestionRuntimeSource
+  ): SearchSuggestion[] {
+    if (!runtimeSource.preferences.bookmarksEnabled || query.trim().length === 0) {
+      return [];
+    }
+    const activeUrl = (runtimeSource.activeTab?.url ?? '').trim().toLowerCase();
+    return this.bookmarkOmniboxSuggestionService.buildSuggestions(
+      query,
+      resolveBookmarkSuggestionScope(runtimeSource.boundary.privacyMode, runtimeSource.boundary.dataScope),
+      OMNIBOX_BOOKMARK_VISIBLE_LIMIT
+    ).filter((suggestion: SearchSuggestion): boolean => {
+      return activeUrl.length === 0 || suggestion.target.trim().toLowerCase() !== activeUrl;
+    });
+  }
+
+  private buildBrowsingHistorySuggestions(
+    query: string,
+    runtimeSource: BrowserSearchSuggestionRuntimeSource
+  ): SearchSuggestion[] {
+    if (!this.shouldUseBrowsingHistory(runtimeSource) || query.trim().length === 0) {
+      return [];
+    }
+    const activeUrl = (runtimeSource.activeTab?.url ?? '').trim().toLowerCase();
+    return this.historyOmniboxSuggestionService.buildSuggestions(query, HISTORY_OMNIBOX_VISIBLE_LIMIT)
+      .filter((suggestion: SearchSuggestion): boolean => {
+        return activeUrl.length === 0 || suggestion.target.trim().toLowerCase() !== activeUrl;
+      });
+  }
+
+  private shouldUseBrowsingHistory(source: BrowserSearchSuggestionRuntimeSource): boolean {
+    return source.preferences.browsingHistoryEnabled &&
+      source.boundary.privacyMode !== 'private' &&
+      source.boundary.dataScope !== 'session_ephemeral';
+  }
+
+  private refreshBrowsingHistoryIndex(query: string): void {
+    const runtimeSource = this.buildRuntimeSource();
+    const generation = this.beginBrowsingHistoryHydration();
+    if (!this.shouldUseBrowsingHistory(runtimeSource)) {
+      return;
+    }
+    this.historyOmniboxSuggestionService.ensureLoaded()
+      .then((loaded: boolean) => {
+        if (!loaded || !this.isCurrentBrowsingHistoryHydration(generation, query)) {
+          return;
+        }
+        this.publishSuggestionContent(query, false);
+      })
+      .catch((_error: Error) => {});
+  }
+
+  private publishSuggestionContent(query: string, hydrateHistory: boolean): void {
+    const local = this.refreshWithQuery(query, hydrateHistory);
+    const remote = this.cachedRemoteQuery === query ? this.cachedRemoteSuggestions : [];
+    this.publishContent({
+      suggestions: remote.length === 0 ? local.suggestions : this.mergeSearchSuggestions(
+        local.suggestions,
+        remote,
+        SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
+      )
+    });
   }
 
   private refreshRemoteSearchSuggestions(query: string): void {
     const runtimeSource = this.buildRuntimeSource();
     const generation = this.beginRemoteSearchSuggestionRefresh();
     if (!this.shouldFetchRemoteSearchSuggestions(query, runtimeSource)) {
+      if (this.cachedRemoteQuery === query) {
+        this.cachedRemoteSuggestions = [];
+        this.cachedRemoteQuery = '';
+      }
       return;
     }
     const trimmedQuery = query.trim();
@@ -432,13 +558,9 @@ export class BrowserSearchSuggestionCoordinator {
         if (!this.shouldFetchRemoteSearchSuggestions(query, latestSource)) {
           return;
         }
-        const historyContent = this.buildSearchHistoryContent(query);
-        const mergedSuggestions = this.mergeSearchSuggestions(
-          historyContent.suggestions,
-          this.buildRemoteSearchSuggestions(remoteWords),
-          SEARCH_QUERY_HISTORY_VISIBLE_LIMIT
-        );
-        this.publishContent({ suggestions: mergedSuggestions });
+        this.cachedRemoteQuery = query;
+        this.cachedRemoteSuggestions = this.buildRemoteSearchSuggestions(remoteWords);
+        this.publishSuggestionContent(query, false);
       })
       .catch((_error: Error) => {});
   }
@@ -564,6 +686,21 @@ export class BrowserSearchSuggestionCoordinator {
     this.searchHistoryHydrationGeneration += 1;
   }
 
+  private cancelBrowsingHistoryHydration(): void {
+    this.browsingHistoryHydrationGeneration += 1;
+  }
+
+  private beginBrowsingHistoryHydration(): number {
+    this.browsingHistoryHydrationGeneration += 1;
+    return this.browsingHistoryHydrationGeneration;
+  }
+
+  private isCurrentBrowsingHistoryHydration(generation: number, query: string): boolean {
+    return generation === this.browsingHistoryHydrationGeneration &&
+      this.searchSessionActive &&
+      this.resolveRuntimeFacts().query === query;
+  }
+
   private isCurrentRemoteSearchSuggestionRefresh(generation: number, query: string): boolean {
     return generation === this.remoteRefreshGeneration &&
       this.searchSessionActive &&
@@ -617,6 +754,9 @@ export class BrowserSearchSuggestionCoordinator {
       source.boundary.privacyMode,
       source.boundary.dataScope,
       source.preferences.historyEnabled ? 'history-enabled' : 'history-disabled',
+      source.preferences.browsingHistoryEnabled ? 'browsing-history-enabled' : 'browsing-history-disabled',
+      source.preferences.bookmarksEnabled ? 'bookmarks-enabled' : 'bookmarks-disabled',
+      source.preferences.openTabsEnabled ? 'tabs-enabled' : 'tabs-disabled',
       source.currentPageSuggestionEnabled ? 'current-page-enabled' : 'current-page-disabled',
       source.activeTab?.id ?? '',
       source.activeTab?.url ?? ''

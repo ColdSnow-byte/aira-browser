@@ -79,11 +79,13 @@ export struct HomeNativeSettingsContent {
   @Prop isEnabled: boolean = true;
   @Prop iconAppearanceEnabled: boolean = true;
   @Prop wallpaperLabel: string = '跟随主题色';
+  @Prop logoLabel: string = '默认';
   @Prop dialogPresentation: boolean = false;
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY)
   private storedHomePageStyle: string = 'classic';
   @Prop @Watch('refreshState') refreshRevision: number = 0;
   onSettingsChanged?: () => void;
+  onOpenLogoSettings: () => void = () => {};
   onOpenWallpaperSettings: () => void = () => {};
   @State private settingsBusy: boolean = false;
   @State private showFavorites: boolean = true;
@@ -134,10 +136,24 @@ export struct HomeNativeSettingsContent {
         surfaceColor: this.storedSurfaceBackgroundColor,
         flat: this.dialogPresentation
       }) {
+        if (this.showsLogoSettings()) {
+          SettingsNavigationRow({
+            title: 'Logo设置',
+            value: this.logoLabel,
+            rowPosition: 'first',
+            isEnabled: this.resolveControlEnabled(),
+            primaryTextColor: this.storedPrimaryTextColor,
+            secondaryTextColor: this.storedSecondaryTextColor,
+            onAction: () => {
+              this.onOpenLogoSettings();
+            }
+          })
+          SettingsGroupDivider({ dividerColor: this.storedDividerColor })
+        }
         SettingsNavigationRow({
           title: '壁纸设置',
           value: this.wallpaperLabel,
-          rowPosition: 'single',
+          rowPosition: this.showsLogoSettings() ? 'last' : 'single',
           isEnabled: this.resolveControlEnabled(),
           primaryTextColor: this.storedPrimaryTextColor,
           secondaryTextColor: this.storedSecondaryTextColor,
@@ -634,6 +650,10 @@ export struct HomeNativeSettingsContent {
 
   private resolveHomePageStyle(): BrowserHomePageStyle {
     return normalizeBrowserHomePageStyle(this.storedHomePageStyle);
+  }
+
+  private showsLogoSettings(): boolean {
+    return resolveHomePageSettingsCapabilities(this.resolveHomePageStyle()).logo;
   }
 
   private showsFavoritesSettings(): boolean {

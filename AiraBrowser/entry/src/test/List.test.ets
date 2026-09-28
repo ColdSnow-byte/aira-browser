@@ -3,8 +3,10 @@ import userScriptOverwriteInstallTest from './UserScriptOverwriteInstall.test';
 import userScriptDocumentStartHeadCompatTest from './UserScriptDocumentStartHeadCompat.test';
 import userScriptExternalImportServiceTest from './UserScriptExternalImportService.test';
 import userScriptGforkProxyInstallUrlTest from './UserScriptGforkProxyInstallUrl.test';
+import userScriptGiteeRedirectInstallUrlTest from './UserScriptGiteeRedirectInstallUrl.test';
 import userScriptInstallLoadFailureTest from './UserScriptInstallLoadFailure.test';
 import userScriptInstallSourceResolverTest from './UserScriptInstallSourceResolver.test';
+import userScriptCookieBridgeTest from './UserScriptCookieBridge.test';
 import novelReadingSessionStateTest from './NovelReadingSessionState.test';
 import readingDocumentTest from './ReadingDocument.test';
 import mediaSessionResolutionServiceTest from './MediaSessionResolutionService.test';
@@ -85,6 +87,9 @@ import browserLargeScreenVerticalTabsPolicyTest from './BrowserLargeScreenVertic
 import browserFullscreenExitHintPolicyTest from './BrowserFullscreenExitHintPolicy.test';
 import centeredHomeShortcutLayoutPolicyTest from './CenteredHomeShortcutLayoutPolicy.test';
 import homePageSettingsCapabilityPolicyTest from './HomePageSettingsCapabilityPolicy.test';
+import homeLogoSettingsPolicyTest from './HomeLogoSettingsPolicy.test';
+import homeLogoImageFormatPolicyTest from './HomeLogoImageFormatPolicy.test';
+import wallpaperColorChoicePolicyTest from './WallpaperColorChoicePolicy.test';
 import systemHomepageStyleCatalogTest from './SystemHomepageStyleCatalog.test';
 import browserGestureOnboardingPromptPolicyTest from './BrowserGestureOnboardingPromptPolicy.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
@@ -95,6 +100,8 @@ import browserBottomToolbarReorderGesturePolicyTest from './BrowserBottomToolbar
 import browserOpenTabsButtonViewModelTest from './BrowserOpenTabsButtonViewModel.test';
 import documentViewerHtmlFileTransportTest from './DocumentViewerHtmlFileTransport.test';
 import browserSearchInvocationHostPolicyTest from './BrowserSearchInvocationHostPolicy.test';
+import historyOmniboxIndexTest from './HistoryOmniboxIndex.test';
+import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -104,6 +111,8 @@ export default function tests(): void {
   userScriptGforkProxyInstallUrlTest();
   userScriptInstallLoadFailureTest();
   userScriptInstallSourceResolverTest();
+  userScriptGiteeRedirectInstallUrlTest();
+  userScriptCookieBridgeTest();
   novelReadingSessionStateTest();
   readingDocumentTest();
   mediaSessionResolutionServiceTest();
@@ -182,6 +191,9 @@ export default function tests(): void {
   browserFullscreenExitHintPolicyTest();
   centeredHomeShortcutLayoutPolicyTest();
   homePageSettingsCapabilityPolicyTest();
+  homeLogoSettingsPolicyTest();
+  homeLogoImageFormatPolicyTest();
+  wallpaperColorChoicePolicyTest();
   systemHomepageStyleCatalogTest();
   browserGestureOnboardingPromptPolicyTest();
   elementInspectionRuntimeScriptServiceTest();
@@ -192,4 +204,6 @@ export default function tests(): void {
   browserOpenTabsButtonViewModelTest();
   documentViewerHtmlFileTransportTest();
   browserSearchInvocationHostPolicyTest();
+  historyOmniboxIndexTest();
+  localOmniboxSuggestionMatcherTest();
 }

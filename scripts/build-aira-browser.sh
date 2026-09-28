@@ -31,6 +31,7 @@ SIGN_TOOL_JAR="${SDK_HOME}/default/openharmony/toolchains/lib/hap-sign-tool.jar"
 ARCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-architecture-guardrails.sh"
 ICON_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-icons-generated.sh"
 HOME_CHROME_SCROLL_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-home-chrome-scroll-contract.cjs"
+SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-split-toolbar-frame-contract.cjs"
 IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-immersive-light-sense-contract.sh"
 SYNC_FIRST_ACTIVATION_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-first-activation-contract.sh"
 SYNC_PROVIDER_SWITCH_GUARD_SCRIPT="${REPO_ROOT}/scripts/check-aira-sync-provider-switch-contract.sh"
@@ -469,6 +470,12 @@ if [ ! -f "${HOME_CHROME_SCROLL_GUARD_SCRIPT}" ]; then
 fi
 
 "${NODE_BIN}" "${HOME_CHROME_SCROLL_GUARD_SCRIPT}"
+
+if [ ! -f "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}" ]; then
+  fail "Split toolbar frame contract guard not found: ${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
+fi
+
+"${NODE_BIN}" "${SPLIT_TOOLBAR_FRAME_GUARD_SCRIPT}"
 
 if [ ! -x "${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}" ]; then
   fail "Immersive light-sense contract guard not executable: ${IMMERSIVE_LIGHT_SENSE_GUARD_SCRIPT}"

@@ -3,6 +3,7 @@ import {
   BrowserHomeShortcutLayoutDensity
 } from '../../common/models/BrowserModels';
 import { HomePagePresentationSettings } from '../../common/models/HomePagePresentationSettingsModels';
+import { HomeLogoCustomAsset } from '../../common/models/HomeLogoModels';
 import { CustomHomepageRepository } from '../../data/customhome/CustomHomepageRepository';
 import { HomePagePresentationSettingsRepository } from '../../data/preferences/HomePagePresentationSettingsRepository';
 import { PreferencesRepository } from '../../data/preferences/PreferencesRepository';
@@ -258,8 +259,26 @@ export class HomePageSettingsCoordinator {
       showShortcutNames: current.showShortcutNames,
       showRecentlyClosedTitle: current.showRecentlyClosedTitle,
       showSettingsButton: current.showSettingsButton,
-      homePageStyle: current.homePageStyle
+      homePageStyle: current.homePageStyle,
+      homeLogoId: current.homeLogoId,
+      homeLogoCustomAssets: this.copyLogoAssets(current.homeLogoCustomAssets),
+      homeLogoScaleRatio: current.homeLogoScaleRatio
     };
+  }
+
+  private copyLogoAssets(assets: HomeLogoCustomAsset[]): HomeLogoCustomAsset[] {
+    const copy: HomeLogoCustomAsset[] = [];
+    for (let index = 0; index < assets.length; index += 1) {
+      const asset = assets[index];
+      copy.push({
+        id: asset.id,
+        uri: asset.uri,
+        fileName: asset.fileName,
+        width: asset.width,
+        height: asset.height
+      });
+    }
+    return copy;
   }
 
   private resolveActiveRecoveryEntries(): HomePageRecoveryEntry[] {

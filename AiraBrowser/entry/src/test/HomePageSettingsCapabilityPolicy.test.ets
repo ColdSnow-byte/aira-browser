@@ -15,6 +15,7 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
       expect(capabilities.compactFavorites).assertTrue();
       expect(capabilities.favoritesTitle).assertTrue();
       expect(capabilities.iconCornerRadius).assertTrue();
+      expect(capabilities.logo).assertFalse();
       expect(resolveHomePageRecoveryEntries('classic').length).assertEqual(3);
       expect(resolveHomePageSettingsRecoveryFooter('classic'))
         .assertEqual('收藏、最近关闭和主页设置按钮至少保留一项。');
@@ -22,6 +23,7 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
 
     it('hides_controls_the_centered_frame_does_not_honor', 0, () => {
       const capabilities = resolveHomePageSettingsCapabilities('centered');
+      expect(capabilities.logo).assertTrue();
       expect(capabilities.wallpaper).assertTrue();
       expect(capabilities.favorites).assertTrue();
       expect(capabilities.shortcutNames).assertTrue();
@@ -36,8 +38,9 @@ export default function homePageSettingsCapabilityPolicyTest(): void {
       expect(resolveHomePageSettingsRecoveryFooter('centered')).assertEqual('');
     });
 
-    it('leaves_the_minimal_frame_with_wallpaper_only', 0, () => {
+    it('leaves_the_minimal_frame_with_logo_and_wallpaper', 0, () => {
       const capabilities = resolveHomePageSettingsCapabilities('minimal');
+      expect(capabilities.logo).assertTrue();
       expect(capabilities.wallpaper).assertTrue();
       expect(capabilities.favorites).assertFalse();
       expect(capabilities.shortcutNames).assertFalse();

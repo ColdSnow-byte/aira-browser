@@ -4,6 +4,7 @@ import {
   DEFAULT_WALLPAPER_BING_STATE,
   DEFAULT_WALLPAPER_SETTINGS,
   HomeWallpaperForegroundTone,
+  normalizeHomeWallpaperSolidColorId,
   WallpaperAsset,
   WallpaperAssetMediaType,
   WallpaperAssetSource,
@@ -77,6 +78,7 @@ export class WallpaperRepository {
   ): Promise<WallpaperSettings> {
     const nextSettings: WallpaperSettings = this.normalizeSettings({
       mode: partialSettings.mode ?? this.settings.mode,
+      solidColorId: partialSettings.solidColorId ?? this.settings.solidColorId,
       bingWallpaperId: partialSettings.bingWallpaperId ?? this.settings.bingWallpaperId,
       customWallpaperId: partialSettings.customWallpaperId ?? this.settings.customWallpaperId,
       bing: partialSettings.bing ?? this.settings.bing,
@@ -103,6 +105,7 @@ export class WallpaperRepository {
       .concat(normalizedAsset));
     const nextSettings = this.normalizeSettings({
       mode: this.settings.mode,
+      solidColorId: this.settings.solidColorId,
       bingWallpaperId: normalizedAsset.id,
       customWallpaperId: this.settings.customWallpaperId,
       bing: bingState,
@@ -124,6 +127,7 @@ export class WallpaperRepository {
       .concat(normalizedAsset));
     const nextSettings = this.normalizeSettings({
       mode: 'custom',
+      solidColorId: this.settings.solidColorId,
       bingWallpaperId: this.settings.bingWallpaperId,
       customWallpaperId: normalizedAsset.id,
       bing: this.settings.bing,
@@ -143,6 +147,7 @@ export class WallpaperRepository {
   private normalizeSettings(value: WallpaperSettings | undefined): WallpaperSettings {
     return {
       mode: this.normalizeMode(value?.mode),
+      solidColorId: normalizeHomeWallpaperSolidColorId(value?.solidColorId),
       bingWallpaperId: this.normalizeString(value?.bingWallpaperId, DEFAULT_WALLPAPER_SETTINGS.bingWallpaperId),
       customWallpaperId: this.normalizeString(
         value?.customWallpaperId,
@@ -305,6 +310,7 @@ export class WallpaperRepository {
   private cloneSettings(settings: WallpaperSettings): WallpaperSettings {
     return {
       mode: settings.mode,
+      solidColorId: settings.solidColorId,
       bingWallpaperId: settings.bingWallpaperId,
       customWallpaperId: settings.customWallpaperId,
       bing: {
@@ -348,7 +354,8 @@ export class WallpaperRepository {
   }
 
   private normalizeMode(value: WallpaperMode | undefined): WallpaperMode {
-    if (value === 'theme' || value === 'bing' || value === 'custom') {
+    if (value === 'auto' || value === 'theme' || value === 'solid' ||
+      value === 'bing' || value === 'custom') {
       return value;
     }
     return DEFAULT_WALLPAPER_SETTINGS.mode;
