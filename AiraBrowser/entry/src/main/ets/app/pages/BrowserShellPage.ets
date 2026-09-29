@@ -8801,6 +8801,11 @@ struct BrowserShellPage {
       crossDevicePrivacyMode: this.tabScopedEventContextCoordinator.resolveCurrentBoundary().privacyMode,
       onCrossDeviceNavigate: (action: CrossDeviceTabsEmptyAction): boolean => {
         return this.handleCrossDeviceEmptyNavigate(action);
+      },
+      // The list used to live in its own sheet, which owned this open. The section only draws
+      // the rows; without this the tap reaches an empty callback and the site never opens.
+      onOpenRemoteTab: (url: string, title: string): void => {
+        this.openCrossDeviceRemoteTab(url, title);
       }
     })
   }
@@ -10971,6 +10976,19 @@ struct BrowserShellPage {
     this.dispatchTabsOverviewSession({ type: 'change_section', section: 'devices' });
   }
 
+  /**
+   * A remote tab is another installation's page. Open it here as a new local tab; foreground
+   * creation closes the tabs overview, so the site is what the user lands on.
+   */
+  private openCrossDeviceRemoteTab(url: string, title: string): void {
+    this.browserAppUrlOpenCoordinator.open({
+      url: url,
+      title: title,
+      intent: 'new_tab',
+      source: 'app_ui'
+    });
+  }
+
   private handleCrossDeviceEmptyNavigate(action: CrossDeviceTabsEmptyAction): boolean {
     if (action === 'open_pro') {
       this.browserShellRouteCoordinator.openAiraProPage();
@@ -11324,12 +11342,7 @@ struct BrowserShellPage {
         onNavigate: (action: CrossDeviceTabsEmptyAction): boolean => this.handleCrossDeviceEmptyNavigate(action),
         onOpenRemoteTab: (url: string, title: string) => {
           this.closeSystemSheet();
-          this.browserAppUrlOpenCoordinator.open({
-            url: url,
-            title: title,
-            intent: 'new_tab',
-            source: 'app_ui'
-          });
+          this.openCrossDeviceRemoteTab(url, title);
         }
       })
         .width('100%')
