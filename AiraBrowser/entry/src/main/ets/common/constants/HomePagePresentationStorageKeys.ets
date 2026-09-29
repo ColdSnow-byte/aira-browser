@@ -18,3 +18,5 @@ export const HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_HEIGHT_KEY: string =
   'homePagePresentationHomeLogoCustomHeight';
 export const HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY: string =
   'homePagePresentationHomeLogoScaleRatio';
+export const HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY: string =
+  'homePagePresentationHomeLogoOpacity';

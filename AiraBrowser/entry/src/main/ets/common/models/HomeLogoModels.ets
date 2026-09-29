@@ -1,32 +1,117 @@
 /**
- * Homepage wordmark choice for the centered and minimal frames.
+ * Homepage wordmark choice for the centered and minimal frames. Both frames share this catalog.
  *
- * `builtin` keeps the shipped wordmark, `preset-N` is shipped banner artwork, and a custom
- * asset is an image the user added. Custom assets accumulate: each one becomes a tile in the
- * picker, and the add tile always stays last.
+ * Shipped ids are stable and are not the tile's position, so adding a logo cannot retarget a
+ * choice the user already saved. A custom asset is an image the user added. Custom assets
+ * accumulate: each one becomes a tile in the picker, and the add tile always stays last.
  */
 export const HOME_LOGO_BUILTIN_ID: string = 'builtin';
 export const HOME_LOGO_BUILTIN_RAWFILE: string = 'home_centered_wordmark.svg';
 /** Custom ids carry this prefix so they can never collide with a shipped preset id. */
 export const HOME_LOGO_CUSTOM_ASSET_ID_PREFIX: string = 'custom-';
 
+/**
+ * How a shipped logo takes color. This is a property of the artwork, not of the homepage style.
+ *
+ * `wallpaper` is a single-color SVG mask. Every fill is replaced with the homepage text tone,
+ * the same tone the default wordmark uses, so the mark follows the wallpaper.
+ * `authored` keeps the colors it was drawn with. fillColor would paint every shape one tone and
+ * erase a multi-color illustration or an animation, so those logos are never recolored.
+ * A file the user added is always authored: the gallery image is not a mask we can safely retint.
+ */
+export type HomeLogoColorMode = 'wallpaper' | 'authored';
+
+export function homeLogoFollowsWallpaper(colorMode: HomeLogoColorMode): boolean {
+  return colorMode === 'wallpaper';
+}
+
 interface HomeLogoPresetAsset {
+  id: string;
   title: string;
   rawfileName: string;
   width: number;
   height: number;
-  tintable: boolean;
+  colorMode: HomeLogoColorMode;
 }
 
 /**
- * Built-in artwork in picker order. The wordmark is a mask that follows the wallpaper tone,
- * so it stays tintable; the animated banners are full-color and must not be tinted.
+ * Built-in artwork in picker order. Wordmark masks come first, then the one full-color wordmark,
+ * then the animated banners. Only a single-fill SVG may be `wallpaper`; a gif or a multi-color
+ * SVG must stay `authored`.
  */
 const HOME_LOGO_PRESET_ASSETS: HomeLogoPresetAsset[] = [
-  { title: '默认', rawfileName: HOME_LOGO_BUILTIN_RAWFILE, width: 546, height: 163, tintable: true },
-  { title: '父亲节', rawfileName: 'home_logo_preset_1.gif', width: 1000, height: 400, tintable: false },
-  { title: '世界杯', rawfileName: 'home_logo_preset_2.gif', width: 1000, height: 400, tintable: false },
-  { title: '德甲', rawfileName: 'home_logo_preset_3.gif', width: 1000, height: 400, tintable: false }
+  {
+    id: HOME_LOGO_BUILTIN_ID,
+    title: '默认',
+    rawfileName: HOME_LOGO_BUILTIN_RAWFILE,
+    width: 546,
+    height: 163,
+    colorMode: 'wallpaper'
+  },
+  {
+    id: 'preset-pixel',
+    title: '像素',
+    rawfileName: 'home_logo_preset_pixel.svg',
+    width: 692,
+    height: 198,
+    colorMode: 'wallpaper'
+  },
+  {
+    id: 'preset-sharp',
+    title: '锋芒',
+    rawfileName: 'home_logo_preset_sharp.svg',
+    width: 588,
+    height: 418,
+    colorMode: 'wallpaper'
+  },
+  {
+    id: 'preset-round',
+    title: '圆笔',
+    rawfileName: 'home_logo_preset_round.svg',
+    width: 715,
+    height: 382,
+    colorMode: 'wallpaper'
+  },
+  {
+    id: 'preset-script',
+    title: '签名',
+    rawfileName: 'home_logo_preset_script.svg',
+    width: 513,
+    height: 301,
+    colorMode: 'wallpaper'
+  },
+  {
+    id: 'preset-confetti',
+    title: '彩带',
+    rawfileName: 'home_logo_preset_confetti.svg',
+    width: 618,
+    height: 366,
+    colorMode: 'authored'
+  },
+  {
+    id: 'preset-1',
+    title: '父亲节',
+    rawfileName: 'home_logo_preset_1.gif',
+    width: 1000,
+    height: 400,
+    colorMode: 'authored'
+  },
+  {
+    id: 'preset-2',
+    title: '世界杯',
+    rawfileName: 'home_logo_preset_2.gif',
+    width: 1000,
+    height: 400,
+    colorMode: 'authored'
+  },
+  {
+    id: 'preset-3',
+    title: '德甲',
+    rawfileName: 'home_logo_preset_3.gif',
+    width: 1000,
+    height: 400,
+    colorMode: 'authored'
+  }
 ];
 
 export interface HomeLogoPreset {
@@ -35,7 +120,7 @@ export interface HomeLogoPreset {
   rawfileName: string;
   intrinsicWidth: number;
   intrinsicHeight: number;
-  tintable: boolean;
+  colorMode: HomeLogoColorMode;
 }
 
 /**
@@ -63,7 +148,7 @@ export interface HomeLogoDisplaySource {
   fileUri: string;
   intrinsicWidth: number;
   intrinsicHeight: number;
-  tintable: boolean;
+  colorMode: HomeLogoColorMode;
 }
 
 export function listHomeLogoPresets(): HomeLogoPreset[] {
@@ -71,12 +156,12 @@ export function listHomeLogoPresets(): HomeLogoPreset[] {
   for (let index = 0; index < HOME_LOGO_PRESET_ASSETS.length; index += 1) {
     const asset = HOME_LOGO_PRESET_ASSETS[index];
     presets.push({
-      id: index === 0 ? HOME_LOGO_BUILTIN_ID : `preset-${index}`,
+      id: asset.id,
       title: asset.title,
       rawfileName: asset.rawfileName,
       intrinsicWidth: asset.width,
       intrinsicHeight: asset.height,
-      tintable: asset.tintable
+      colorMode: asset.colorMode
     });
   }
   return presets;
@@ -178,7 +263,7 @@ export function resolveHomeLogoDisplaySource(selection: HomeLogoSelection | unde
       fileUri: '',
       intrinsicWidth: preset.intrinsicWidth,
       intrinsicHeight: preset.intrinsicHeight,
-      tintable: preset.tintable
+      colorMode: preset.colorMode
     };
   }
   const asset = findHomeLogoCustomAsset(normalized.customAssets, normalized.id);
@@ -188,7 +273,7 @@ export function resolveHomeLogoDisplaySource(selection: HomeLogoSelection | unde
       fileUri: asset.uri,
       intrinsicWidth: asset.width,
       intrinsicHeight: asset.height,
-      tintable: false
+      colorMode: 'authored'
     };
   }
   const fallback = builtinHomeLogoPreset();
@@ -197,7 +282,7 @@ export function resolveHomeLogoDisplaySource(selection: HomeLogoSelection | unde
     fileUri: '',
     intrinsicWidth: fallback.intrinsicWidth,
     intrinsicHeight: fallback.intrinsicHeight,
-    tintable: fallback.tintable
+    colorMode: fallback.colorMode
   };
 }
 

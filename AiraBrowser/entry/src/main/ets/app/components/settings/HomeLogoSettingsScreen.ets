@@ -4,20 +4,30 @@ import { HOME_LOGO_SUPPORTED_FORMATS_TEXT } from '../../../core/settings/HomeLog
 import {
   buildHomeLogoGridRows,
   buildHomeLogoSettingsViewState,
+  formatHomeLogoOpacityLabel,
   formatHomeLogoScaleLabel,
+  HOME_LOGO_OPACITY_DEFAULT,
+  HOME_LOGO_OPACITY_MAX,
+  HOME_LOGO_OPACITY_MIN,
+  HOME_LOGO_OPACITY_SLIDER_STEP,
   HOME_LOGO_PREVIEW_HEIGHT_VP,
   HOME_LOGO_SCALE_DEFAULT_RATIO,
   HOME_LOGO_SCALE_MAX_RATIO,
   HOME_LOGO_SCALE_MIN_RATIO,
   HOME_LOGO_SCALE_SLIDER_STEP,
+  homeLogoOpacityToSliderValue,
   homeLogoScaleToSliderValue,
+  homeLogoSliderValueToOpacity,
   homeLogoSliderValueToScale,
   HomeLogoGridItem,
   HomeLogoGridRow,
   HomeLogoSettingsViewState,
   resolveHomeLogoPreviewMaxWidthVp
 } from '../../../core/settings/HomeLogoSettingsPolicy';
-import { HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY } from '../../../common/constants/HomePagePresentationStorageKeys';
+import {
+  HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY
+} from '../../../common/constants/HomePagePresentationStorageKeys';
 import {
   BROWSER_THEME_STORAGE_ACCENT_KEY,
   BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY,
@@ -56,13 +66,17 @@ export struct HomeLogoSettingsContent {
   /** AppStorage carries the live value while dragging; the sheet persists it on release. */
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
   private storedScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY)
+  private storedOpacity: number = HOME_LOGO_OPACITY_DEFAULT;
   onSelectLogo: (id: string) => void = (_id: string) => {};
   onAddCustom: (source: HomeLogoPickSource) => void = (_source: HomeLogoPickSource) => {};
   onScaleCommit: (scaleRatio: number) => void = (_scaleRatio: number) => {};
+  onOpacityCommit: (opacity: number) => void = (_opacity: number) => {};
 
   build() {
     Column({ space: 16 }) {
       this.buildScaleSection()
+      this.buildOpacitySection()
       this.buildGridSection()
     }
     .width('100%')
@@ -115,6 +129,58 @@ export struct HomeLogoSettingsContent {
             AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY, ratio);
             if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
               this.onScaleCommit(ratio);
+            }
+          })
+      }
+      .width('100%')
+      .padding({ left: 14, right: 14, top: 14, bottom: 10 })
+      .backgroundColor(this.storedControlBackgroundColor)
+      .borderRadius(HOME_LOGO_CARD_RADIUS)
+    }
+  }
+
+  /** Same card as size. 0 hides the mark; 100% is the solid wordmark. */
+  @Builder
+  private buildOpacitySection() {
+    SettingsSection({
+      title: 'Logo 透明度',
+      secondaryTextColor: this.storedSecondaryTextColor
+    }) {
+      Column({ space: 8 }) {
+        Row() {
+          Text('透明')
+            .fontSize(12)
+            .fontColor(this.storedSecondaryTextColor)
+          Blank()
+          Text(formatHomeLogoOpacityLabel(this.storedOpacity))
+            .fontSize(13)
+            .fontWeight(FontWeight.Medium)
+            .fontColor(this.storedPrimaryTextColor)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Center)
+
+        Slider({
+          value: homeLogoOpacityToSliderValue(this.storedOpacity),
+          min: Math.round(HOME_LOGO_OPACITY_MIN * 100),
+          max: Math.round(HOME_LOGO_OPACITY_MAX * 100),
+          step: HOME_LOGO_OPACITY_SLIDER_STEP,
+          style: SliderStyle.InSet
+        })
+          .width('100%')
+          .height(HOME_LOGO_SLIDER_HEIGHT)
+          .selectedColor(this.storedAccentColor)
+          .blockColor(this.storedOnAccentColor)
+          .trackColor(this.storedControlBackgroundColor)
+          .trackThickness(HOME_LOGO_SLIDER_TRACK_THICKNESS)
+          .trackBorderRadius(HOME_LOGO_SLIDER_TRACK_RADIUS)
+          .selectedBorderRadius(HOME_LOGO_SLIDER_TRACK_RADIUS)
+          .blockSize({ width: HOME_LOGO_SLIDER_BLOCK_SIZE, height: HOME_LOGO_SLIDER_BLOCK_SIZE })
+          .onChange((value: number, mode: SliderChangeMode) => {
+            const opacity = homeLogoSliderValueToOpacity(value);
+            AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY, opacity);
+            if (mode === SliderChangeMode.End || mode === SliderChangeMode.Click) {
+              this.onOpacityCommit(opacity);
             }
           })
       }
@@ -183,7 +249,7 @@ export struct HomeLogoSettingsContent {
             intrinsicHeight: item.intrinsicHeight,
             heightVp: HOME_LOGO_PREVIEW_HEIGHT_VP,
             maxWidthVp: this.previewMaxWidth(),
-            tintable: item.tintable,
+            colorMode: item.colorMode,
             tintColor: this.storedPrimaryTextColor
           })
         }

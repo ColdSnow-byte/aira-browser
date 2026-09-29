@@ -5,6 +5,7 @@ import {
   HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_URI_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_WIDTH_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_ID_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
   HOME_PAGE_PRESENTATION_HOME_PAGE_STYLE_KEY,
   HOME_PAGE_PRESENTATION_SHOW_FAVORITES_TITLE_KEY,
@@ -26,7 +27,9 @@ import {
   normalizeBrowserHomePageStyle
 } from '../../common/models/HomePagePresentationSettingsModels';
 import {
+  HOME_LOGO_OPACITY_DEFAULT,
   HOME_LOGO_SCALE_DEFAULT_RATIO,
+  normalizeHomeLogoOpacity,
   normalizeHomeLogoScaleRatio
 } from '../../core/settings/HomeLogoSettingsPolicy';
 import {
@@ -45,7 +48,8 @@ export const DEFAULT_HOME_PAGE_PRESENTATION_SETTINGS: HomePagePresentationSettin
   homePageStyle: 'classic',
   homeLogoId: HOME_LOGO_BUILTIN_ID,
   homeLogoCustomAssets: [],
-  homeLogoScaleRatio: HOME_LOGO_SCALE_DEFAULT_RATIO
+  homeLogoScaleRatio: HOME_LOGO_SCALE_DEFAULT_RATIO,
+  homeLogoOpacity: HOME_LOGO_OPACITY_DEFAULT
 };
 
 export class HomePagePresentationSettingsRepository {
@@ -106,6 +110,15 @@ export class HomePagePresentationSettingsRepository {
     return this.persistSettings(next, origin);
   }
 
+  async setHomeLogoOpacity(
+    opacity: number,
+    origin: PersonalizationSettingsChangeOrigin = 'local'
+  ): Promise<HomePagePresentationSettings> {
+    const next = this.getSettings();
+    next.homeLogoOpacity = normalizeHomeLogoOpacity(opacity);
+    return this.persistSettings(next, origin);
+  }
+
   private async persistSettings(
     settings: HomePagePresentationSettings,
     origin: PersonalizationSettingsChangeOrigin
@@ -133,6 +146,7 @@ export class HomePagePresentationSettingsRepository {
       left.homePageStyle === right.homePageStyle &&
       left.homeLogoId === right.homeLogoId &&
       left.homeLogoScaleRatio === right.homeLogoScaleRatio &&
+      left.homeLogoOpacity === right.homeLogoOpacity &&
       this.isSameLogoAssets(left.homeLogoCustomAssets, right.homeLogoCustomAssets);
   }
 
@@ -191,6 +205,10 @@ export class HomePagePresentationSettingsRepository {
       HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
       this.settings.homeLogoScaleRatio
     );
+    AppStorage.setOrCreate(
+      HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
+      this.settings.homeLogoOpacity
+    );
   }
 
   private parseSettings(value: string): HomePagePresentationSettings | undefined {
@@ -224,7 +242,8 @@ export class HomePagePresentationSettingsRepository {
       homePageStyle: normalizeBrowserHomePageStyle(settings?.homePageStyle),
       homeLogoId: logo.id,
       homeLogoCustomAssets: logo.customAssets,
-      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings?.homeLogoScaleRatio)
+      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings?.homeLogoScaleRatio),
+      homeLogoOpacity: normalizeHomeLogoOpacity(settings?.homeLogoOpacity)
     };
   }
 
@@ -246,7 +265,8 @@ export class HomePagePresentationSettingsRepository {
       homePageStyle: normalizeBrowserHomePageStyle(settings.homePageStyle),
       homeLogoId: settings.homeLogoId,
       homeLogoCustomAssets: this.copyLogoAssets(settings.homeLogoCustomAssets),
-      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings.homeLogoScaleRatio)
+      homeLogoScaleRatio: normalizeHomeLogoScaleRatio(settings.homeLogoScaleRatio),
+      homeLogoOpacity: normalizeHomeLogoOpacity(settings.homeLogoOpacity)
     };
   }
 

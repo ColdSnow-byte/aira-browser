@@ -50,4 +50,8 @@ export interface HomePagePresentationSettings {
    * of pinning one pixel size.
    */
   homeLogoScaleRatio: number;
+  /**
+   * How solid the centered and minimal wordmark is. 0 hides it without moving the search field.
+   */
+  homeLogoOpacity: number;
 }

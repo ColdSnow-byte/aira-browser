@@ -3,16 +3,25 @@ import {
   HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_URI_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_WIDTH_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_ID_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
   HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY
 } from '../../../common/constants/HomePagePresentationStorageKeys';
 import {
   HOME_LOGO_BUILTIN_ID,
   HOME_LOGO_BUILTIN_RAWFILE,
+  HomeLogoColorMode,
   HomeLogoCustomAsset,
   HomeLogoDisplaySource,
+  homeLogoFollowsWallpaper,
   resolveHomeLogoDisplaySource
 } from '../../../common/models/HomeLogoModels';
-import { HOME_LOGO_SCALE_DEFAULT_RATIO, resolveHomeLogoDisplayWidthVp, resolveHomeLogoHeightVp } from '../../../core/settings/HomeLogoSettingsPolicy';
+import {
+  HOME_LOGO_OPACITY_DEFAULT,
+  HOME_LOGO_SCALE_DEFAULT_RATIO,
+  normalizeHomeLogoOpacity,
+  resolveHomeLogoDisplayWidthVp,
+  resolveHomeLogoHeightVp
+} from '../../../core/settings/HomeLogoSettingsPolicy';
 import { CENTERED_HOME_WORDMARK_HEIGHT } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 
 /**
@@ -28,11 +37,13 @@ export struct HomeLogoAssetImage {
   @Prop intrinsicHeight: number = 163;
   @Prop heightVp: number = CENTERED_HOME_WORDMARK_HEIGHT;
   @Prop maxWidthVp: number = 0;
-  @Prop tintable: boolean = false;
+  @Prop colorMode: HomeLogoColorMode = 'authored';
   @Prop tintColor: ResourceColor = '#111111';
   @Prop label: string = '';
 
   build() {
+    // A user file is never a mask. Only a shipped wallpaper-mode SVG may take fillColor;
+    // authored art keeps every color it was drawn with.
     if (this.fileUri.length > 0) {
       Image(this.fileUri)
         .width(this.resolveWidth())
@@ -42,7 +53,7 @@ export struct HomeLogoAssetImage {
         .interpolation(ImageInterpolation.Medium)
         .accessibilityText(this.label)
         .hitTestBehavior(HitTestMode.None)
-    } else if (this.tintable) {
+    } else if (homeLogoFollowsWallpaper(this.colorMode)) {
       Image(this.resolveRawfile())
         .width(this.resolveWidth())
         .height(this.heightVp)
@@ -86,6 +97,8 @@ export struct HomeLogoMark {
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_CUSTOM_HEIGHT_KEY) private storedCustomHeight: number = 0;
   @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY)
   private storedScaleRatio: number = HOME_LOGO_SCALE_DEFAULT_RATIO;
+  @StorageProp(HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY)
+  private storedOpacity: number = HOME_LOGO_OPACITY_DEFAULT;
   @Prop heightVp: number = CENTERED_HOME_WORDMARK_HEIGHT;
   @Prop maxWidthVp: number = 0;
   @Prop tintColor: ResourceColor = '#111111';
@@ -116,10 +129,12 @@ export struct HomeLogoMark {
       // The caller hands in the base height for its own layout; the user's slider scales it.
       heightVp: resolveHomeLogoHeightVp(this.heightVp, this.storedScaleRatio),
       maxWidthVp: this.maxWidthVp,
-      tintable: this.resolveSource().tintable,
+      colorMode: this.resolveSource().colorMode,
       tintColor: this.tintColor,
       label: this.label
     })
+      // 0 hides the mark but keeps its place, so the search field does not jump.
+      .opacity(normalizeHomeLogoOpacity(this.storedOpacity))
   }
 
   /**

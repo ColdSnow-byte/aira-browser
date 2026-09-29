@@ -262,7 +262,8 @@ export class HomePageSettingsCoordinator {
       homePageStyle: current.homePageStyle,
       homeLogoId: current.homeLogoId,
       homeLogoCustomAssets: this.copyLogoAssets(current.homeLogoCustomAssets),
-      homeLogoScaleRatio: current.homeLogoScaleRatio
+      homeLogoScaleRatio: current.homeLogoScaleRatio,
+      homeLogoOpacity: current.homeLogoOpacity
     };
   }
 

@@ -8,7 +8,11 @@ import {
   normalizeHomeLogoSelection
 } from '../../common/models/HomeLogoModels';
 import { HomeLogoImageService } from '../../services/settings/HomeLogoImageService';
-import { HOME_LOGO_MAX_CUSTOM_ASSETS, normalizeHomeLogoScaleRatio } from './HomeLogoSettingsPolicy';
+import {
+  HOME_LOGO_MAX_CUSTOM_ASSETS,
+  normalizeHomeLogoOpacity,
+  normalizeHomeLogoScaleRatio
+} from './HomeLogoSettingsPolicy';
 import { HomePagePresentationSettingsRepository } from '../../data/preferences/HomePagePresentationSettingsRepository';
 
 /**
@@ -82,6 +86,16 @@ export class HomeLogoSettingsCoordinator {
   async setScaleRatio(scaleRatio: number): Promise<number> {
     const next = await this.repository.setHomeLogoScaleRatio(scaleRatio);
     return normalizeHomeLogoScaleRatio(next.homeLogoScaleRatio);
+  }
+
+  getOpacity(): number {
+    return normalizeHomeLogoOpacity(this.repository.getSettings().homeLogoOpacity);
+  }
+
+  /** Dragging updates the mark live; this only stores the value once the finger leaves. */
+  async setOpacity(opacity: number): Promise<number> {
+    const next = await this.repository.setHomeLogoOpacity(opacity);
+    return normalizeHomeLogoOpacity(next.homeLogoOpacity);
   }
 
   private async writeSelection(selection: HomeLogoSelection): Promise<HomeLogoSelection> {

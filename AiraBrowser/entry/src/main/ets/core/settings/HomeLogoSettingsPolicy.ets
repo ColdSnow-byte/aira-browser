@@ -1,5 +1,6 @@
 import { CENTERED_HOME_WORDMARK_HEIGHT } from '../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import {
+  HomeLogoColorMode,
   HomeLogoSelection,
   listHomeLogoPresets,
   normalizeHomeLogoSelection,
@@ -19,6 +20,11 @@ export const HOME_LOGO_SCALE_MIN_RATIO: number = 0.6;
 export const HOME_LOGO_SCALE_MAX_RATIO: number = 2;
 export const HOME_LOGO_SCALE_DEFAULT_RATIO: number = 1;
 export const HOME_LOGO_SCALE_SLIDER_STEP: number = 1;
+/** 0 hides the mark; 1 is the shipped solid wordmark. */
+export const HOME_LOGO_OPACITY_MIN: number = 0;
+export const HOME_LOGO_OPACITY_MAX: number = 1;
+export const HOME_LOGO_OPACITY_DEFAULT: number = 1;
+export const HOME_LOGO_OPACITY_SLIDER_STEP: number = 1;
 export const HOME_LOGO_PREVIEW_HEIGHT_VP: number = 40;
 export const HOME_LOGO_GRID_GAP_VP: number = 12;
 /** The trailing "add" tile is only a picker affordance, never a selectable logo. */
@@ -37,7 +43,7 @@ export interface HomeLogoGridItem {
   fileUri: string;
   intrinsicWidth: number;
   intrinsicHeight: number;
-  tintable: boolean;
+  colorMode: HomeLogoColorMode;
   selected: boolean;
 }
 
@@ -87,6 +93,27 @@ export function homeLogoSliderValueToScale(value: number): number {
 
 export function formatHomeLogoScaleLabel(ratio: number): string {
   return `${homeLogoScaleToSliderValue(ratio)}%`;
+}
+
+/** Keeps a missing or stale value solid, and lets 0 stay hidden. */
+export function normalizeHomeLogoOpacity(value: number | undefined): number {
+  if (typeof value !== 'number' || !Number.isFinite(value)) {
+    return HOME_LOGO_OPACITY_DEFAULT;
+  }
+  const clamped = Math.max(HOME_LOGO_OPACITY_MIN, Math.min(HOME_LOGO_OPACITY_MAX, value));
+  return Math.round(clamped * 100) / 100;
+}
+
+export function homeLogoOpacityToSliderValue(opacity: number): number {
+  return Math.round(normalizeHomeLogoOpacity(opacity) * 100);
+}
+
+export function homeLogoSliderValueToOpacity(value: number): number {
+  return normalizeHomeLogoOpacity(value / 100);
+}
+
+export function formatHomeLogoOpacityLabel(opacity: number): string {
+  return `${homeLogoOpacityToSliderValue(opacity)}%`;
 }
 
 /** The height the logo is actually drawn at, before the width clamp has its say. */
@@ -147,7 +174,7 @@ export function buildHomeLogoGridItems(selection: HomeLogoSelection | undefined)
       fileUri: '',
       intrinsicWidth: preset.intrinsicWidth,
       intrinsicHeight: preset.intrinsicHeight,
-      tintable: preset.tintable,
+      colorMode: preset.colorMode,
       selected: preset.id === normalized.id
     });
   }
@@ -161,7 +188,7 @@ export function buildHomeLogoGridItems(selection: HomeLogoSelection | undefined)
       fileUri: asset.uri,
       intrinsicWidth: asset.width,
       intrinsicHeight: asset.height,
-      tintable: false,
+      colorMode: 'authored',
       selected: asset.id === normalized.id
     });
   }
@@ -173,7 +200,7 @@ export function buildHomeLogoGridItems(selection: HomeLogoSelection | undefined)
     fileUri: '',
     intrinsicWidth: 0,
     intrinsicHeight: 0,
-    tintable: false,
+    colorMode: 'authored',
     selected: false
   });
   return items;
