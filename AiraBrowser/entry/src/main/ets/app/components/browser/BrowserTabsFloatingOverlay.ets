@@ -83,6 +83,7 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import { AppChromeIconTone } from '../../../core/resources/AppIconResources';
+import { BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY } from '../../../core/browser/BrowserSystemFontScaleCoordinator';
 import { BrowserWindowRuntime } from '../../runtime/BrowserWindowRuntime';
 import { SiteIconListRenderState } from '../../../core/siteicons/SiteIconListPresenter';
 import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from './BrowserModalBottomSheet';
@@ -145,6 +146,9 @@ export struct BrowserTabsFloatingOverlay {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY)
   @Watch('handleStoredTabsOverviewLayoutStyleChanged')
   private storedTabsOverviewLayoutStyle: string = 'grid';
+  @StorageProp(BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY)
+  @Watch('handleSystemFontScaleChanged')
+  private storedContentFontSizeScale: number = 1;
   @StorageProp(BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBLE_KEY)
   private storedTabsOverviewCloseButtonAlwaysVisible: boolean = false;
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
@@ -1573,7 +1577,8 @@ export struct BrowserTabsFloatingOverlay {
       gridWidth: Math.max(1, width - FLOATING_TABS_HORIZONTAL_PADDING * 2),
       sheetWidth: width,
       sheetHeight: height,
-      layoutStyle: this.storedTabsOverviewLayoutStyle
+      layoutStyle: this.storedTabsOverviewLayoutStyle,
+      uiFontScale: this.resolveOverviewUiFontScale()
     });
     // onAreaChange calls this on every layout pass. Re-assigning an equal @State
     // object forces another grid re-render, so keep the current object when the
@@ -1606,6 +1611,22 @@ export struct BrowserTabsFloatingOverlay {
     const targetId = this.shouldPrepareEntryTarget() ? this.resolveEntryTargetTabId() : this.activeTabId;
     const target = this.deckItems.findIndex((item: BrowserTabsFloatingItem): boolean => item.id === targetId);
     this.seedDeckPosition(target >= 0 ? target : Math.max(0, this.deckItems.length - 1));
+  }
+
+  private handleSystemFontScaleChanged(): void {
+    this.syncLayoutState();
+  }
+
+  /**
+   * Scale the card title and its header should follow. This is the shell-aware content scale:
+   * the phone follows the system, and the large-screen shell is already pinned to 1.
+   */
+  private resolveOverviewUiFontScale(): number {
+    const scale = this.storedContentFontSizeScale;
+    if (!Number.isFinite(scale) || scale <= 0) {
+      return 1;
+    }
+    return scale;
   }
 
   private handleStoredTabsOverviewLayoutStyleChanged(): void {

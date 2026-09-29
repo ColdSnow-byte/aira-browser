@@ -5,7 +5,9 @@ import {
 } from '../../services/layout/AppWindowResponsiveLayoutService';
 import {
   BROWSER_TABS_OVERVIEW_IDENTITY_HEADER_HEIGHT,
-  BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP
+  BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
+  BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_FONT_SIZE,
+  BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_MAX_FONT_SCALE
 } from './BrowserTabsOverviewVisualTokens';
 
 export interface BrowserTabsOverviewLayoutInput {
@@ -13,6 +15,11 @@ export interface BrowserTabsOverviewLayoutInput {
   sheetWidth: number;
   sheetHeight: number;
   layoutStyle?: BrowserTabsOverviewLayoutStyle | string;
+  /**
+   * System font scale the shell actually applies to native UI. Phone follows the
+   * system; the large-screen shell passes 1 because it pins its own UI scale.
+   */
+  uiFontScale?: number;
 }
 
 export interface BrowserTabsOverviewLayoutState {
@@ -56,11 +63,22 @@ interface BrowserTabsOverviewLayoutBaseState {
   gridGap: number;
   cardWidth: number;
   previewHeight: number;
+  identityHeaderHeight: number;
   horizontalContentInset: number;
 }
 
+/**
+ * Readable card width. Used only to drop a column when the fitted width would be narrower than
+ * this. It must not raise a card past its grid slot: display-size scaling shrinks the vp count,
+ * and a floor wider than the slot is what stacks two cards on top of each other.
+ */
 const TAB_OVERVIEW_LAYOUT_MIN_CARD_WIDTH: number = 132;
 const TAB_OVERVIEW_LAYOUT_MIN_PREVIEW_HEIGHT: number = 118;
+/**
+ * Room kept above a centred card for the status bar and below it for the floating bar. The
+ * preview height ratio ignores both, so a display-size-shrunk sheet clips the card without this.
+ */
+const TAB_OVERVIEW_LAYOUT_SHEET_CHROME_RESERVE: number = 96;
 const TAB_OVERVIEW_LAYOUT_GRID_GAP: number = 16;
 const TAB_OVERVIEW_LAYOUT_TOP_PADDING: number = 16;
 const TAB_OVERVIEW_LAYOUT_TOP_SAFE_GAP: number = 10;
@@ -87,9 +105,7 @@ const TAB_OVERVIEW_HORIZONTAL_CARDS_GAP: number = 18;
 const TAB_OVERVIEW_STACK_PHONE_WIDTH_RATIO: number = 0.70;
 const TAB_OVERVIEW_STACK_LANDSCAPE_WIDTH_RATIO: number = 0.56;
 const TAB_OVERVIEW_STACK_MAX_WIDTH: number = 520;
-const TAB_OVERVIEW_STACK_MIN_WIDTH: number = 200;
 const TAB_OVERVIEW_STACK_VIEWPORT_HEIGHT_RATIO: number = 0.66;
-const TAB_OVERVIEW_STACK_MIN_HEIGHT: number = 180;
 /**
  * Portrait width ratio of one large card in the horizontal strip.
  *
@@ -99,9 +115,7 @@ const TAB_OVERVIEW_STACK_MIN_HEIGHT: number = 180;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_PHONE_WIDTH_RATIO: number = 0.82;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_LANDSCAPE_WIDTH_RATIO: number = 0.56;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_MAX_WIDTH: number = 520;
-const TAB_OVERVIEW_HORIZONTAL_CARDS_MIN_WIDTH: number = 220;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_VIEWPORT_HEIGHT_RATIO: number = 0.66;
-const TAB_OVERVIEW_HORIZONTAL_CARDS_MIN_HEIGHT: number = 180;
 
 export class BrowserTabsOverviewLayoutViewModel {
   private readonly responsiveLayoutService: AppWindowResponsiveLayoutService =
@@ -117,7 +131,7 @@ export class BrowserTabsOverviewLayoutViewModel {
       return this.buildStackState(input, usableWidth);
     }
     const responsiveFacts = this.resolveResponsiveFacts(input);
-    const columnCount = this.resolveColumnCount(responsiveFacts);
+    const columnCount = this.resolveFittingColumnCount(responsiveFacts, usableWidth);
     const cardWidth = this.resolveCardWidth(usableWidth, columnCount);
     const previewHeight = this.resolvePreviewHeight(input, cardWidth);
     return this.buildLayoutState({
@@ -127,6 +141,7 @@ export class BrowserTabsOverviewLayoutViewModel {
       gridGap: TAB_OVERVIEW_LAYOUT_GRID_GAP,
       cardWidth: cardWidth,
       previewHeight: previewHeight,
+      identityHeaderHeight: this.resolveIdentityHeaderHeight(input.uiFontScale),
       horizontalContentInset: 0
     });
   }
@@ -141,8 +156,9 @@ export class BrowserTabsOverviewLayoutViewModel {
     input: BrowserTabsOverviewLayoutInput,
     usableWidth: number
   ): BrowserTabsOverviewLayoutState {
+    const headerHeight = this.resolveIdentityHeaderHeight(input.uiFontScale);
     const maxWidth = this.resolveHorizontalCardWidth(input, usableWidth);
-    const maxHeight = this.resolveHorizontalPreviewHeight(input);
+    const maxHeight = this.resolveHorizontalPreviewHeight(input, headerHeight);
     // The shared box keeps the page's own aspect. Two independent ratios make a wider card than
     // the screenshot, and the picture then sits inside it with a white border.
     const frame = this.resolveViewportAspectFrame(input.sheetWidth, input.sheetHeight, maxWidth, maxHeight);
@@ -153,6 +169,7 @@ export class BrowserTabsOverviewLayoutViewModel {
       gridGap: TAB_OVERVIEW_HORIZONTAL_CARDS_GAP,
       cardWidth: frame.width,
       previewHeight: frame.height,
+      identityHeaderHeight: headerHeight,
       horizontalContentInset: Math.max(0, (usableWidth - frame.width) / 2)
     });
   }
@@ -167,6 +184,7 @@ export class BrowserTabsOverviewLayoutViewModel {
     input: BrowserTabsOverviewLayoutInput,
     usableWidth: number
   ): BrowserTabsOverviewLayoutState {
+    const headerHeight = this.resolveIdentityHeaderHeight(input.uiFontScale);
     const cardWidth = this.resolveStackCardWidth(input, usableWidth);
     return this.buildLayoutState({
       layoutStyle: 'stack',
@@ -174,7 +192,8 @@ export class BrowserTabsOverviewLayoutViewModel {
       columnsTemplate: '1fr',
       gridGap: TAB_OVERVIEW_STACK_GAP,
       cardWidth: cardWidth,
-      previewHeight: this.resolveStackPreviewHeight(input),
+      previewHeight: this.resolveStackPreviewHeight(input, headerHeight),
+      identityHeaderHeight: headerHeight,
       horizontalContentInset: 0
     });
   }
@@ -187,9 +206,9 @@ export class BrowserTabsOverviewLayoutViewModel {
       gridGap: base.gridGap,
       cardWidth: base.cardWidth,
       previewHeight: base.previewHeight,
-      identityHeaderHeight: BROWSER_TABS_OVERVIEW_IDENTITY_HEADER_HEIGHT,
+      identityHeaderHeight: base.identityHeaderHeight,
       identityPreviewGap: BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
-      itemHeight: base.previewHeight + BROWSER_TABS_OVERVIEW_IDENTITY_HEADER_HEIGHT +
+      itemHeight: base.previewHeight + base.identityHeaderHeight +
         BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
       horizontalContentInset: base.horizontalContentInset
     };
@@ -210,6 +229,19 @@ export class BrowserTabsOverviewLayoutViewModel {
     return 2;
   }
 
+  /**
+   * Drop a column before a card is forced wider than its slot. Display-size scaling raises
+   * density and shrinks the vp count; keeping two columns then overlaps the cards.
+   */
+  private resolveFittingColumnCount(facts: AppWindowResponsiveFacts, usableWidth: number): number {
+    let columnCount = this.resolveColumnCount(facts);
+    while (columnCount > 1 &&
+      this.resolveFittedCardWidth(usableWidth, columnCount) < TAB_OVERVIEW_LAYOUT_MIN_CARD_WIDTH) {
+      columnCount -= 1;
+    }
+    return columnCount;
+  }
+
   private resolveUsableWidth(input: BrowserTabsOverviewLayoutInput): number {
     if (input.gridWidth > 0) {
       return input.gridWidth;
@@ -217,10 +249,14 @@ export class BrowserTabsOverviewLayoutViewModel {
     return Math.max(1, input.sheetWidth - 32);
   }
 
-  private resolveCardWidth(usableWidth: number, columnCount: number): number {
+  private resolveFittedCardWidth(usableWidth: number, columnCount: number): number {
     const safeColumnCount = Math.max(1, columnCount);
     const totalGap = TAB_OVERVIEW_LAYOUT_GRID_GAP * Math.max(0, safeColumnCount - 1);
-    return Math.max(TAB_OVERVIEW_LAYOUT_MIN_CARD_WIDTH, (Math.max(1, usableWidth) - totalGap) / safeColumnCount);
+    return (Math.max(1, usableWidth) - totalGap) / safeColumnCount;
+  }
+
+  private resolveCardWidth(usableWidth: number, columnCount: number): number {
+    return Math.max(1, this.resolveFittedCardWidth(usableWidth, columnCount));
   }
 
   private resolvePreviewHeight(input: BrowserTabsOverviewLayoutInput, cardWidth: number): number {
@@ -239,17 +275,20 @@ export class BrowserTabsOverviewLayoutViewModel {
     const ratio = landscape ?
       TAB_OVERVIEW_HORIZONTAL_CARDS_LANDSCAPE_WIDTH_RATIO :
       TAB_OVERVIEW_HORIZONTAL_CARDS_PHONE_WIDTH_RATIO;
-    return Math.round(Math.max(
-      TAB_OVERVIEW_HORIZONTAL_CARDS_MIN_WIDTH,
-      Math.min(TAB_OVERVIEW_HORIZONTAL_CARDS_MAX_WIDTH, Math.max(1, usableWidth) * ratio)
-    ));
+    return this.clampCardExtent(
+      Math.max(1, usableWidth) * ratio,
+      Math.min(TAB_OVERVIEW_HORIZONTAL_CARDS_MAX_WIDTH, Math.max(1, usableWidth))
+    );
   }
 
-  private resolveHorizontalPreviewHeight(input: BrowserTabsOverviewLayoutInput): number {
-    return Math.round(Math.max(
-      TAB_OVERVIEW_HORIZONTAL_CARDS_MIN_HEIGHT,
-      Math.max(1, input.sheetHeight) * TAB_OVERVIEW_HORIZONTAL_CARDS_VIEWPORT_HEIGHT_RATIO
-    ));
+  private resolveHorizontalPreviewHeight(
+    input: BrowserTabsOverviewLayoutInput,
+    headerHeight: number
+  ): number {
+    return this.clampCardExtent(
+      Math.max(1, input.sheetHeight) * TAB_OVERVIEW_HORIZONTAL_CARDS_VIEWPORT_HEIGHT_RATIO,
+      this.resolveSheetPreviewCap(input.sheetHeight, headerHeight)
+    );
   }
 
   private resolveViewportAspectFrame(
@@ -275,17 +314,51 @@ export class BrowserTabsOverviewLayoutViewModel {
     const ratio = landscape ?
       TAB_OVERVIEW_STACK_LANDSCAPE_WIDTH_RATIO :
       TAB_OVERVIEW_STACK_PHONE_WIDTH_RATIO;
-    return Math.round(Math.max(
-      TAB_OVERVIEW_STACK_MIN_WIDTH,
-      Math.min(TAB_OVERVIEW_STACK_MAX_WIDTH, Math.max(1, usableWidth) * ratio)
-    ));
+    return this.clampCardExtent(
+      Math.max(1, usableWidth) * ratio,
+      Math.min(TAB_OVERVIEW_STACK_MAX_WIDTH, Math.max(1, usableWidth))
+    );
   }
 
-  private resolveStackPreviewHeight(input: BrowserTabsOverviewLayoutInput): number {
-    return Math.round(Math.max(
-      TAB_OVERVIEW_STACK_MIN_HEIGHT,
-      Math.max(1, input.sheetHeight) * TAB_OVERVIEW_STACK_VIEWPORT_HEIGHT_RATIO
-    ));
+  private resolveStackPreviewHeight(input: BrowserTabsOverviewLayoutInput, headerHeight: number): number {
+    return this.clampCardExtent(
+      Math.max(1, input.sheetHeight) * TAB_OVERVIEW_STACK_VIEWPORT_HEIGHT_RATIO,
+      this.resolveSheetPreviewCap(input.sheetHeight, headerHeight)
+    );
+  }
+
+  /**
+   * Preferred size, never past the space the sheet still has. A hardcoded floor used to win here,
+   * so raising display size made the card wider than the window.
+   */
+  private clampCardExtent(preferred: number, maximum: number): number {
+    const cap = Math.max(1, maximum);
+    return Math.round(Math.min(cap, Math.max(1, preferred)));
+  }
+
+  private resolveSheetPreviewCap(sheetHeight: number, headerHeight: number): number {
+    return Math.max(
+      1,
+      Math.max(1, sheetHeight) - headerHeight - BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP -
+        TAB_OVERVIEW_LAYOUT_SHEET_CHROME_RESERVE
+    );
+  }
+
+  private resolveIdentityHeaderHeight(uiFontScale: number | undefined): number {
+    const scale = this.normalizeUiFontScale(uiFontScale);
+    // 14fp plus breathing room. At scale 1 this stays the existing 28vp header.
+    return Math.max(
+      BROWSER_TABS_OVERVIEW_IDENTITY_HEADER_HEIGHT,
+      Math.round(BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_FONT_SIZE * scale +
+        BROWSER_TABS_OVERVIEW_IDENTITY_HEADER_HEIGHT - BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_FONT_SIZE)
+    );
+  }
+
+  private normalizeUiFontScale(uiFontScale: number | undefined): number {
+    if (uiFontScale === undefined || !Number.isFinite(uiFontScale) || uiFontScale <= 1) {
+      return 1;
+    }
+    return Math.min(BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_MAX_FONT_SCALE, uiFontScale);
   }
 
   private normalizeLayoutStyle(

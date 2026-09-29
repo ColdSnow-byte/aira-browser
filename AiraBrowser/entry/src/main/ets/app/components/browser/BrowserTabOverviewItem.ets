@@ -12,8 +12,8 @@ import {
   BROWSER_TABS_OVERVIEW_IDENTITY_ICON_REVEAL_DURATION_MS,
   BROWSER_TABS_OVERVIEW_IDENTITY_ICON_SIZE,
   BROWSER_TABS_OVERVIEW_IDENTITY_ICON_TEXT_GAP,
-  BROWSER_TABS_OVERVIEW_IDENTITY_MAX_WIDTH_RATIO,
-  BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP
+  BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
+  BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_MAX_FONT_SCALE
 } from '../../../core/browser/BrowserTabsOverviewVisualTokens';
 import { SiteIconView } from '../common/SiteIconView';
 import { BrowserTabOverviewCard, BrowserTabOverviewCardSelectRect } from './BrowserTabOverviewCard';
@@ -331,6 +331,7 @@ export struct BrowserTabOverviewItem {
       Text(this.presentation.identity.label)
         .layoutWeight(1)
         .fontSize(14)
+        .maxFontScale(BROWSER_TABS_OVERVIEW_IDENTITY_TITLE_MAX_FONT_SCALE)
         .fontWeight(FontWeight.Medium)
         .fontColor(this.storedPrimaryTextColor)
         .maxLines(1)
@@ -749,14 +750,9 @@ export struct BrowserTabOverviewItem {
   }
 
   private resolveIdentityHeaderWidth(): number {
-    const availableWidth = Math.max(1, this.cardWidth - BROWSER_TABS_OVERVIEW_IDENTITY_HORIZONTAL_INSET);
-    return Math.min(
-      availableWidth,
-      Math.max(
-        BROWSER_TABS_OVERVIEW_IDENTITY_ICON_SIZE + BROWSER_TABS_OVERVIEW_IDENTITY_ICON_TEXT_GAP,
-        this.cardWidth * BROWSER_TABS_OVERVIEW_IDENTITY_MAX_WIDTH_RATIO
-      )
-    );
+    // The inset already keeps the title off the card edge. A further 72% cap is what turned
+    // a scaled title into three characters ("广告拦...") after display size grew the font.
+    return Math.max(1, this.cardWidth - BROWSER_TABS_OVERVIEW_IDENTITY_HORIZONTAL_INSET);
   }
 
   private parseAreaDimension(value: Length): number {

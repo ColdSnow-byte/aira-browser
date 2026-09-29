@@ -9963,6 +9963,7 @@ struct BrowserShellPage {
   }
 
   private refreshRootBottomPanelLayoutState(): void {
+    this.adoptDisplayViewportAfterDensityChange();
     this.rootBottomPanelLayoutState = this.browserRootBottomPanelSessionCoordinator.buildLayoutState({
       viewportWidth: this.rootViewportWidth,
       viewportHeight: this.rootViewportHeight,
@@ -9971,6 +9972,43 @@ struct BrowserShellPage {
       homeAddressFocused: this.browserSearchSuggestionSnapshot.homeSearchFocused,
       webAddressFocused: this.webBottomAddressFocused
     });
+  }
+
+  /**
+   * Display-size scaling changes density while the app is in Settings. The page's onAreaChange is
+   * dropped because the page is not foreground, so the tab sheet keeps sizing cards for the old,
+   * larger vp count and they overlap. A phone window tracks the display, and a density change
+   * moves both axes by the same factor; a split window or the keyboard does not.
+   */
+  private adoptDisplayViewportAfterDensityChange(): void {
+    if (BrowserWindowRuntime.resolveActiveShellPresentationSurface() === 'large_screen') {
+      return;
+    }
+    const displayWidth = this.browserWindowDisplayViewportWidth;
+    const displayHeight = this.browserWindowDisplayViewportHeight;
+    const rootWidth = this.rootViewportWidth;
+    const rootHeight = this.rootViewportHeight;
+    if (displayWidth <= 1 || displayHeight <= 1 || rootWidth <= 1 || rootHeight <= 1) {
+      return;
+    }
+    if ((rootWidth > rootHeight) !== (displayWidth > displayHeight)) {
+      return;
+    }
+    const widthRatio = rootWidth / displayWidth;
+    const heightRatio = rootHeight / displayHeight;
+    const widthDelta = widthRatio - 1;
+    const heightDelta = heightRatio - 1;
+    if (Math.abs(widthDelta) < 0.04 || Math.abs(heightDelta) < 0.04 || widthDelta * heightDelta <= 0) {
+      return;
+    }
+    if (widthRatio < 0.55 || widthRatio > 1.8 || heightRatio < 0.55 || heightRatio > 1.8) {
+      return;
+    }
+    if (Math.abs(widthRatio - heightRatio) > 0.12) {
+      return;
+    }
+    this.rootViewportWidth = Math.round(displayWidth);
+    this.rootViewportHeight = Math.round(displayHeight);
   }
 
   private async exitPrivateModeAsync(clearPrivateData: boolean): Promise<void> {
