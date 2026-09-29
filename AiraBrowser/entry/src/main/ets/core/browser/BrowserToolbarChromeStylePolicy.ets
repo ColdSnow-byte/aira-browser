@@ -10,11 +10,12 @@ export const SPLIT_TOOLBAR_PILL_ROW_VP: number = 46;
 /** Gap the top row keeps under its pill, inside its own opaque background, in vp. */
 export const SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP: number = 8;
 /**
- * Space the web page keeps under the split address row, in vp. It is the painted row
- * (`SPLIT_TOOLBAR_PILL_ROW_VP` + `SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP`) plus the breathing
- * room below it, so a page that honours this reserve can never slide under the row.
+ * Painted content height of the split address row below its top safe padding, in vp.
+ * It is the pill plus the under-pill gap. The web page starts on this edge, so its top
+ * meets the address row bottom instead of leaving a band under the row.
  */
-export const SPLIT_TOOLBAR_ADDRESS_BLOCK_VP: number = 62;
+export const SPLIT_TOOLBAR_ADDRESS_BLOCK_VP: number =
+  SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP;
 /** Side inset of the split address and search pills, in vp. */
 export const SPLIT_TOOLBAR_ADDRESS_HORIZONTAL_MARGIN_VP: number = 16;
 /** Height of the bottom navigation row above the system gesture inset, in vp. */
@@ -35,13 +36,11 @@ export function resolveSplitToolbarBottomRowHeightVp(bottomSafeInsetVp: number):
 
 /**
  * Top reserve the web page keeps for the split address row. The row paints with its own safe
- * padding (`topSafeInsetVp`), so the reserve is built from that same inset and never from the
- * smaller strip a hidden status bar reports. It is always at least the painted row height.
+ * padding (`topSafeInsetVp`), so the reserve is that same inset plus the painted block.
+ * The floating content gap is not added: that addition is the empty band under the address row.
  */
-export function resolveSplitToolbarTopRowReserveVp(topSafeInsetVp: number, contentGapVp: number): number {
-  const safeTopVp = Math.max(0, Math.ceil(toFiniteVp(topSafeInsetVp)));
-  const contentGap = Math.max(0, Math.ceil(toFiniteVp(contentGapVp)));
-  return safeTopVp + contentGap + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP;
+export function resolveSplitToolbarTopRowReserveVp(topSafeInsetVp: number, _contentGapVp: number): number {
+  return resolveSplitToolbarTopRowHeightVp(topSafeInsetVp);
 }
 
 /** Bottom reserve the web page keeps for the split bottom row, in vp. */
@@ -83,9 +82,9 @@ export interface SplitToolbarWebReserve {
  * The two top edges are not the same measurement. A floating pill only floats over the page, so
  * the page clears the status bar strip and the content gap. The split address row is an opaque
  * row that already covers that strip with its own safe padding, so once it is on screen the page
- * and every stacked row clear the painted row itself, `SPLIT_TOOLBAR_ADDRESS_BLOCK_VP` tall.
- * Adding the strip's content gap on top of a painted row is what leaves a band of empty chrome
- * under the address row.
+ * and every stacked row meet the painted row itself, `SPLIT_TOOLBAR_ADDRESS_BLOCK_VP` tall.
+ * Adding the strip's content gap, or any breathing room, on top of a painted row is what leaves
+ * a band of empty chrome under the address row.
  */
 export function resolveSplitToolbarWebReserve(input: SplitToolbarWebReserveInput): SplitToolbarWebReserve {
   const stackedHeightVp = Math.max(0, Math.ceil(toFiniteVp(input.stackedChromeHeightVp)));

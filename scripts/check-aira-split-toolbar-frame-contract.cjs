@@ -83,11 +83,11 @@ for (const safeInsetVp of BOTTOM_INSETS_VP) {
     `reserves ${reserveVp}vp: the page bottom would sit behind the row`);
 }
 
-// The row itself is the source of the reserve: pill, under-pill gap, and the room below it.
+// The row itself is the source of the reserve: the page top meets the painted row bottom.
 assert.equal(
   policy.SPLIT_TOOLBAR_ADDRESS_BLOCK_VP,
-  policy.SPLIT_TOOLBAR_PILL_ROW_VP + policy.SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP + 8,
-  'The address block must stay the painted row plus the room below it');
+  policy.SPLIT_TOOLBAR_PILL_ROW_VP + policy.SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP,
+  'The address block must be the painted row, so the page top meets the address row bottom');
 assert.ok(splitChromeSource.includes('SPLIT_TOOLBAR_PILL_ROW_VP') &&
   splitChromeSource.includes('SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP'),
   'The painted row height and its under-pill gap must come from the same policy constants the reserve uses');
@@ -155,9 +155,11 @@ for (const statusBarStripVp of STATUS_BAR_STRIPS_VP) {
         `visible=${statusBarVisible}) must clear the row itself and not the floating content gap, ` +
         `expected ${expectedTopVp}vp, got ${reserve.topVp}vp`);
       const emptyBandVp = reserve.topVp - policy.resolveSplitToolbarTopRowHeightVp(safeInsetVp);
-      assert.ok(emptyBandVp <= policy.SPLIT_TOOLBAR_ADDRESS_BLOCK_VP - policy.SPLIT_TOOLBAR_PILL_ROW_VP -
-        policy.SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP + Math.max(0, statusBarStripVp - safeInsetVp),
-      `The empty band under a painted address row must stay tiny, got ${emptyBandVp}vp`);
+      const stripOverflowVp = Math.max(0, (statusBarVisible ? statusBarStripVp : 0) - safeInsetVp);
+      assert.equal(emptyBandVp, stripOverflowVp,
+        `The page top must meet the painted address row (strip ${statusBarStripVp}vp, safe ` +
+        `${safeInsetVp}vp, status bar visible=${statusBarVisible}), got an extra ` +
+        `${emptyBandVp - stripOverflowVp}vp`);
     }
   }
 }

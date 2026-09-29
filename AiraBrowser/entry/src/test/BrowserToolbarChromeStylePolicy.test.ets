@@ -99,30 +99,27 @@ describe('BrowserToolbarChromeStylePolicy', () => {
       bottomRowPainted: bottomRowPainted
     });
     expect(SPLIT_TOOLBAR_ADDRESS_BLOCK_VP).assertEqual(
-      SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP + 8);
-    // The page clears the row that is painted, and the row paints with its own safe padding.
+      SPLIT_TOOLBAR_PILL_ROW_VP + SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP);
+    // The page meets the row that is painted, and the row paints with its own safe padding.
     for (const safeInsetVp of [0, 24, 36, 48]) {
       expect(resolveSplitToolbarTopRowReserveVp(safeInsetVp, contentGapVp))
-        .assertLarger(resolveSplitToolbarTopRowHeightVp(safeInsetVp));
+        .assertEqual(resolveSplitToolbarTopRowHeightVp(safeInsetVp));
     }
     expect(resolveSplitToolbarBottomReserveVp(0)).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP);
     expect(resolveSplitToolbarBottomReserveVp(bottomRowSafeInsetVp))
       .assertEqual(resolveSplitToolbarBottomRowHeightVp(bottomRowSafeInsetVp));
 
-    // A painted split row is an opaque row, not a floating pill: the page clears that row, so the
-    // empty band under it is only the block's own breathing room instead of the strip gap as well.
+    // A painted split row is an opaque row, not a floating pill: the page meets that row.
     const restingRows = buildReserve(statusBarStripVp, true, 0, true, true);
     expect(restingRows.topVp).assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
-    expect(restingRows.topVp - resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp))
-      .assertEqual(SPLIT_TOOLBAR_ADDRESS_BLOCK_VP - SPLIT_TOOLBAR_PILL_ROW_VP -
-        SPLIT_TOOLBAR_TOP_ROW_BOTTOM_GAP_VP);
+    expect(restingRows.topVp - resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp)).assertEqual(0);
     expect(restingRows.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + bottomRowSafeInsetVp);
     // A visible status bar whose strip is shorter than the row keeps the row's own safe padding.
     expect(buildReserve(16, true, 0, true, true).topVp)
       .assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
     // A hidden status bar keeps the painted row: this is the top coverage the reserve exists for.
     const hiddenStatusBar = buildReserve(16, false, 0, true, true);
-    expect(hiddenStatusBar.topVp).assertLarger(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
+    expect(hiddenStatusBar.topVp).assertEqual(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
     expect(hiddenStatusBar.topVp).assertEqual(topRowSafeInsetVp + SPLIT_TOOLBAR_ADDRESS_BLOCK_VP);
     expect(hiddenStatusBar.bottomVp).assertEqual(SPLIT_TOOLBAR_BOTTOM_BAR_VP + bottomRowSafeInsetVp);
     // The bottom row owns the bottom edge while it is on screen, keyboard or not.
@@ -163,9 +160,9 @@ describe('BrowserToolbarChromeStylePolicy', () => {
         bottomRowPainted: false
       });
       // The stacked row (the quick search row) keeps its own height and the address row keeps
-      // its clearance, so the row that is on screen is never pushed under the other one.
+      // its clearance, so the page meets the row that is on screen instead of sliding under it.
       expect(withRow.topVp - stackedChromeHeightVp)
-        .assertLarger(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
+        .assertEqual(resolveSplitToolbarTopRowHeightVp(topRowSafeInsetVp));
       expect(withRow.topVp - stackedChromeHeightVp)
         .assertLarger(withoutRow.topVp - stackedChromeHeightVp);
       expect(withRow.topVp > stackedChromeHeightVp).assertTrue();
