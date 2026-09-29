@@ -509,6 +509,10 @@ import {
 } from '../../core/browser/BrowserBottomChromePresentationViewModel';
 import { HomeWallpaperCoordinator } from '../../core/wallpaper/HomeWallpaperCoordinator';
 import {
+  HomeWallpaperPlaybackGate,
+  shouldPlayHomeWallpaperVideo
+} from '../../services/wallpaper/HomeWallpaperPlaybackPolicy';
+import {
   DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE,
   HomeWallpaperPresentationState
 } from '../../common/models/WallpaperModels';
@@ -5994,6 +5998,8 @@ struct BrowserShellPage {
   @State mediaResourceSessionSnapshot: BrowserMediaResourceSessionSnapshot =
     createBrowserMediaResourceSessionSnapshot();
   @State @Watch('handleTabsOverviewBottomSafeAreaChange') showTabsSheet: boolean = false;
+  @State private homeVideoPlaybackEnabled: boolean = true;
+  private homeWallpaperPlaybackGate: HomeWallpaperPlaybackGate = new HomeWallpaperPlaybackGate();
   @State tabsOverviewPresentationState: BrowserTabsOverviewSessionPresentationState =
     this.tabsOverviewSessionCoordinator.getPresentationState();
   @State tabsSharedSnapshotState: BrowserTabsSharedSnapshotTransitionState =
@@ -6692,6 +6698,7 @@ struct BrowserShellPage {
   }
 
   aboutToDisappear(): void {
+    this.homeWallpaperPlaybackGate.dispose();
     this.browserAddressBarTabSwipeCoordinator.cancel();
     this.browserTabSwipeCoverCoordinator.dispose();
     this.browserTabSwipePreviewCoordinator.dispose();
@@ -6718,6 +6725,9 @@ struct BrowserShellPage {
   }
 
   onPageShow(): void {
+    this.homeWallpaperPlaybackGate.handlePageShow((enabled: boolean): void => {
+      this.homeVideoPlaybackEnabled = enabled;
+    });
     this.browserPageForeground = true;
     this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
@@ -6741,6 +6751,9 @@ struct BrowserShellPage {
   onPageHide(): void {
     this.browserWebTopImmersionSessionCoordinator.cancelCoveredStatusBarHold();
     this.browserPageForeground = false;
+    this.homeWallpaperPlaybackGate.handlePageHide((enabled: boolean): void => {
+      this.homeVideoPlaybackEnabled = enabled;
+    });
     this.browserAddressBarTabSwipeCoordinator.cancel();
     this.browserTabSwipePreviewCoordinator.suspend();
     this.browserWebBottomSafeAreaCoordinator.setVisible(false);
@@ -8681,6 +8694,16 @@ struct BrowserShellPage {
     return this.browserThemeModeCoordinator.resolveEffectiveMode() === 'dark';
   }
 
+  private resolveHomeWallpaperPlaybackEnabled(): boolean {
+    const revealSettled = !this.homePresentationSessionState.revealInteractionBlocked;
+    return shouldPlayHomeWallpaperVideo({
+      pageForeground: this.homeVideoPlaybackEnabled,
+      showHomePage: this.showHomePage,
+      showTabsSheet: this.showTabsSheet,
+      revealSettled: revealSettled
+    });
+  }
+
   @Builder
   private buildTabsOverlay() {
     Stack() {
@@ -9654,6 +9677,7 @@ struct BrowserShellPage {
         expandedScrimVisible: this.buildRootBottomPanelExpandedScrimState().visible
       }),
       contentPresentation: this.buildHomeSurfaceContentPresentationState(),
+      playbackEnabled: this.resolveHomeWallpaperPlaybackEnabled(),
       onDismissSearchFocus: () => {
         this.collapseRootBottomPanelFromScrim();
       }

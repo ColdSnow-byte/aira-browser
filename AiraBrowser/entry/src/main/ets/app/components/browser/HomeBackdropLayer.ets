@@ -18,6 +18,7 @@ export struct HomeBackdropLayer {
   @Prop blurEdgeScale: number = 1;
   @Prop tintColor: ResourceColor = '#000000';
   @Prop tintOpacity: number = 0;
+  @Prop playbackEnabled: boolean = false;
 
   build() {
     Stack({ alignContent: Alignment.Center }) {
@@ -43,7 +44,8 @@ export struct HomeBackdropLayer {
     HomeWallpaperLayer({
       state: this.wallpaperState,
       darkModeActive: this.darkModeActive,
-      themeBackgroundColor: this.themeBackgroundColor
+      themeBackgroundColor: this.themeBackgroundColor,
+      playbackEnabled: this.playbackEnabled
     })
     PrivateHomeWatermark({
       visible: this.privateModeVisible,

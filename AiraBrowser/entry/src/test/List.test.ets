@@ -90,6 +90,7 @@ import homePageSettingsCapabilityPolicyTest from './HomePageSettingsCapabilityPo
 import homeLogoSettingsPolicyTest from './HomeLogoSettingsPolicy.test';
 import homeLogoImageFormatPolicyTest from './HomeLogoImageFormatPolicy.test';
 import wallpaperColorChoicePolicyTest from './WallpaperColorChoicePolicy.test';
+import homeWallpaperPlaybackPolicyTest from './HomeWallpaperPlaybackPolicy.test';
 import systemHomepageStyleCatalogTest from './SystemHomepageStyleCatalog.test';
 import browserGestureOnboardingPromptPolicyTest from './BrowserGestureOnboardingPromptPolicy.test';
 import elementInspectionRuntimeScriptServiceTest from './ElementInspectionRuntimeScriptService.test';
@@ -195,6 +196,7 @@ export default function tests(): void {
   homeLogoSettingsPolicyTest();
   homeLogoImageFormatPolicyTest();
   wallpaperColorChoicePolicyTest();
+  homeWallpaperPlaybackPolicyTest();
   systemHomepageStyleCatalogTest();
   browserGestureOnboardingPromptPolicyTest();
   elementInspectionRuntimeScriptServiceTest();

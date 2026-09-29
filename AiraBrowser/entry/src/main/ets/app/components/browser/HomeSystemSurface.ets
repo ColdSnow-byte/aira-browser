@@ -20,6 +20,7 @@ export struct HomeSystemSurface {
   @Prop backdropEffectState: BrowserBackdropEffectState = DEFAULT_BROWSER_BACKDROP_EFFECT_STATE;
   @Prop searchFocused: boolean = false;
   @Prop contentPresentation: BrowserHomeSurfaceContentPresentationState;
+  @Prop playbackEnabled: boolean = false;
   @BuilderParam content: () => void = this.emptyBuilder;
   onDismissSearchFocus: () => void = () => {};
 
@@ -34,7 +35,8 @@ export struct HomeSystemSurface {
         blurRadius: this.backdropEffectState.blurRadius,
         blurEdgeScale: this.backdropEffectState.blurEdgeScale,
         tintColor: this.backdropEffectState.tintColor,
-        tintOpacity: this.backdropEffectState.tintOpacity
+        tintOpacity: this.backdropEffectState.tintOpacity,
+        playbackEnabled: this.playbackEnabled
       })
       this.buildContentLayer()
     }
