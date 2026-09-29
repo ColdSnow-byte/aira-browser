@@ -3,6 +3,7 @@ export const AIRA_PRO_YEARLY_PRODUCT_ID: string = 'aira_pro_yearly';
 export const AIRA_PRO_ONE_TIME_PRODUCT_ID: string = 'aira_pro_lifetime';
 const AIRA_PRO_LEGACY_ONE_TIME_PRODUCT_ID: string = 'aira_pro_one_time';
 const AIRA_PRO_ONE_TIME_DISPLAY_PRICE: string = '¥68.8';
+const AIRA_PRO_ONE_TIME_ORIGINAL_PRICE_TEXT: string = '原价¥98.8';
 
 export type HuaweiIapProductPeriod = 'monthly' | 'yearly';
 export type HuaweiIapPlanId = HuaweiIapProductPeriod | 'one_time';
@@ -34,6 +35,11 @@ export interface HuaweiIapOneTimePlan {
   displayPrice: string;
   amountText: string;
   periodText: string;
+  /**
+   * Struck-through list price for the membership card's top-right capsule.
+   * Empty hides the capsule.
+   */
+  originalPriceText: string;
   description: string;
   badgeText: string;
 }
@@ -73,6 +79,7 @@ export const AIRA_PRO_ONE_TIME_PLAN: HuaweiIapOneTimePlan = {
   displayPrice: `${AIRA_PRO_ONE_TIME_DISPLAY_PRICE} 长期`,
   amountText: AIRA_PRO_ONE_TIME_DISPLAY_PRICE,
   periodText: '长期',
+  originalPriceText: AIRA_PRO_ONE_TIME_ORIGINAL_PRICE_TEXT,
   description: '一次购买，长期有效，不自动续费',
   badgeText: ''
 };

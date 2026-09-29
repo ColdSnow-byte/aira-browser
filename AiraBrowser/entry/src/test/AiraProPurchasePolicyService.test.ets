@@ -18,14 +18,14 @@ export default function airaProPurchasePolicyServiceTest(): void {
       expect(policy.resolveOneTimePlanAction(claimed)).assertEqual('purchase');
     });
 
-    it('sends a live subscription to cancel auto-renewal before the permanent purchase', 0, () => {
+    it('lets a live subscription buy the permanent plan without leaving the purchase button', 0, () => {
       const policy = new AiraProPurchasePolicyService();
       const live = subscription('pro', 'active');
-      expect(policy.resolveOneTimePlanAction(live)).assertEqual('manage_subscription');
+      expect(policy.resolveOneTimePlanAction(live)).assertEqual('purchase');
       expect(policy.resolveOneTimePlanAction(subscription('pro', 'grace_period')))
-        .assertEqual('manage_subscription');
+        .assertEqual('purchase');
       expect(policy.resolveOneTimePlanAction(subscription('pro', 'unknown')))
-        .assertEqual('manage_subscription');
+        .assertEqual('purchase');
     });
 
     it('opens the permanent purchase once auto-renewal is cancelled', 0, () => {

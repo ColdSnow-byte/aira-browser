@@ -293,6 +293,7 @@ export struct AiraProScreen {
       settingsIconForeground: this.theme.settingsIconForeground,
       settingsIconBackgrounds: this.theme.settingsIconBackgrounds,
       syncProviderIconBackgrounds: this.theme.syncProviderIconBackgrounds,
+      logoDark: this.theme.resolvedMode === 'dark',
       scroller: this.contentScroller,
       onSubscribe: (planId: string) => {
         this.openProPurchase(planId);

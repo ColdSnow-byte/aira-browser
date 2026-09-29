@@ -20,9 +20,6 @@ export class AiraProPurchasePolicyService {
     if (availability === 'privacy_restricted' || this.membershipPresentationService.isLongTermMember(state)) {
       return 'unavailable';
     }
-    if (this.mustConfirmAutomaticRenewalStopped(state)) {
-      return 'manage_subscription';
-    }
     return 'purchase';
   }
 
@@ -38,12 +35,6 @@ export class AiraProPurchasePolicyService {
       return 'unavailable';
     }
     return this.hasCurrentIapSubscription(state) ? 'unavailable' : 'purchase';
-  }
-
-  private mustConfirmAutomaticRenewalStopped(state: AiraMembershipState): boolean {
-    return state.subscriptionStatus === 'active' ||
-      state.subscriptionStatus === 'grace_period' ||
-      state.subscriptionStatus === 'unknown';
   }
 
   private hasCurrentIapSubscription(state: AiraMembershipState): boolean {

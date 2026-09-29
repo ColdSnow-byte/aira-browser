@@ -48,6 +48,7 @@ export default function huaweiIapProductCatalogTest(): void {
       expect(AIRA_PRO_ONE_TIME_PLAN.amountText).assertEqual('¥68.8');
       expect(AIRA_PRO_ONE_TIME_PLAN.periodText).assertEqual('长期');
       expect(AIRA_PRO_ONE_TIME_PLAN.displayPrice).assertEqual('¥68.8 长期');
+      expect(AIRA_PRO_ONE_TIME_PLAN.originalPriceText).assertEqual('原价¥98.8');
       expect(isAiraProSellablePlanId('one_time')).assertFalse();
     });
   });

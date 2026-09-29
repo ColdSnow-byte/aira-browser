@@ -2,14 +2,12 @@ import { BrowserDataBoundaryInput } from '../../common/models/BrowserModels';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { AppServiceModeGateService } from '../../services/settings/AppServiceModeGateService';
 import { SyncActivationResult } from '../sync/SyncActivationModels';
-import { SyncFirstActivationItemsState } from '../sync/SyncFirstActivationItemsCoordinator';
 import {
   sharedAiraSyncConfigStore,
   sharedFeatureIntroRepository,
   sharedHuaweiAccountMutationCoordinator,
   sharedPreferencesRepository,
-  sharedStartupWelcomeIntroRepository,
-  sharedSyncExperienceCoordinator
+  sharedStartupWelcomeIntroRepository
 } from '../../app/bootstrap/BrowserAppRuntime';
 import { FeatureIntroCoordinator } from './FeatureIntroCoordinator';
 import { shouldCompleteStartupWelcomeOnResume } from './StartupWelcomeIntroCompletionPolicy';
@@ -38,7 +36,6 @@ export interface StartupWelcomeIntroHost {
   showMessage: (message: string) => void;
   navigateToPersonalServer: () => void;
   navigateToWebdavConfig: () => void;
-  presentSyncContentChoices: () => void;
   openUserAgreement: () => void;
   openPrivacyPolicy: () => void;
   leaveIntro: () => void;
@@ -99,8 +96,7 @@ export class StartupWelcomeIntroCoordinator {
           this.host.showMessage(result.message.length > 0 ? result.message : result.title);
           return;
         }
-        this.host.setBusy(false);
-        this.host.presentSyncContentChoices();
+        this.completeIntro();
       })
       .catch((_error: Error) => {
         this.host.setBusy(false);
@@ -108,31 +104,7 @@ export class StartupWelcomeIntroCoordinator {
       });
   }
 
-  confirmHuaweiSyncChoices(items: SyncFirstActivationItemsState): void {
-    if (this.completionRequested) {
-      return;
-    }
-    this.host.setBusy(true);
-    sharedSyncExperienceCoordinator.requestGoalChange('aira_cloud', true, items)
-      .then((outcome) => {
-        this.host.setBusy(false);
-        if (outcome.type === 'failed' || outcome.type === 'blocked' || outcome.type === 'membership-required') {
-          this.host.showMessage(outcome.message.length > 0 ? outcome.message : outcome.title);
-          return;
-        }
-        this.completeIntro();
-      })
-      .catch((_error: Error) => {
-        this.host.setBusy(false);
-        this.host.showMessage('同步内容保存失败');
-      });
-  }
-
-  dismissHuaweiSyncChoices(): void {
-    this.completeIntro();
-  }
-
-  /** Personal server and WebDAV return here after saving; Huawei login stays for the switches. */
+  /** Personal server and WebDAV return here after saving. Huawei login completes the intro. */
   finishIfConfiguredOnResume(): void {
     if (shouldCompleteStartupWelcomeOnResume(sharedAiraSyncConfigStore.getSettings())) {
       this.completeIntro();

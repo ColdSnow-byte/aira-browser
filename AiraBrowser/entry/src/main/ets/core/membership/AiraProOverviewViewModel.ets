@@ -108,6 +108,7 @@ export interface AiraProOverviewPlanState {
   periodText: string;
   /** Period-end discount badge; empty when the plan has no discount. */
   discountBadgeText: string;
+  /** Struck-through list price for the card's top-right capsule; empty hides it. */
   originalPriceText: string;
   description: string;
   badgeText: string;
@@ -303,10 +304,10 @@ export class AiraProOverviewViewModel {
     const timed = state.plan === 'pro' && !permanent && !subscription;
     const hasPurchasablePlan = plans.some((plan: AiraProOverviewPlanState) => plan.action === 'purchase');
     return {
-      showMembershipStatus: permanent || subscription || timed,
+      showMembershipStatus: permanent || timed,
       membershipStatusTitle: this.resolveMembershipStatusTitle(state, permanent, subscription),
       membershipStatusDetail: this.resolveMembershipStatusDetail(state, permanent, subscription, timed),
-      showManageSubscription: subscription,
+      showManageSubscription: false,
       showPurchaseButton: hasPurchasablePlan || (!purchaseAllowed && plans.length > 0)
     };
   }
@@ -374,7 +375,7 @@ export class AiraProOverviewViewModel {
       amountText: AIRA_PRO_ONE_TIME_PLAN.amountText,
       periodText: AIRA_PRO_ONE_TIME_PLAN.periodText,
       discountBadgeText: '',
-      originalPriceText: '',
+      originalPriceText: AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
       description: this.buildOneTimePlanDescription(state),
       badgeText: AIRA_PRO_ONE_TIME_PLAN.badgeText,
       actionText: action === 'manage_subscription'

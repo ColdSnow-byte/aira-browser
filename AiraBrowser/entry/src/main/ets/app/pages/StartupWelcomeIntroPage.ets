@@ -20,8 +20,6 @@ import {
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
 } from '../../core/theme/BrowserThemeStorageKeys';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
-import { SyncFirstActivationItemsCoordinator, SyncFirstActivationItemId, SyncFirstActivationItemsState } from '../../core/sync/SyncFirstActivationItemsCoordinator';
-import { SyncFirstActivationItemsSheet } from '../components/sync/SyncFirstActivationItemsSheet';
 import { HuaweiLoginSheetContent } from '../components/account/HuaweiLoginSheetContent';
 import { SettingsActionButton } from '../components/settings/SettingsRows';
 import { FeatureIntroSkipControl } from '../components/onboarding/FeatureIntroSkipControl';
@@ -57,12 +55,6 @@ struct StartupWelcomeIntroPage {
   private storedResolvedThemeMode: string = 'light';
   @State private busy: boolean = false;
   @State private topInset: number = 0;
-  @State private syncChoicesVisible: boolean = false;
-  @State private syncChoicesHandled: boolean = false;
-  @State private syncChoices: SyncFirstActivationItemsState = new SyncFirstActivationItemsCoordinator()
-    .buildDefaultState('aira_cloud');
-  private readonly syncChoicesCoordinator: SyncFirstActivationItemsCoordinator =
-    new SyncFirstActivationItemsCoordinator();
   private readonly navigationCoordinator: SettingsNavigationCoordinator = new SettingsNavigationCoordinator();
   private readonly topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
   private readonly statusBarStyleService: BrowserStatusBarStyleService = new BrowserStatusBarStyleService();
@@ -86,11 +78,6 @@ struct StartupWelcomeIntroPage {
     },
     openPrivacyPolicy: (): void => {
       this.navigationCoordinator.openPrivacyStatement(STARTUP_WELCOME_EMPTY_BOUNDARY);
-    },
-    presentSyncContentChoices: (): void => {
-      this.syncChoices = this.syncChoicesCoordinator.buildDefaultState('aira_cloud');
-      this.syncChoicesHandled = false;
-      this.syncChoicesVisible = true;
     },
     leaveIntro: (): void => {
       finishOnboardingToBrowser();
@@ -176,33 +163,6 @@ struct StartupWelcomeIntroPage {
     .alignItems(HorizontalAlign.Center)
     .backgroundColor(this.storedPageBackgroundColor)
     .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
-    .bindSheet($$this.syncChoicesVisible, this.buildSyncChoicesSheet(), {
-      height: SheetSize.LARGE,
-      dragBar: false,
-      showClose: false,
-      onDisappear: (): void => {
-        this.finishSyncChoices(false);
-      }
-    })
-  }
-
-  @Builder
-  private buildSyncChoicesSheet() {
-    SyncFirstActivationItemsSheet({
-      state: $syncChoices,
-      isBusy: this.busy,
-      layoutMode: 'phone',
-      submitLabel: '立即同步',
-      onToggle: (id: SyncFirstActivationItemId, enabled: boolean): void => {
-        this.syncChoices = this.syncChoicesCoordinator.updateItemEnabled(this.syncChoices, id, enabled);
-      },
-      onSubmit: (): void => {
-        this.finishSyncChoices(true);
-      },
-      onClose: (): void => {
-        this.finishSyncChoices(false);
-      }
-    })
   }
 
   @Builder
@@ -255,19 +215,6 @@ struct StartupWelcomeIntroPage {
     })
     .enabled(!this.busy)
     .opacity(this.busy ? 0.58 : 1)
-  }
-
-  private finishSyncChoices(confirm: boolean): void {
-    if (this.syncChoicesHandled) {
-      return;
-    }
-    this.syncChoicesHandled = true;
-    this.syncChoicesVisible = false;
-    if (confirm) {
-      this.coordinator.confirmHuaweiSyncChoices(this.syncChoices);
-      return;
-    }
-    this.coordinator.dismissHuaweiSyncChoices();
   }
 
   private returnToPreviousStep(): void {
