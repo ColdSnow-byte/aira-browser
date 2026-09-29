@@ -16,7 +16,6 @@ import {
   SiteCustomizationPermissionOptionState,
   SiteJavaScriptPolicy
 } from '../../../core/sitecustomization/SiteCustomizationManagementCoordinator';
-import { WebAppPinnedShortcutCoordinator } from '../../../core/webapps/WebAppPinnedShortcutCoordinator';
 import {
   WebAppSettingsSessionAction,
   WebAppSettingsSessionActionResult,
@@ -54,7 +53,6 @@ export type SettingsWebAppsPanelMode = 'compact' | 'twoPane';
 export struct SettingsWebAppsDetailPanel {
   private sessionCoordinator: WebAppSettingsSessionCoordinator = new WebAppSettingsSessionCoordinator(
     sharedWebAppInstallRepository,
-    new WebAppPinnedShortcutCoordinator(),
     new SiteCustomizationManagementCoordinator(
       sharedPreferencesRepository,
       sharedBrowserUserAgentSettingsRepository,
@@ -99,6 +97,7 @@ export struct SettingsWebAppsDetailPanel {
 
   aboutToDisappear(): void {
     this.unbindSession();
+    this.sessionCoordinator.dispose();
   }
 
   build() {

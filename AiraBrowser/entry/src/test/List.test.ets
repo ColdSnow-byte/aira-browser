@@ -104,6 +104,7 @@ import browserSearchInvocationHostPolicyTest from './BrowserSearchInvocationHost
 import historyOmniboxIndexTest from './HistoryOmniboxIndex.test';
 import localOmniboxSuggestionMatcherTest from './LocalOmniboxSuggestionMatcher.test';
 import browserTabCloseNeighborPolicyTest from './BrowserTabCloseNeighborPolicy.test';
+import webAppDesktopInstallSyncPolicyTest from './WebAppDesktopInstallSyncPolicy.test';
 
 export default function tests(): void {
   userScriptValueStateStoreTest();
@@ -210,4 +211,5 @@ export default function tests(): void {
   historyOmniboxIndexTest();
   localOmniboxSuggestionMatcherTest();
   browserTabCloseNeighborPolicyTest();
+  webAppDesktopInstallSyncPolicyTest();
 }

@@ -7,7 +7,6 @@ import {
 } from '../../common/models/BrowserModels';
 import { BrowserBoundaryRouteState } from '../../common/utils/RouteParamUtils';
 import { WebAppInstallRepository } from '../../data/webapps/WebAppInstallRepository';
-import { DesktopWebEntryRecord } from '../../data/webapps/WebAppInstallModels';
 import { AppServiceModeGateService } from '../../services/settings/AppServiceModeGateService';
 import { SiteCapabilityCatalogService } from '../../services/web/SiteCapabilityCatalogService';
 import {
@@ -20,9 +19,9 @@ import {
   SiteJavaScriptPolicy
 } from '../sitecustomization/SiteCustomizationManagementCoordinator';
 import {
-  WebAppPinnedShortcutCoordinator,
-  WebAppPinnedShortcutState
-} from './WebAppPinnedShortcutCoordinator';
+  sharedWebAppDesktopInstallSyncService,
+  WebAppDesktopInstallSyncService
+} from '../../services/webapps/WebAppDesktopInstallSyncService';
 import {
   WebAppSettingsDetailState,
   WebAppSettingsListState,
@@ -172,7 +171,9 @@ class WebAppSettingsSessionObserverRecord {
 
 export class WebAppSettingsSessionCoordinator {
   private repository: WebAppInstallRepository;
-  private pinnedShortcutCoordinator: WebAppPinnedShortcutCoordinator;
+  private desktopInstallSync: WebAppDesktopInstallSyncService;
+  private desktopInstallSyncKey: string = '';
+  private acknowledgedDesktopInstallSyncGeneration: number = 0;
   private siteCoordinator: SiteCustomizationManagementCoordinator;
   private serviceModeGate: AppServiceModeGateService;
   private viewModel: WebAppSettingsViewModel = new WebAppSettingsViewModel();
@@ -196,14 +197,17 @@ export class WebAppSettingsSessionCoordinator {
 
   constructor(
     repository: WebAppInstallRepository,
-    pinnedShortcutCoordinator: WebAppPinnedShortcutCoordinator,
     siteCoordinator: SiteCustomizationManagementCoordinator,
-    serviceModeGate: AppServiceModeGateService
+    serviceModeGate: AppServiceModeGateService,
+    desktopInstallSync: WebAppDesktopInstallSyncService = sharedWebAppDesktopInstallSyncService
   ) {
     this.repository = repository;
-    this.pinnedShortcutCoordinator = pinnedShortcutCoordinator;
+    this.desktopInstallSync = desktopInstallSync;
     this.siteCoordinator = siteCoordinator;
     this.serviceModeGate = serviceModeGate;
+    this.desktopInstallSyncKey = this.desktopInstallSync.observe((generation: number): void => {
+      this.handleDesktopInstallsRemoved(generation);
+    });
     this.listState = this.viewModel.buildListState([]);
     this.detailState = this.viewModel.buildDetailState(undefined);
     this.siteState = this.buildEmptySiteState();
@@ -213,6 +217,14 @@ export class WebAppSettingsSessionCoordinator {
 
   snapshot(): WebAppSettingsSessionSnapshot {
     return this.currentSnapshot;
+  }
+
+  dispose(): void {
+    if (this.desktopInstallSyncKey.length === 0) {
+      return;
+    }
+    this.desktopInstallSync.unobserve(this.desktopInstallSyncKey);
+    this.desktopInstallSyncKey = '';
   }
 
   observe(listener: WebAppSettingsSessionObserver): string {
@@ -332,11 +344,10 @@ export class WebAppSettingsSessionCoordinator {
 
   private async queryListState(): Promise<WebAppSettingsListState> {
     try {
-      const result: [DesktopWebEntryRecord[], WebAppPinnedShortcutState] = await Promise.all([
-        this.repository.getAll(),
-        this.pinnedShortcutCoordinator.queryPinnedShortcutState()
-      ]);
-      return this.viewModel.buildListState(result[0], result[1].shortcutIds, result[1].isTrusted);
+      const synced = await this.desktopInstallSync.sync();
+      this.acknowledgeDesktopInstallSync(synced.generation);
+      const records = await this.repository.getAll();
+      return this.viewModel.buildListState(records, synced.pinnedShortcutIds, synced.pinQueryTrusted);
     } catch (_error) {
       try {
         return this.viewModel.buildListState(await this.repository.getAll());
@@ -351,11 +362,29 @@ export class WebAppSettingsSessionCoordinator {
     boundary: BrowserBoundaryRouteState
   ): Promise<WebAppSettingsSessionDetailSnapshot> {
     try {
+      const synced = await this.desktopInstallSync.sync();
+      this.acknowledgeDesktopInstallSync(synced.generation);
       const record = await this.repository.findByShortcutId(shortcutId);
       return this.buildDetailSnapshot(this.viewModel.buildDetailState(record, shortcutId), boundary);
     } catch (_error) {
       return this.buildDetailSnapshot(this.viewModel.buildDetailState(undefined, shortcutId), boundary);
     }
+  }
+
+  private acknowledgeDesktopInstallSync(generation: number): void {
+    if (generation > this.acknowledgedDesktopInstallSyncGeneration) {
+      this.acknowledgedDesktopInstallSyncGeneration = generation;
+    }
+  }
+
+  private handleDesktopInstallsRemoved(generation: number): void {
+    if (generation <= this.acknowledgedDesktopInstallSyncGeneration) {
+      return;
+    }
+    if (this.activeEntry.kind !== 'web_apps_root' && this.activeEntry.kind !== 'web_app_detail') {
+      return;
+    }
+    this.activate(this.activeEntry);
   }
 
   private async runSiteDetailMutation(

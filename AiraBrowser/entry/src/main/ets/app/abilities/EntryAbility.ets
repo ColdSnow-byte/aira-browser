@@ -68,6 +68,7 @@ import {
 import { BrowserSearchInvocationRuntime } from '../runtime/BrowserSearchInvocationRuntime';
 import { WebBackForwardCacheCoordinator } from '../../core/web/WebBackForwardCacheCoordinator';
 import { DesktopWebEntryMissionIdentityService } from '../../core/webapps/DesktopWebEntryMissionIdentityService';
+import { sharedWebAppDesktopInstallSyncService } from '../../services/webapps/WebAppDesktopInstallSyncService';
 import { BrowserPrivateModeForegroundSignal } from '../../core/privacy/BrowserPrivateModeForegroundSignal';
 import { BrowserTabPreviewLifecycleSignal } from '../../core/browser/BrowserTabPreviewLifecycleSignal';
 import {
@@ -498,6 +499,7 @@ export default class EntryAbility extends UIAbility {
     sharedBrowserRuntimeMaintenanceCoordinator.notifyForeground();
     refreshBrowserThemeForSystemConfigurationChange();
     restoreArkWebAppProxyAfterForeground();
+    void sharedWebAppDesktopInstallSyncService.sync();
     this.browserWindowDisplayViewportCoordinator.scheduleSync();
     this.refreshContinuationMissionState(windowId);
     hilog.info(DOMAIN, TAG, 'Ability onForeground');

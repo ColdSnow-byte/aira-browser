@@ -20,6 +20,7 @@ import {
   WebAppInstallDraft,
   WebAppInstallPolicyService
 } from '../../services/webapps/WebAppInstallPolicyService';
+import { sharedWebAppDesktopInstallSyncService } from '../../services/webapps/WebAppDesktopInstallSyncService';
 import { BrowserRuntimeLifecyclePort } from '../../services/web/BrowserRuntimeLifecyclePort';
 import { FeatureGateCoordinator } from '../membership/FeatureGateCoordinator';
 
@@ -127,6 +128,7 @@ export class WebAppInstallCoordinator {
     const previousSession = this.session;
     this.session = undefined;
     await this.iconSelectionService.discard(previousSession?.customIcon);
+    await sharedWebAppDesktopInstallSyncService.sync();
     const currentUsage = (await this.installRepository.getAll()).length;
     const accessSnapshot = this.shell.captureSnapshot();
     const entitlementContext: EntitlementContext = {

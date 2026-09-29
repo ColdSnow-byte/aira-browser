@@ -195,6 +195,57 @@ export class DesktopShortcutService {
     }
   }
 
+  async probeInstalledShortcut(
+    context: common.UIAbilityContext,
+    record: DesktopWebEntryRecord
+  ): Promise<'present' | 'absent' | 'unknown'> {
+    const shortcutId = record.shortcutId.trim();
+    const launchUrl = record.launchUrl.trim().length > 0 ? record.launchUrl.trim() : record.currentUrl.trim();
+    if (shortcutId.length === 0 || launchUrl.length === 0) {
+      return 'unknown';
+    }
+    const iconPath = await this.resolveProbeIconPath(context, record.iconPath);
+    if (iconPath.length === 0) {
+      return 'unknown';
+    }
+    const label = this.resolveProbeLabel(record.title, launchUrl);
+    const want = this.buildShortcutWant(
+      {
+        url: launchUrl,
+        title: label,
+        bundleName: context.abilityInfo.bundleName,
+        moduleName: context.abilityInfo.moduleName,
+        abilityName: context.abilityInfo.name,
+        origin: record.origin,
+        scope: record.scope,
+        manifestUrl: record.manifestUrl,
+        themeColor: record.themeColor,
+        backgroundColor: record.backgroundColor,
+        display: record.display,
+        currentUrl: record.currentUrl
+      },
+      launchUrl,
+      label,
+      iconPath,
+      shortcutId,
+      record.createdAt
+    );
+    try {
+      const result = await productViewManager.checkPinShortcutPermitted(
+        context,
+        shortcutId,
+        want,
+        label,
+        iconPath,
+        ''
+      );
+      return this.resolveProbeCode(Number(result.code ?? 0));
+    } catch (error) {
+      const businessError = error as BusinessError;
+      return this.resolveProbeCode(Number(businessError?.code ?? 0));
+    }
+  }
+
   private async rollbackPendingInstallRecord(
     shortcutId: string,
     previousRecord: DesktopWebEntryRecord | undefined
@@ -276,6 +327,44 @@ export class DesktopShortcutService {
       return normalizedTitle;
     }
     return url;
+  }
+
+  private resolveProbeLabel(title: string, url: string): string {
+    const label = this.resolveShortcutLabel(title, url);
+    if (label.length <= 255) {
+      return label;
+    }
+    return label.substring(0, 255);
+  }
+
+  private async resolveProbeIconPath(context: common.UIAbilityContext, iconPath: string): Promise<string> {
+    const storedPath = iconPath.trim();
+    if (storedPath.length > 0 && await this.fileExists(storedPath)) {
+      return storedPath;
+    }
+    try {
+      return await this.ensureShortcutIconFile(context);
+    } catch (_error) {
+      return '';
+    }
+  }
+
+  private async fileExists(path: string): Promise<boolean> {
+    try {
+      return await fileIo.access(path);
+    } catch (_error) {
+      return false;
+    }
+  }
+
+  private resolveProbeCode(code: number): 'present' | 'absent' | 'unknown' {
+    if (code === SHORTCUT_ALREADY_EXISTS_CODE) {
+      return 'present';
+    }
+    if (code === 0) {
+      return 'absent';
+    }
+    return 'unknown';
   }
 
   private buildShortcutId(url: string): string {
