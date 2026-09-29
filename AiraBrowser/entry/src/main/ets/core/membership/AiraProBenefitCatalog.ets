@@ -4,8 +4,8 @@
  * carry independent copies of it: a benefit added to one is then advertised by
  * the other automatically.
  *
- * Titles are kept short because the renewal sheet renders them as a compact
- * checklist. There is deliberately no description and no per-row action: the
+ * Titles are kept short because the renewal sheet renders them as compact
+ * rows. There is deliberately no description and no per-row action: the
  * membership page lists the capabilities as single-line rows, so a caption or a
  * “查看教程” link inside the list was content the page never rendered. The
  * desktop setup guide still has its own entry points on the sync and

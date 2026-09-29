@@ -6,12 +6,14 @@ import {
 import { MembershipFeature } from '../../features/membership/MembershipFeature';
 import { EntitlementContext } from '../../services/membership/EntitlementService';
 import {
+  AIRA_PRO_ONE_TIME_PLAN,
   AIRA_PRO_SELLABLE_IAP_PLANS,
   HuaweiIapProductPlan
 } from '../../services/membership/HuaweiIapProductCatalog';
 import { BrowserShellRouteCoordinator } from '../browser/BrowserShellRouteCoordinator';
 import { BrowserTransientSurfaceCoordinator } from '../browser/BrowserTransientSurfaceCoordinator';
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+import { AiraRenderableIconId } from '../resources/GeneratedAiraIconCatalog';
 import { AIRA_PRO_BENEFITS, AiraProBenefitDefinition } from './AiraProBenefitCatalog';
 
 export type FeatureGateAction = EntitlementPrimaryAction | 'dismiss' | 'purchase_plan';
@@ -21,11 +23,21 @@ export type FeatureGateAction = EntitlementPrimaryAction | 'dismiss' | 'purchase
  * catalog so the sheet and the membership page can never disagree, and the id
  * is the plan id the purchase flow expects.
  */
+export interface FeatureGateRenewalBenefitState {
+  id: string;
+  title: string;
+  iconId: AiraRenderableIconId;
+}
+
 export interface FeatureGateRenewalPlanState {
   id: string;
   title: string;
-  priceText: string;
+  amountText: string;
+  periodText: string;
+  discountBadgeText: string;
+  originalPriceText: string;
   badgeText: string;
+  autoRenews: boolean;
 }
 
 /**
@@ -34,7 +46,7 @@ export interface FeatureGateRenewalPlanState {
  * layout because offering a plan there would not be actionable.
  */
 export interface FeatureGateRenewalState {
-  benefits: string[];
+  benefits: FeatureGateRenewalBenefitState[];
   plans: FeatureGateRenewalPlanState[];
   selectedPlanId: string;
   expiredAt: number;
@@ -180,31 +192,63 @@ export class FeatureGateCoordinator {
     if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_iap')) {
       return undefined;
     }
-    const plans: FeatureGateRenewalPlanState[] = AIRA_PRO_SELLABLE_IAP_PLANS.map(
+    const plans: FeatureGateRenewalPlanState[] = this.buildRenewalPlans();
+    if (plans.length === 0) {
+      return undefined;
+    }
+    const selectedPlanId = AIRA_PRO_ONE_TIME_PLAN.planId;
+    return {
+      benefits: AIRA_PRO_BENEFITS.map((benefit: AiraProBenefitDefinition): FeatureGateRenewalBenefitState => {
+        return {
+          id: benefit.id,
+          title: benefit.title,
+          iconId: benefit.iconId
+        };
+      }),
+      plans: plans,
+      selectedPlanId: selectedPlanId,
+      expiredAt: decision.reason === 'pro_expired'
+        ? this.membershipFeature.getLapsedProState().expiredAt
+        : 0,
+      agreementText: this.resolveAgreementText(selectedPlanId, plans),
+      restoreLabel: '恢复购买'
+    };
+  }
+
+  private buildRenewalPlans(): FeatureGateRenewalPlanState[] {
+    const lifetime: FeatureGateRenewalPlanState = {
+      id: AIRA_PRO_ONE_TIME_PLAN.planId,
+      title: AIRA_PRO_ONE_TIME_PLAN.title,
+      amountText: AIRA_PRO_ONE_TIME_PLAN.amountText,
+      periodText: AIRA_PRO_ONE_TIME_PLAN.periodText,
+      discountBadgeText: '',
+      originalPriceText: AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
+      badgeText: AIRA_PRO_ONE_TIME_PLAN.badgeText,
+      autoRenews: false
+    };
+    const subscriptions: FeatureGateRenewalPlanState[] = AIRA_PRO_SELLABLE_IAP_PLANS.map(
       (plan: HuaweiIapProductPlan): FeatureGateRenewalPlanState => {
         return {
           id: plan.period,
           title: plan.title,
-          priceText: plan.displayPrice,
-          badgeText: plan.badgeText
+          amountText: plan.amountText,
+          periodText: plan.periodText,
+          discountBadgeText: plan.discountBadgeText,
+          originalPriceText: '',
+          badgeText: plan.badgeText,
+          autoRenews: true
         };
       }
     );
-    if (plans.length === 0) {
-      return undefined;
+    return [lifetime].concat(subscriptions);
+  }
+
+  private resolveAgreementText(planId: string, plans: FeatureGateRenewalPlanState[]): string {
+    const selected = plans.find((plan: FeatureGateRenewalPlanState): boolean => plan.id === planId);
+    if (selected !== undefined && !selected.autoRenews) {
+      return '点击开通即代表同意《会员服务协议》';
     }
-    const defaultPlan = plans.find((plan: FeatureGateRenewalPlanState): boolean => plan.badgeText.length > 0) ??
-      plans[0];
-    return {
-      benefits: AIRA_PRO_BENEFITS.map((benefit: AiraProBenefitDefinition): string => benefit.title),
-      plans: plans,
-      selectedPlanId: defaultPlan.id,
-      expiredAt: decision.reason === 'pro_expired'
-        ? this.membershipFeature.getLapsedProState().expiredAt
-        : 0,
-      agreementText: '点击开通即代表同意《会员服务协议》与《自动续费服务协议》',
-      restoreLabel: '恢复购买'
-    };
+    return '点击开通即代表同意《会员服务协议》与《自动续费服务协议》';
   }
 
   /**
@@ -232,7 +276,7 @@ export class FeatureGateCoordinator {
         plans: renewal.plans,
         selectedPlanId: planId,
         expiredAt: renewal.expiredAt,
-        agreementText: renewal.agreementText,
+        agreementText: this.resolveAgreementText(planId, renewal.plans),
         restoreLabel: renewal.restoreLabel
       }
     };

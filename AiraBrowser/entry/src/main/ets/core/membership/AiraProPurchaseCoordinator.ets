@@ -223,8 +223,8 @@ export class AiraProPurchaseCoordinator {
     period: string = 'monthly',
     uid: string = ''
   ): Promise<HuaweiIapOperationResult> {
-    // Monthly and yearly stay on the renewal sheet. Permanent membership is
-    // the separate non-consumable aira_pro_lifetime purchase.
+    // Monthly, yearly, and the long-term plan are all sold from the renewal
+    // sheet. Permanent membership is the non-consumable aira_pro_lifetime purchase.
     if (!isAiraProSellablePlanId(period) && period.trim().toLowerCase() !== 'one_time') {
       return this.buildUnsupportedPlanResult(period, 'purchase_pro_monthly');
     }

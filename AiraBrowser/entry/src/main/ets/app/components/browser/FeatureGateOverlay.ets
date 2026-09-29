@@ -8,7 +8,8 @@ import { BrowserAdaptiveModalOverlay } from './BrowserAdaptiveModalOverlay';
 import {
   BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,
   FEATURE_GATE_OVERLAY_ANIMATION_DURATION_MS,
-  FEATURE_GATE_OVERLAY_ENTER_OFFSET_Y
+  FEATURE_GATE_OVERLAY_ENTER_OFFSET_Y,
+  FEATURE_GATE_OVERLAY_SHEET_HEIGHT
 } from './BrowserShellPresentationTokens';
 
 @Component
@@ -24,6 +25,8 @@ export struct FeatureGateOverlay {
       visible: this.visible,
       layoutMode: this.layoutMode,
       title: this.state.title,
+      showDesktopHeader: false,
+      phoneSheetHeight: FEATURE_GATE_OVERLAY_SHEET_HEIGHT,
       phoneEnterOffsetY: FEATURE_GATE_OVERLAY_ENTER_OFFSET_Y,
       animationDurationMs: FEATURE_GATE_OVERLAY_ANIMATION_DURATION_MS,
       zIndexValue: BROWSER_MODAL_BOTTOM_OVERLAY_Z_INDEX,

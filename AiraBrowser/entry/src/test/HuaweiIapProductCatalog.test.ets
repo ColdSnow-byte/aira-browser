@@ -40,8 +40,8 @@ export default function huaweiIapProductCatalogTest(): void {
       expect(AIRA_PRO_SELLABLE_IAP_PLANS[1].discountBadgeText).assertEqual('−34%');
     });
 
-    // The permanent card is shown on the page, but it is not one of the two
-    // auto-renewing plans the renewal sheet sells.
+    // The permanent card is not one of the two auto-renewing plans. The renewal
+    // sheet still offers it as its own long-term option.
     it('prices permanent membership at 68.8 without selling it as a subscription', 0, () => {
       expect(AIRA_PRO_ONE_TIME_PLAN.productId).assertEqual('aira_pro_lifetime');
       expect(AIRA_PRO_ONE_TIME_PLAN.title).assertEqual('长期会员');
