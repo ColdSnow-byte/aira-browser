@@ -14,7 +14,10 @@ import {
   HomeLogoSelection,
   resolveHomeLogoRowLabel
 } from '../../../common/models/HomeLogoModels';
-import { HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY } from '../../../common/constants/HomePagePresentationStorageKeys';
+import {
+  HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
+  HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY
+} from '../../../common/constants/HomePagePresentationStorageKeys';
 import { HomeLogoSettingsCoordinator } from '../../../core/settings/HomeLogoSettingsCoordinator';
 import {
   sharedHomePagePresentationSettingsRepository,
@@ -26,10 +29,14 @@ import { WallpaperSettingsContent } from '../wallpaper/WallpaperSettingsScreen';
 import {
   BROWSER_FEATURE_SHEET_HEADER_BUTTON_SIZE,
   BROWSER_FEATURE_SHEET_HEADER_ICON_SIZE,
+  BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
   BROWSER_SHEET_MODAL_HEADER_BUTTON_TOP,
+  BROWSER_SHEET_MODAL_TOP_PADDING,
   BrowserBottomSheetSurface,
-  BrowserSheetIconButton
+  BrowserSheetIconButton,
+  browserSheetHeaderBlurModifier,
+  resolveBrowserSheetHeaderBlurRadius
 } from './BrowserModalBottomSheet';
 import { BrowserLargeScreenModalHeader } from './BrowserLargeScreenModalHeader';
 import { BrowserPhoneSettingsSheetHeader } from './BrowserPhoneSettingsSheetHeader';
@@ -42,6 +49,13 @@ const HOME_SETTINGS_HEADER_ALLOWANCE_VP: number = 72;
 const HOME_SETTINGS_PHONE_CHROME_VP: number = 96;
 const HOME_SETTINGS_DIALOG_EDGE_VP: number = 48;
 const HOME_SETTINGS_SCROLL_MIN_HEIGHT_VP: number = 280;
+const HOME_PAGE_PHONE_SCROLL_TOP_PADDING_VP: number = 4;
+/**
+ * Phone title overlays the scroller. Grow the viewport by the inset that
+ * replaced the old gap, so the area under the title stays the same size.
+ */
+const HOME_PAGE_PHONE_HEADER_VIEWPORT_EXTRA_VP: number =
+  BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET - HOME_PAGE_PHONE_SCROLL_TOP_PADDING_VP;
 
 function readWindowHeightVp(): number {
   try {
@@ -171,6 +185,8 @@ export struct HomePageSettingsContent {
   @State private mainBodyHeightVp: number = 0;
   @State private wallpaperBodyHeightVp: number = 0;
   @State private logoBodyHeightVp: number = 0;
+  @State private sheetHeaderBlurRadius: number = 0;
+  @State private sheetScrollOffset: number = 0;
   private mainSheetScroller: Scroller = new Scroller();
   private wallpaperSheetScroller: Scroller = new Scroller();
   private logoSheetScroller: Scroller = new Scroller();
@@ -225,9 +241,9 @@ export struct HomePageSettingsContent {
 
   @Builder
   private buildPhonePage() {
+    // Title overlays the scroller so content can scroll under a progressive top blur.
     Stack({ alignContent: Alignment.TopEnd }) {
       Column({ space: 0 }) {
-        this.buildPhoneHeader()
         if (this.sheetPage === 'wallpaper') {
           this.buildWallpaperScroll()
         } else if (this.sheetPage === 'logo') {
@@ -237,12 +253,22 @@ export struct HomePageSettingsContent {
         }
       }
       .width('100%')
-      .padding({ top: 8 })
 
+      this.buildPhoneHeaderOverlay()
       this.buildPhoneCloseButton()
     }
     .width('100%')
     .backgroundColor(this.resolveSheetNavigationBackground())
+  }
+
+  @Builder
+  private buildPhoneHeaderOverlay() {
+    Column() {
+      this.buildPhoneHeader()
+    }
+    .width('100%')
+    .padding({ top: BROWSER_SHEET_MODAL_TOP_PADDING })
+    .zIndex(2)
   }
 
   @Builder
@@ -292,10 +318,17 @@ export struct HomePageSettingsContent {
     }
     .width('100%')
     .height(this.resolveMainScrollHeight())
-    .constraintSize({ maxHeight: this.contentMaxHeightVp })
+    .constraintSize({ maxHeight: this.resolveScrollViewportCap() })
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
     .clip(this.layoutMode === 'large_screen')
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveSheetHeaderBlurRadius()))
+    .onAppear(() => {
+      this.syncSheetHeaderBlur(this.mainSheetScroller);
+    })
+    .onDidScroll((_xOffset: number, _yOffset: number) => {
+      this.syncSheetHeaderBlur(this.mainSheetScroller);
+    })
   }
 
   @Builder
@@ -309,6 +342,9 @@ export struct HomePageSettingsContent {
           },
           onModeSelect: (mode: WallpaperMode) => {
             this.applyWallpaperMode(mode);
+          },
+          onVideoSelect: () => {
+            this.applyWallpaperVideo();
           },
           onBingRetry: () => {
             this.retryBingPreview();
@@ -324,10 +360,17 @@ export struct HomePageSettingsContent {
     }
     .width('100%')
     .height(this.resolveWallpaperScrollHeight())
-    .constraintSize({ maxHeight: this.contentMaxHeightVp })
+    .constraintSize({ maxHeight: this.resolveScrollViewportCap() })
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
     .clip(this.layoutMode === 'large_screen')
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveSheetHeaderBlurRadius()))
+    .onAppear(() => {
+      this.syncSheetHeaderBlur(this.wallpaperSheetScroller);
+    })
+    .onDidScroll((_xOffset: number, _yOffset: number) => {
+      this.syncSheetHeaderBlur(this.wallpaperSheetScroller);
+    })
   }
 
   @Builder
@@ -345,6 +388,9 @@ export struct HomePageSettingsContent {
           },
           onScaleCommit: (scaleRatio: number) => {
             this.commitLogoScale(scaleRatio);
+          },
+          onOpacityCommit: (opacity: number) => {
+            this.commitLogoOpacity(opacity);
           }
         })
       }
@@ -357,10 +403,17 @@ export struct HomePageSettingsContent {
     }
     .width('100%')
     .height(this.resolveLogoScrollHeight())
-    .constraintSize({ maxHeight: this.contentMaxHeightVp })
+    .constraintSize({ maxHeight: this.resolveScrollViewportCap() })
     .scrollBar(BarState.Auto)
     .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: false })
     .clip(this.layoutMode === 'large_screen')
+    .attributeModifier(browserSheetHeaderBlurModifier(this.resolveSheetHeaderBlurRadius()))
+    .onAppear(() => {
+      this.syncSheetHeaderBlur(this.logoSheetScroller);
+    })
+    .onDidScroll((_xOffset: number, _yOffset: number) => {
+      this.syncSheetHeaderBlur(this.logoSheetScroller);
+    })
   }
 
   @Builder
@@ -379,9 +432,41 @@ export struct HomePageSettingsContent {
     return {
       left: 16,
       right: 16,
-      top: this.layoutMode === 'large_screen' ? 10 : 4,
+      top: this.layoutMode === 'large_screen' ? 10 : BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
       bottom: this.layoutMode === 'large_screen' ? 32 : BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING
     };
+  }
+
+  private resolveScrollViewportCap(): number {
+    if (this.layoutMode !== 'phone') {
+      return this.contentMaxHeightVp;
+    }
+    return this.contentMaxHeightVp + HOME_PAGE_PHONE_HEADER_VIEWPORT_EXTRA_VP;
+  }
+
+  private resolveSheetHeaderBlurRadius(): number {
+    return this.layoutMode === 'phone' ? this.sheetHeaderBlurRadius : 0;
+  }
+
+  private syncSheetHeaderBlur(scroller: Scroller): void {
+    if (this.layoutMode !== 'phone') {
+      return;
+    }
+    const offset = scroller.currentOffset().yOffset;
+    if (!Number.isFinite(offset)) {
+      return;
+    }
+    const next = Math.max(0, offset);
+    if (next === this.sheetScrollOffset) {
+      return;
+    }
+    this.sheetScrollOffset = next;
+    this.sheetHeaderBlurRadius = resolveBrowserSheetHeaderBlurRadius(next);
+  }
+
+  private resetSheetHeaderBlur(): void {
+    this.sheetScrollOffset = 0;
+    this.sheetHeaderBlurRadius = 0;
   }
 
   private resolveSheetNavigationBackground(): ResourceColor {
@@ -394,6 +479,7 @@ export struct HomePageSettingsContent {
     if (this.sheetPage === 'wallpaper') {
       return;
     }
+    this.resetSheetHeaderBlur();
     this.sheetPage = 'wallpaper';
   }
 
@@ -402,6 +488,7 @@ export struct HomePageSettingsContent {
     if (this.sheetPage === 'logo') {
       return;
     }
+    this.resetSheetHeaderBlur();
     this.sheetPage = 'logo';
   }
 
@@ -414,12 +501,14 @@ export struct HomePageSettingsContent {
       return false;
     }
     this.sheetNavigationPopGuardUntilMs = now + HOME_PAGE_SHEET_POP_GUARD_MS;
+    this.resetSheetHeaderBlur();
     this.sheetPage = 'main';
     return true;
   }
 
   private resetSheetNavigation(): void {
     this.sheetNavigationPopGuardUntilMs = 0;
+    this.resetSheetHeaderBlur();
     this.sheetPage = 'main';
   }
 
@@ -450,18 +539,20 @@ export struct HomePageSettingsContent {
     if (this.mainBodyHeightVp <= 0) {
       return '';
     }
-    return Math.min(this.mainBodyHeightVp, this.contentMaxHeightVp);
+    return Math.min(this.mainBodyHeightVp, this.resolveScrollViewportCap());
   }
 
   /** Definite height so FIT_CONTENT can grow from a short homepage sheet into wallpaper. */
   private resolveWallpaperScrollHeight(): number {
-    const measured = this.wallpaperBodyHeightVp > 0 ? this.wallpaperBodyHeightVp : this.contentMaxHeightVp;
-    return Math.min(measured, this.contentMaxHeightVp);
+    const cap = this.resolveScrollViewportCap();
+    const measured = this.wallpaperBodyHeightVp > 0 ? this.wallpaperBodyHeightVp : cap;
+    return Math.min(measured, cap);
   }
 
   private resolveLogoScrollHeight(): number {
-    const measured = this.logoBodyHeightVp > 0 ? this.logoBodyHeightVp : this.contentMaxHeightVp;
-    return Math.min(measured, this.contentMaxHeightVp);
+    const cap = this.resolveScrollViewportCap();
+    const measured = this.logoBodyHeightVp > 0 ? this.logoBodyHeightVp : cap;
+    return Math.min(measured, cap);
   }
 
   private resolveSheetTitle(): string {
@@ -502,6 +593,19 @@ export struct HomePageSettingsContent {
         AppStorage.setOrCreate(
           HOME_PAGE_PRESENTATION_HOME_LOGO_SCALE_RATIO_KEY,
           this.logoCoordinator.getScaleRatio()
+        );
+      });
+  }
+
+  private commitLogoOpacity(opacity: number): void {
+    this.logoCoordinator.setOpacity(opacity)
+      .then((next: number) => {
+        AppStorage.setOrCreate(HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY, next);
+      })
+      .catch((_error: Error) => {
+        AppStorage.setOrCreate(
+          HOME_PAGE_PRESENTATION_HOME_LOGO_OPACITY_KEY,
+          this.logoCoordinator.getOpacity()
         );
       });
   }
@@ -559,6 +663,20 @@ export struct HomePageSettingsContent {
       .catch((error: Error) => {
         this.refreshWallpaperState();
         this.showToast(error.message.length > 0 ? error.message : '选择壁纸失败，请稍后重试。');
+      });
+  }
+
+  private applyWallpaperVideo(): void {
+    this.wallpaperCoordinator.selectVideo((state: WallpaperSettingsViewState) => {
+      this.wallpaperState = state;
+    })
+      .then((state: WallpaperSettingsViewState) => {
+        this.wallpaperState = state;
+        this.onWallpaperChanged();
+      })
+      .catch((error: Error) => {
+        this.refreshWallpaperState();
+        this.showToast(error.message.length > 0 ? error.message : '选择视频壁纸失败，请稍后重试。');
       });
   }
 
