@@ -1,8 +1,14 @@
 export const HISTORY_TAKEOVER_ENABLED_KEY = 'aira_history_takeover_enabled_v1';
 export const HISTORY_TAKEOVER_OPEN_MESSAGE = 'AIRA_HISTORY_TAKEOVER_OPEN';
 
-export type HistoryBrowserKind = 'firefox' | 'opera' | 'vivaldi' | 'edge' | 'chromium';
+export type HistoryBrowserKind = 'firefox' | 'opera' | 'vivaldi' | 'edge' | 'brave' | 'chrome' | 'chromium';
 export type HistoryPlatform = 'mac' | 'other';
+
+export type HistoryBrowserSignals = {
+  userAgent?: string;
+  brands?: readonly string[];
+  isBrave?: boolean;
+};
 
 export type HistoryShortcutEvent = {
   key?: string;
@@ -14,12 +20,61 @@ export type HistoryShortcutEvent = {
 };
 
 export function detectHistoryBrowserKind(userAgent: string): HistoryBrowserKind {
-  const ua = userAgent || '';
+  return resolveHistoryBrowserKind({ userAgent });
+}
+
+export function resolveHistoryBrowserKind(signals: HistoryBrowserSignals = {}): HistoryBrowserKind {
+  const ua = signals.userAgent || '';
+  const brands = (signals.brands || []).map((brand) => brand.toLowerCase());
+  const hasBrand = (name: string) => brands.some((brand) => brand.includes(name));
+
+  if (signals.isBrave === true || hasBrand('brave')) return 'brave';
   if (/Firefox\//i.test(ua)) return 'firefox';
-  if (/OPR\/|Opera\//i.test(ua)) return 'opera';
-  if (/Vivaldi\//i.test(ua)) return 'vivaldi';
-  if (/Edg\//i.test(ua)) return 'edge';
+  if (/OPR\/|Opera\//i.test(ua) || hasBrand('opera')) return 'opera';
+  if (/Vivaldi\//i.test(ua) || hasBrand('vivaldi')) return 'vivaldi';
+  if (/Edg\//i.test(ua) || hasBrand('microsoft edge')) return 'edge';
+  if (hasBrand('google chrome')) return 'chrome';
+  if (/Chrome\//i.test(ua) && signals.isBrave === false) return 'chrome';
   return 'chromium';
+}
+
+export function historyBrowserLabel(kind: HistoryBrowserKind): string {
+  switch (kind) {
+    case 'firefox': return 'Firefox';
+    case 'opera': return 'Opera';
+    case 'vivaldi': return 'Vivaldi';
+    case 'edge': return 'Edge';
+    case 'brave': return 'Brave';
+    case 'chrome': return 'Chrome';
+    default: return 'Chromium';
+  }
+}
+
+type HistoryBrowserNavigator = {
+  userAgent?: string;
+  brave?: { isBrave?: () => Promise<boolean> };
+  userAgentData?: { brands?: Array<{ brand?: string }> };
+};
+
+export async function readInstalledHistoryBrowser(
+  navigatorObject: HistoryBrowserNavigator | null = globalThis.navigator ?? null,
+): Promise<HistoryBrowserKind> {
+  let isBrave = false;
+  try {
+    if (typeof navigatorObject?.brave?.isBrave === 'function') {
+      isBrave = await navigatorObject.brave.isBrave() === true;
+    }
+  } catch {
+    isBrave = false;
+  }
+  const brands = navigatorObject?.userAgentData?.brands
+    ?.map((item) => String(item?.brand || '').trim())
+    .filter(Boolean) || [];
+  return resolveHistoryBrowserKind({
+    userAgent: navigatorObject?.userAgent || '',
+    brands,
+    isBrave,
+  });
 }
 
 export function detectHistoryPlatform(platform: string, userAgent = ''): HistoryPlatform {
@@ -55,7 +110,7 @@ export function isHistoryTakeoverShortcut(
     return platform !== 'mac' && matchesLetter(event, 'y') && !event.shiftKey;
   }
 
-  if (browser === 'chromium') return false;
+  if (browser === 'chromium' || browser === 'chrome' || browser === 'brave') return false;
 
   if (browser === 'opera') {
     if (!matchesLetter(event, 'h')) return false;

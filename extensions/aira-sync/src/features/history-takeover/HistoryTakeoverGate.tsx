@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
-import { HistoryApp } from '@/features/sync/history/HistoryApp';
+import { HistorySurface } from '@/features/history-surface/HistorySurface';
 import { HISTORY_TAKEOVER_ENABLED_KEY } from './historyTakeoverPolicy';
 import {
   readHistoryTakeoverEnabled,
@@ -35,7 +35,7 @@ export function HistoryTakeoverGate() {
       : t('historyTakeover.offTitle', { defaultValue: '历史页接管未开启' });
   }, [enabled, t]);
 
-  if (enabled) return <HistoryApp />;
+  if (enabled) return <HistorySurface />;
 
   return (
     <main className="flex min-h-screen items-center justify-center bg-background px-6 text-foreground">

@@ -34,11 +34,11 @@ export const popupI18nReady = popupI18n
           },
           historyTakeover: {
             toggle: 'Replace the browser history page',
-            description: 'History shortcuts and the History menu open Aira history. Chrome, Edge, and Brave replace the built-in page. Opera, Firefox, and Vivaldi intercept their history shortcuts instead.',
             pageTitle: 'History',
             offTitle: 'History takeover is off',
             offBody: 'This browser has already given its history page to Aira-sync, so the original page cannot come back while the extension is installed. Turn takeover on and history shortcuts or the History menu will open Aira history.',
             enableAction: 'Turn on takeover',
+            currentBrowser: 'Current browser: {{browser}}',
           },
           popup: {
             profile: {
@@ -236,11 +236,11 @@ export const popupI18nReady = popupI18n
           },
           historyTakeover: {
             toggle: '接管浏览器历史页',
-            description: '打开后，历史记录快捷键和历史菜单会进入 Aira 历史记录。Chrome、Edge、Brave 会替换系统历史页；Opera、Firefox、Vivaldi 会拦截各自的历史快捷键。',
             pageTitle: '历史记录',
             offTitle: '历史页接管未开启',
             offBody: '这个浏览器已经把历史记录页交给了 Aira-sync，关闭开关也无法恢复原来的历史页。打开接管后，历史快捷键和历史菜单都会进入 Aira 历史记录。',
             enableAction: '开启接管',
+            currentBrowser: '当前浏览器：{{browser}}',
           },
           popup: {
             profile: {

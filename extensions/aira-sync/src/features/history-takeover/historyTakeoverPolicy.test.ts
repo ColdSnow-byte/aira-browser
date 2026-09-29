@@ -2,6 +2,8 @@ import { describe, expect, test } from 'vitest';
 import {
   detectHistoryBrowserKind,
   detectHistoryPlatform,
+  readInstalledHistoryBrowser,
+  resolveHistoryBrowserKind,
   isHistoryTakeoverShortcut,
   isNativeHistoryPageUrl,
 } from './historyTakeoverPolicy';
@@ -19,9 +21,45 @@ describe('history takeover browser detection', () => {
     expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 OPR/114.0')).toBe('opera');
     expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 Vivaldi/6.8')).toBe('vivaldi');
     expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 Edg/128.0')).toBe('edge');
-    expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 Brave')).toBe('chromium');
+    expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0')).toBe('chromium');
     expect(detectHistoryPlatform('MacIntel')).toBe('mac');
     expect(detectHistoryPlatform('Win32')).toBe('other');
+  });
+
+  test('separates Brave from Chrome when the browser exposes its own signal', () => {
+    const chromeUserAgent = 'Mozilla/5.0 Chrome/128.0 Safari/537.36';
+    expect(resolveHistoryBrowserKind({
+      userAgent: chromeUserAgent,
+      brands: ['Chromium', 'Google Chrome'],
+      isBrave: false,
+    })).toBe('chrome');
+    expect(resolveHistoryBrowserKind({
+      userAgent: chromeUserAgent,
+      brands: ['Chromium', 'Brave'],
+      isBrave: true,
+    })).toBe('brave');
+    expect(resolveHistoryBrowserKind({
+      userAgent: chromeUserAgent,
+      brands: ['Chromium'],
+      isBrave: true,
+    })).toBe('brave');
+    expect(resolveHistoryBrowserKind({
+      userAgent: chromeUserAgent,
+      isBrave: false,
+    })).toBe('chrome');
+    expect(resolveHistoryBrowserKind({
+      userAgent: 'Mozilla/5.0 Chrome/128.0 Edg/128.0',
+      brands: ['Chromium', 'Microsoft Edge'],
+      isBrave: false,
+    })).toBe('edge');
+  });
+
+  test('reads Brave from the browser object instead of the Chrome-like user agent', async () => {
+    const detected = await readInstalledHistoryBrowser({
+      userAgent: 'Mozilla/5.0 Chrome/128.0 Safari/537.36',
+      brave: { isBrave: async () => true },
+    });
+    expect(detected).toBe('brave');
   });
 });
 

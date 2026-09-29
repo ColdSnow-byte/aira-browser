@@ -1,0 +1,514 @@
+.chrome-history {
+  --ch-page: #ffffff;
+  --ch-card: #ffffff;
+  --ch-card-border: #dadce0;
+  --ch-card-shadow: 0 1px 2px rgba(60, 64, 67, 0.12), 0 1px 3px rgba(60, 64, 67, 0.08);
+  --ch-text: #1f1f1f;
+  --ch-secondary: #444746;
+  --ch-accent: #0b57d0;
+  --ch-accent-bg: #e8f0fe;
+  --ch-search: #f0f4f9;
+  --ch-hover: #f0f4f9;
+  --ch-divider: #e1e3e1;
+  --ch-line: #c4c7c5;
+  --ch-menu: #ffffff;
+  --ch-menu-border: #dadce0;
+  --ch-drawer: #ffffff;
+  --ch-scrim: rgba(32, 33, 36, 0.32);
+  --ch-selection: #ffffff;
+  display: block;
+  width: 100vw;
+  max-width: 100vw;
+  min-height: 100vh;
+  box-sizing: border-box;
+  background: var(--ch-page);
+  color: var(--ch-text);
+  font-family: "Google Sans", "Segoe UI", Roboto, Arial, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.chrome-history[data-chrome-theme="dark"] {
+  --ch-page: #1f1f1f;
+  --ch-card: #28292a;
+  --ch-card-border: transparent;
+  --ch-card-shadow: none;
+  --ch-text: #e3e3e3;
+  --ch-secondary: #c4c7c5;
+  --ch-accent: #a8c7fa;
+  --ch-accent-bg: #3c4043;
+  --ch-search: #303134;
+  --ch-hover: #3c4043;
+  --ch-divider: #444746;
+  --ch-line: #5f6368;
+  --ch-menu: #2d2e30;
+  --ch-menu-border: #444746;
+  --ch-drawer: #2b2c2e;
+  --ch-scrim: rgba(0, 0, 0, 0.45);
+  --ch-selection: #292a2d;
+}
+
+html[data-chrome-theme="light"] {
+  --ch-page: #ffffff;
+  --ch-text: #1f1f1f;
+}
+
+html[data-chrome-theme="dark"] {
+  --ch-page: #1f1f1f;
+  --ch-text: #e3e3e3;
+}
+
+body.chrome-history-body,
+body.chrome-history-body #root {
+  width: 100vw;
+  max-width: none;
+  margin: 0;
+  overflow-x: hidden;
+}
+
+body.chrome-history-body {
+  background: var(--ch-page, #ffffff);
+  color: var(--ch-text, #1f1f1f);
+}
+
+.chrome-history-header,
+.chrome-history-selection {
+  position: relative;
+  display: flex;
+  align-items: center;
+  height: 64px;
+  padding: 0 24px;
+}
+
+.chrome-history-selection {
+  justify-content: space-between;
+  padding: 0 16px 0 8px;
+  border-bottom: 1px solid var(--ch-divider);
+  background: var(--ch-selection);
+}
+
+.chrome-history-selection-start {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  min-width: 0;
+  font-size: 14px;
+}
+
+.chrome-history-selection-actions {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chrome-history-selection-button {
+  min-width: 72px;
+  height: 36px;
+  padding: 0 18px;
+  border: 1px solid var(--ch-accent);
+  border-radius: 18px;
+  background: transparent;
+  color: var(--ch-accent);
+  font: inherit;
+  cursor: pointer;
+}
+
+.chrome-history-selection-button:hover {
+  background: color-mix(in srgb, var(--ch-accent) 12%, transparent);
+}
+
+.chrome-history-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-width: 0;
+  z-index: 1;
+}
+
+.chrome-history-icon-button {
+  display: none;
+  align-items: center;
+  justify-content: center;
+  width: 40px;
+  height: 40px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ch-text);
+  cursor: pointer;
+}
+
+.chrome-history-icon-button:hover {
+  background: var(--ch-hover);
+}
+
+.chrome-history-brand h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 28px;
+  letter-spacing: 0;
+}
+
+.chrome-history-search {
+  position: absolute;
+  left: 50%;
+  display: flex;
+  align-items: center;
+  width: min(680px, calc(100% - 420px));
+  height: 40px;
+  padding: 0 16px 0 12px;
+  border-radius: 20px;
+  background: var(--ch-search);
+  transform: translateX(-50%);
+}
+
+.chrome-history-search svg {
+  flex: none;
+  color: var(--ch-secondary);
+}
+
+.chrome-history-search input {
+  width: 100%;
+  height: 100%;
+  margin-left: 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--ch-text);
+  font: inherit;
+}
+
+.chrome-history-search input::placeholder {
+  color: var(--ch-secondary);
+}
+
+.chrome-history-body {
+  display: grid;
+  grid-template-columns: 256px minmax(0, 1fr);
+  align-items: start;
+  width: 100vw;
+  max-width: 100vw;
+  padding: 0 12px 12px 0;
+  box-sizing: border-box;
+}
+
+.chrome-history-nav {
+  position: sticky;
+  top: 0;
+  flex: none;
+  width: 256px;
+  padding: 8px 12px 0;
+}
+
+.chrome-history-nav button {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  width: 100%;
+  min-height: 40px;
+  margin: 0 0 4px;
+  padding: 0 16px;
+  border: 0;
+  border-radius: 20px;
+  background: transparent;
+  color: var(--ch-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chrome-history-nav button svg {
+  flex: none;
+  color: var(--ch-secondary);
+}
+
+.chrome-history-nav button.is-selected {
+  background: var(--ch-accent-bg);
+  color: var(--ch-accent);
+}
+
+.chrome-history-nav button.is-selected svg {
+  color: var(--ch-accent);
+}
+
+.chrome-history-nav button:hover:not(.is-selected) {
+  background: var(--ch-hover);
+}
+
+.chrome-history-nav .nav-label {
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome-history-nav .external {
+  margin-left: auto;
+  color: var(--ch-secondary);
+}
+
+.chrome-history-card {
+  position: relative;
+  width: 100%;
+  max-width: 960px;
+  min-width: 0;
+  min-height: calc(100vh - 76px);
+  justify-self: start;
+  overflow: visible;
+  border: 1px solid var(--ch-card-border);
+  border-radius: 16px;
+  background: var(--ch-card);
+  box-shadow: var(--ch-card-shadow);
+  box-sizing: border-box;
+}
+
+.chrome-history-day {
+  padding: 16px 8px 0 24px;
+}
+
+.chrome-history-day h2 {
+  margin: 0;
+  padding: 4px 16px 12px 0;
+  border-bottom: 1px solid var(--ch-divider);
+  font-size: 16px;
+  font-weight: 500;
+  line-height: 24px;
+  white-space: nowrap;
+}
+
+.chrome-history-row {
+  position: relative;
+  display: grid;
+  grid-template-columns: 28px 56px 24px minmax(0, 1fr) 36px;
+  align-items: center;
+  min-height: 48px;
+  padding-right: 8px;
+  color: inherit;
+}
+
+.chrome-history-row.is-remote {
+  grid-template-columns: 24px minmax(0, 1fr);
+  padding-left: 24px;
+}
+
+.chrome-history-row input {
+  justify-self: center;
+  width: 18px;
+  height: 18px;
+  margin: 0;
+  accent-color: var(--ch-accent);
+}
+
+.chrome-history-time {
+  color: var(--ch-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.chrome-history-favicon {
+  width: 16px;
+  height: 16px;
+  border-radius: 2px;
+  object-fit: contain;
+}
+
+.chrome-history-favicon.is-fallback {
+  display: none;
+}
+
+.chrome-history-link {
+  display: flex;
+  align-items: baseline;
+  gap: 8px;
+  min-width: 0;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-size: 13px;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chrome-history-link .title,
+.chrome-history-link .domain {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.chrome-history-link .title {
+  flex: 0 1 auto;
+  max-width: 70%;
+}
+
+.chrome-history-link .domain {
+  flex: 1 1 auto;
+  min-width: 0;
+  color: var(--ch-secondary);
+}
+
+.chrome-history-more {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 16px;
+  background: transparent;
+  color: var(--ch-secondary);
+  cursor: pointer;
+}
+
+.chrome-history-more:hover,
+.chrome-history-more[aria-expanded="true"] {
+  background: var(--ch-hover);
+}
+
+.chrome-history-menu {
+  position: absolute;
+  z-index: 5;
+  min-width: 196px;
+  padding: 8px 0;
+  border: 1px solid var(--ch-menu-border);
+  border-radius: 8px;
+  background: var(--ch-menu);
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.18);
+}
+
+.chrome-history-menu button {
+  display: block;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: var(--ch-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.chrome-history-menu button:hover {
+  background: var(--ch-hover);
+}
+
+.chrome-history-status {
+  margin: 0;
+  padding: 20px 24px;
+  color: var(--ch-secondary);
+  text-align: left;
+}
+
+.chrome-history-scrim,
+.chrome-history-drawer {
+  display: none;
+}
+
+.chrome-history-drawer-brand {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  height: 56px;
+  margin: 0 4px 8px;
+  padding: 0 12px 8px;
+  border-bottom: 1px solid var(--ch-divider);
+}
+
+.chrome-history-drawer-brand h1 {
+  margin: 0;
+  font-size: 22px;
+  font-weight: 400;
+  line-height: 28px;
+}
+
+@media (max-width: 960px) {
+  .chrome-history-header {
+    justify-content: space-between;
+    height: 56px;
+    padding: 0 8px 0 4px;
+  }
+
+  .chrome-history-brand {
+    gap: 0;
+  }
+
+  .chrome-history-brand img,
+  .chrome-history-search,
+  .chrome-history-body > .chrome-history-nav {
+    display: none;
+  }
+
+  .chrome-history-menu-button,
+  .chrome-history-search-button {
+    display: flex;
+  }
+
+  .chrome-history-brand h1 {
+    font-size: 22px;
+  }
+
+  .chrome-history-body {
+    grid-template-columns: minmax(0, 1fr);
+    width: 100vw;
+    padding: 0 8px 8px;
+  }
+
+  .chrome-history-card {
+    border-radius: 16px;
+  }
+
+  .chrome-history-more {
+    display: none;
+  }
+
+  .chrome-history-row:focus-within .chrome-history-more {
+    display: flex;
+  }
+
+  .chrome-history.is-search-open .chrome-history-brand h1,
+  .chrome-history.is-search-open .chrome-history-search-button {
+    display: none;
+  }
+
+  .chrome-history.is-search-open .chrome-history-search {
+    position: static;
+    display: flex;
+    flex: 1;
+    width: auto;
+    margin-left: 8px;
+    transform: none;
+  }
+
+  .chrome-history.is-nav-open .chrome-history-scrim {
+    position: fixed;
+    inset: 0;
+    z-index: 20;
+    display: block;
+    border: 0;
+    background: var(--ch-scrim);
+    cursor: default;
+  }
+
+  .chrome-history.is-nav-open .chrome-history-drawer {
+    position: fixed;
+    top: 0;
+    bottom: 0;
+    left: 0;
+    z-index: 21;
+    display: flex;
+    flex-direction: column;
+    width: min(320px, 86vw);
+    padding: 4px 12px 16px;
+    background: var(--ch-drawer);
+    box-shadow: 0 8px 28px rgba(0, 0, 0, 0.28);
+  }
+
+  .chrome-history-drawer .chrome-history-nav {
+    display: block;
+    width: auto;
+    padding: 8px 0 0;
+  }
+}
