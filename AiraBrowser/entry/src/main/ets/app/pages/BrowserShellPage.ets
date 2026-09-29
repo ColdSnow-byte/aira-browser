@@ -830,6 +830,12 @@ import {
   AiraProPurchaseCoordinator,
   AiraProPurchaseFlowHostAdapter
 } from '../../core/membership/AiraProPurchaseCoordinator';
+import { HuaweiIapProductView } from '../../services/membership/HuaweiIapPurchaseService';
+import { rememberAiraProLifetimeStorePrice } from '../../services/membership/AiraProStorePricePolicy';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
+import { sharedNationalDayOfferStore } from '../../data/membership/NationalDayOfferStore';
+import { NationalDayOfferCoordinator } from '../../core/membership/NationalDayOfferCoordinator';
+import { AiraProNationalDayOfferDialog } from '../components/membership/AiraProNationalDayOfferDialog';
 import {
   RenewalReminderCoordinator,
   RenewalReminderShellFacts
@@ -5156,6 +5162,19 @@ struct BrowserShellPage {
   @State private bookmarkBarLinkIconPath: string = '';
   private bookmarkBarFolderRequest?: BrowserDesktopBookmarkBarFolderNameRequest = undefined;
   private bookmarkBarBookmarkRequest?: BrowserDesktopBookmarkBarBookmarkEditorRequest = undefined;
+  private nationalDayOfferDialogController: CustomDialogController = new CustomDialogController({
+    builder: AiraProNationalDayOfferDialog({
+      onPurchase: (): void => {
+        this.purchaseNationalDayLifetime();
+      }
+    }),
+    customStyle: true,
+    backgroundBlurStyle: BlurStyle.NONE,
+    cornerRadius: CENTERED_DIALOG_CORNER_RADIUS_VP,
+    width: resolveCenteredDialogControllerWidth('s'),
+    autoCancel: true,
+    alignment: DialogAlignment.Center
+  });
   /** One dialog serves "new folder" and "rename folder"; the request carries the headings. */
   private bookmarkBarFolderNameDialogController: CustomDialogController = new CustomDialogController({
     alignment: DialogAlignment.Center,
@@ -6659,6 +6678,10 @@ struct BrowserShellPage {
   @State elementInspectionOutlineMenuOpen: boolean = false;
   @State elementInspectionOutlineMenuDismissSerial: number = 0;
   aboutToAppear(): void {
+    this.featureGateCoordinator.bindStorePriceRefresh((): void => {
+      this.refreshFeatureGateStorePrice();
+    });
+    this.nationalDayOfferCoordinator.scheduleEvaluation();
     dismissOnboardingStackIfRequested();
     this.browserDownloadConfirmOverlayCoordinator.setDownloadLocationPicker(
       (): Promise<boolean> => this.changeDownloadLocationFromPrompt()
@@ -9852,6 +9875,7 @@ struct BrowserShellPage {
       // decided once at startup and lost forever if anything held the lane at
       // that moment, so re-decide whenever the lane clears.
       this.renewalReminderCoordinator.scheduleEvaluation();
+      this.nationalDayOfferCoordinator.scheduleEvaluation();
       // The toolbar lesson waits the same way: a Web page arms it, and a prompt
       // holding the lane then must not drop it. It still presents only while the
       // floating toolbar is the frame in front of that page.
@@ -11764,10 +11788,80 @@ struct BrowserShellPage {
     });
   }
 
+  private featureGateStorePriceRequest: number = 0;
+
+  /**
+   * The renewal sheet opens with the last known price, then replaces it with
+   * the price Huawei is charging now. The activity price therefore appears and
+   * disappears with the store, without another release.
+   */
+  private refreshFeatureGateStorePrice(): void {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_iap')) {
+      return;
+    }
+    const request = this.featureGateStorePriceRequest + 1;
+    this.featureGateStorePriceRequest = request;
+    this.featureGatePurchaseCoordinator.queryProProducts(this.getAbilityContext())
+      .then((products: HuaweiIapProductView[]) => {
+        if (request !== this.featureGateStorePriceRequest) {
+          return;
+        }
+        const priceText = this.findLifetimeStorePriceText(products);
+        if (priceText.length === 0) {
+          return;
+        }
+        rememberAiraProLifetimeStorePrice(priceText);
+        this.featureGateCoordinator.applyLifetimeStorePrice(priceText);
+      })
+      .catch((_error: Error) => {
+      });
+  }
+
+  private findLifetimeStorePriceText(products: HuaweiIapProductView[]): string {
+    for (let index = 0; index < products.length; index++) {
+      if (products[index].period === 'one_time') {
+        return products[index].priceText;
+      }
+    }
+    return '';
+  }
+
   /**
    * Buys the plan the renewal gate currently has selected. The gate only offers
    * this action when it built a renewal payload, so the selected id is real.
    */
+  private nationalDayOfferCoordinator: NationalDayOfferCoordinator = new NationalDayOfferCoordinator(
+    sharedMembershipFeature,
+    sharedNationalDayOfferStore,
+    {
+      promptsBlocked: (): boolean => this.browserTransientSurfaceSnapshot.blocksAutomaticPrompts,
+      openOffer: (): void => {
+        this.nationalDayOfferDialogController.open();
+      }
+    }
+  );
+
+  private purchaseNationalDayLifetime(): void {
+    try {
+      this.nationalDayOfferDialogController.close();
+    } catch (_error) {
+    }
+    const boundary = this.tabScopedEventContextCoordinator.resolveCurrentBoundary();
+    void this.featureGatePurchaseCoordinator.startPurchaseFlow(
+      getContext(this) as common.UIAbilityContext,
+      'one_time',
+      sharedMembershipFeature.getState().userId,
+      this.featureGatePurchaseHost,
+      {
+        profileId: boundary.profileId,
+        privacyMode: boundary.privacyMode,
+        dataScope: boundary.dataScope
+      }
+    ).catch((error: Error): void => {
+      hilog.warn(LOG_DOMAIN, LOG_TAG, 'National Day lifetime purchase failed: %{public}s', JSON.stringify(error));
+    });
+  }
+
   private startFeatureGatePurchase(): void {
     const planId = this.featureGateCoordinator.resolveSelectedRenewalPlanId();
     if (planId.length === 0) {

@@ -47,6 +47,12 @@ import {
   AiraProPurchaseCoordinator,
   AiraProPurchaseFlowHostAdapter
 } from '../../../core/membership/AiraProPurchaseCoordinator';
+import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../../common/config/AiraDistributionCapabilityOwner';
+import { HuaweiIapProductView } from '../../../services/membership/HuaweiIapPurchaseService';
+import {
+  readCachedAiraProLifetimeStorePrice,
+  rememberAiraProLifetimeStorePrice
+} from '../../../services/membership/AiraProStorePricePolicy';
 import { SyncSettingsRefreshSignal } from '../../../core/sync/SyncSettingsRefreshSignal';
 import {
   sharedAiraSyncConfigStore,
@@ -108,10 +114,13 @@ export struct AiraProScreen {
   @State private dataScope: string = '';
   @State private privacyMode: string = '';
   @State private boundarySource: string = '';
+  private lifetimeStorePriceText: string = readCachedAiraProLifetimeStorePrice();
+  private lifetimeStorePriceRequest: number = 0;
   @State private state: AiraProOverviewViewState = this.viewModel.buildState(
     sharedMembershipFeature.getState(),
     this.dataScope,
-    this.privacyMode
+    this.privacyMode,
+    this.lifetimeStorePriceText
   );
   private complimentaryClaimInFlight: boolean = false;
   private membershipRedeemInFlight: boolean = false;
@@ -502,6 +511,7 @@ export struct AiraProScreen {
     this.boundarySource = boundaryState.boundarySource;
     this.refreshThemeState();
     this.applyAiraProState();
+    this.refreshLifetimeStorePrice();
     sharedMembershipFeature.refreshStateForBoundary(this.buildAiraProDataBoundaryInput(), {
       minFreshMs: MEMBERSHIP_REFRESH_ACCOUNT_VISIBLE_FRESH_MS
     })
@@ -514,11 +524,59 @@ export struct AiraProScreen {
   }
 
   private applyAiraProState(): void {
+    const livePrice = this.lifetimeStorePriceText.length > 0
+      ? this.lifetimeStorePriceText
+      : readCachedAiraProLifetimeStorePrice();
     this.state = this.viewModel.buildState(
       sharedMembershipFeature.getState(),
       this.dataScope,
-      this.privacyMode
+      this.privacyMode,
+      livePrice
     );
+  }
+
+  /**
+   * Reads the price Huawei is charging right now. A console price change,
+   * including one that ends on its own, replaces the card the next time this
+   * page is shown. A failed query keeps the last price instead of flashing
+   * the catalog price over an active discount.
+   */
+  private refreshLifetimeStorePrice(): void {
+    if (!AIRA_DISTRIBUTION_CAPABILITY_OWNER.isAvailable('huawei_iap')) {
+      return;
+    }
+    let context: common.UIAbilityContext;
+    try {
+      context = getContext(this) as common.UIAbilityContext;
+    } catch (_error) {
+      return;
+    }
+    const request = this.lifetimeStorePriceRequest + 1;
+    this.lifetimeStorePriceRequest = request;
+    this.purchaseCoordinator.queryProProducts(context)
+      .then((products: HuaweiIapProductView[]) => {
+        if (request !== this.lifetimeStorePriceRequest) {
+          return;
+        }
+        const priceText = this.findLifetimeStorePriceText(products);
+        if (priceText.length === 0) {
+          return;
+        }
+        rememberAiraProLifetimeStorePrice(priceText);
+        this.lifetimeStorePriceText = priceText;
+        this.applyAiraProState();
+      })
+      .catch((_error: Error) => {
+      });
+  }
+
+  private findLifetimeStorePriceText(products: HuaweiIapProductView[]): string {
+    for (let index = 0; index < products.length; index++) {
+      if (products[index].period === 'one_time') {
+        return products[index].priceText;
+      }
+    }
+    return '';
   }
 
   private openProPurchase(planId: string = 'monthly'): void {

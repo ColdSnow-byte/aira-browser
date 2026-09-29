@@ -67,6 +67,7 @@ import historySyncTransportContractTest from './HistorySyncTransportContract.tes
 import huaweiSpaceTransportWarmupTest from './HuaweiSpaceTransportWarmup.test';
 import historySelectionMoreMenuTest from './HistorySelectionMoreMenu.test';
 import huaweiIapProductCatalogTest from './HuaweiIapProductCatalog.test';
+import airaProStorePricePolicyTest from './AiraProStorePricePolicy.test';
 import airaProComplimentaryClaimPolicyTest from './AiraProComplimentaryClaimPolicy.test';
 import airaProPurchasePolicyServiceTest from './AiraProPurchasePolicyService.test';
 import membershipEntitlementRetentionPolicyTest from './MembershipEntitlementRetentionPolicy.test';
@@ -174,6 +175,7 @@ export default function tests(): void {
   huaweiSpaceTransportWarmupTest();
   historySelectionMoreMenuTest();
   huaweiIapProductCatalogTest();
+  airaProStorePricePolicyTest();
   airaProComplimentaryClaimPolicyTest();
   airaProPurchasePolicyServiceTest();
   membershipEntitlementRetentionPolicyTest();

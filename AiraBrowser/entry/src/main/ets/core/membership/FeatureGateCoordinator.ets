@@ -15,13 +15,18 @@ import { BrowserTransientSurfaceCoordinator } from '../browser/BrowserTransientS
 import { AIRA_DISTRIBUTION_CAPABILITY_OWNER } from '../../common/config/AiraDistributionCapabilityOwner';
 import { AiraRenderableIconId } from '../resources/GeneratedAiraIconCatalog';
 import { AIRA_PRO_BENEFITS, AiraProBenefitDefinition } from './AiraProBenefitCatalog';
+import {
+  readCachedAiraProLifetimeStorePrice,
+  rememberAiraProLifetimeStorePrice,
+  resolveAiraProLifetimePricePresentation
+} from '../../services/membership/AiraProStorePricePolicy';
 
 export type FeatureGateAction = EntitlementPrimaryAction | 'dismiss' | 'purchase_plan';
 
 /**
- * One purchasable option inside the renewal sheet. Prices come from the IAP
- * catalog so the sheet and the membership page can never disagree, and the id
- * is the plan id the purchase flow expects.
+ * One purchasable option inside the renewal sheet. The catalog is the fallback.
+ * A live store price replaces the lifetime amount, so a console price change
+ * shows up here without another release. The id is the plan the purchase flow expects.
  */
 export interface FeatureGateRenewalBenefitState {
   id: string;
@@ -86,6 +91,9 @@ export class FeatureGateCoordinator {
   private readonly dismissDurationMs: number;
   private snapshot: FeatureGateSnapshot = createHiddenFeatureGateSnapshot();
   private presentationGeneration: number = 0;
+  private lifetimeStorePriceText: string = '';
+  private requestStorePriceRefresh: () => void = (): void => {
+  };
 
   constructor(
     membershipFeature: MembershipFeature,
@@ -128,11 +136,64 @@ export class FeatureGateCoordinator {
     const generation = this.presentationGeneration + 1;
     this.presentationGeneration = generation;
     this.publishSnapshot(this.buildSnapshot(decision));
+    this.requestStorePriceRefresh();
     this.transientSurfaceCoordinator.present({
       id: 'feature_gate',
       revealDelayMs: this.revealDelayMs,
       dismissDurationMs: this.dismissDurationMs,
       shouldReveal: (): boolean => generation === this.presentationGeneration && this.snapshot.visible
+    });
+  }
+
+  /** The shell binds this so a visible gate can replace the catalog price with the live store price. */
+  bindStorePriceRefresh(refresh: () => void): void {
+    this.requestStorePriceRefresh = refresh;
+  }
+
+  /**
+   * Applies the price Huawei currently charges for long-term membership.
+   * A matching price is a no-op. A different price rebuilds a visible sheet
+   * in place, so the activity price appears and disappears with the store.
+   */
+  applyLifetimeStorePrice(priceText: string): void {
+    const normalized = priceText.trim();
+    if (normalized.length === 0) {
+      return;
+    }
+    const current = this.resolveLifetimeStorePriceText();
+    rememberAiraProLifetimeStorePrice(normalized);
+    this.lifetimeStorePriceText = normalized;
+    if (normalized === current) {
+      return;
+    }
+    const renewal = this.snapshot.renewal;
+    if (!this.snapshot.visible || renewal === undefined) {
+      return;
+    }
+    const plans = this.buildRenewalPlans();
+    if (plans.length === 0) {
+      return;
+    }
+    const selectedStillPresent = plans.some((plan: FeatureGateRenewalPlanState): boolean => {
+      return plan.id === renewal.selectedPlanId;
+    });
+    const selectedPlanId = selectedStillPresent ? renewal.selectedPlanId : plans[0].id;
+    this.publishSnapshot({
+      visible: this.snapshot.visible,
+      title: this.snapshot.title,
+      message: this.snapshot.message,
+      primaryActionTitle: this.snapshot.primaryActionTitle,
+      secondaryActionTitle: this.snapshot.secondaryActionTitle,
+      primaryAction: this.snapshot.primaryAction,
+      secondaryAction: this.snapshot.secondaryAction,
+      renewal: {
+        benefits: renewal.benefits,
+        plans: plans,
+        selectedPlanId: selectedPlanId,
+        expiredAt: renewal.expiredAt,
+        agreementText: this.resolveAgreementText(selectedPlanId, plans),
+        restoreLabel: renewal.restoreLabel
+      }
     });
   }
 
@@ -215,14 +276,29 @@ export class FeatureGateCoordinator {
     };
   }
 
+  private resolveLifetimeStorePriceText(): string {
+    if (this.lifetimeStorePriceText.length > 0) {
+      return this.lifetimeStorePriceText;
+    }
+    return readCachedAiraProLifetimeStorePrice();
+  }
+
   private buildRenewalPlans(): FeatureGateRenewalPlanState[] {
+    const price = resolveAiraProLifetimePricePresentation(
+      this.resolveLifetimeStorePriceText(),
+      AIRA_PRO_ONE_TIME_PLAN.amountText,
+      AIRA_PRO_ONE_TIME_PLAN.periodText,
+      AIRA_PRO_ONE_TIME_PLAN.displayPrice,
+      AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
+      Date.now()
+    );
     const lifetime: FeatureGateRenewalPlanState = {
       id: AIRA_PRO_ONE_TIME_PLAN.planId,
       title: AIRA_PRO_ONE_TIME_PLAN.title,
-      amountText: AIRA_PRO_ONE_TIME_PLAN.amountText,
+      amountText: price.amountText,
       periodText: AIRA_PRO_ONE_TIME_PLAN.periodText,
-      discountBadgeText: '',
-      originalPriceText: AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
+      discountBadgeText: price.discountBadgeText,
+      originalPriceText: price.originalPriceText,
       badgeText: AIRA_PRO_ONE_TIME_PLAN.badgeText,
       autoRenews: false
     };
@@ -315,6 +391,7 @@ export class FeatureGateCoordinator {
     const generation = this.presentationGeneration + 1;
     this.presentationGeneration = generation;
     this.publishSnapshot(this.buildSnapshot(decision));
+    this.requestStorePriceRefresh();
     this.transientSurfaceCoordinator.present({
       id: 'feature_gate',
       revealDelayMs: this.revealDelayMs,

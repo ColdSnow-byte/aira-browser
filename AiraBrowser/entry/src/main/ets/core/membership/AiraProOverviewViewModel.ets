@@ -32,6 +32,7 @@ import {
   AiraProComplimentaryClaimDecision,
   resolveAiraProComplimentaryClaimDecision
 } from './AiraProComplimentaryClaimPolicy';
+import { resolveAiraProLifetimePricePresentation } from '../../services/membership/AiraProStorePricePolicy';
 const AIRA_PRO_SUBSCRIPTION_ACTION_TEXT: string = '立即订阅';
 const AIRA_PRO_SUBSCRIPTION_CONSENT_ACTION_TEXT: string = '同意协议后立即订阅';
 const AIRA_PRO_SUBSCRIPTION_FOOTER_TEXT: string =
@@ -142,7 +143,8 @@ export class AiraProOverviewViewModel {
   buildState(
     membershipState: AiraMembershipState,
     dataScope: string,
-    privacyMode: string
+    privacyMode: string,
+    lifetimeStorePriceText: string = ''
   ): AiraProOverviewViewState {
     if (AIRA_DISTRIBUTION_CAPABILITY_OWNER.isCommunity()) {
       return this.buildCommunityState();
@@ -156,7 +158,8 @@ export class AiraProOverviewViewModel {
     );
     const plans: AiraProOverviewPlanState[] = this.buildVisiblePlans(
       membershipState,
-      purchaseAllowed
+      purchaseAllowed,
+      lifetimeStorePriceText
     );
     const presentation = this.resolveMembershipPresentation(membershipState, plans, purchaseAllowed);
     const actionsEnabled = purchaseAllowed && restoreAllowed && subscriptionManagementAllowed;
@@ -279,12 +282,13 @@ export class AiraProOverviewViewModel {
 
   private buildVisiblePlans(
     state: AiraMembershipState,
-    purchaseAllowed: boolean
+    purchaseAllowed: boolean,
+    lifetimeStorePriceText: string
   ): AiraProOverviewPlanState[] {
     if (this.membershipPresentationService.isLongTermMember(state)) {
       return [];
     }
-    const lifetimePlan = this.buildOneTimePlanState(state, purchaseAllowed);
+    const lifetimePlan = this.buildOneTimePlanState(state, purchaseAllowed, lifetimeStorePriceText);
     if (this.isCurrentSubscriptionMember(state)) {
       return [lifetimePlan];
     }
@@ -364,23 +368,34 @@ export class AiraProOverviewViewModel {
 
   private buildOneTimePlanState(
     state: AiraMembershipState,
-    purchaseAllowed: boolean
+    purchaseAllowed: boolean,
+    lifetimeStorePriceText: string
   ): AiraProOverviewPlanState {
     const action = this.resolveOneTimePlanAction(state, this.resolvePurchaseAvailability(purchaseAllowed));
+    const price = resolveAiraProLifetimePricePresentation(
+      lifetimeStorePriceText,
+      AIRA_PRO_ONE_TIME_PLAN.amountText,
+      AIRA_PRO_ONE_TIME_PLAN.periodText,
+      AIRA_PRO_ONE_TIME_PLAN.displayPrice,
+      AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
+      Date.now()
+    );
     return {
       id: AIRA_PRO_ONE_TIME_PLAN.planId,
       purchaseKind: 'one_time',
       title: AIRA_PRO_ONE_TIME_PLAN.title,
-      priceText: AIRA_PRO_ONE_TIME_PLAN.displayPrice,
-      amountText: AIRA_PRO_ONE_TIME_PLAN.amountText,
+      priceText: price.displayPrice,
+      amountText: price.amountText,
       periodText: AIRA_PRO_ONE_TIME_PLAN.periodText,
-      discountBadgeText: '',
-      originalPriceText: AIRA_PRO_ONE_TIME_PLAN.originalPriceText,
-      description: this.buildOneTimePlanDescription(state),
+      discountBadgeText: price.discountBadgeText,
+      originalPriceText: price.originalPriceText,
+      description: price.descriptionText.length > 0
+        ? price.descriptionText
+        : this.buildOneTimePlanDescription(state),
       badgeText: AIRA_PRO_ONE_TIME_PLAN.badgeText,
       actionText: action === 'manage_subscription'
         ? '前往关闭自动续费'
-        : `${AIRA_PRO_ONE_TIME_PLAN.displayPrice} 立即购买`,
+        : `${price.displayPrice} 立即购买`,
       consentActionText: action === 'manage_subscription' ? '前往关闭自动续费' : '同意协议后立即购买',
       footerText: this.buildOneTimePlanFooter(state),
       action: action

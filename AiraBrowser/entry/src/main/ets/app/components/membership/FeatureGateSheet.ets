@@ -302,25 +302,31 @@ export struct FeatureGateSheet {
       .layoutWeight(1)
       .alignItems(HorizontalAlign.Start)
 
-      if (plan.discountBadgeText.length > 0) {
-        Text(plan.discountBadgeText)
-          .fontSize(11)
-          .fontWeight(FontWeight.Bold)
-          .fontColor(this.storedAccentColor)
-          .padding({ left: 7, right: 7, top: 3, bottom: 3 })
-          .backgroundColor(this.storedControlBackgroundColor)
-          .borderRadius(7)
-          .maxLines(1)
-      } else if (plan.originalPriceText.length > 0) {
-        Text(plan.originalPriceText)
-          .fontSize(12)
-          .fontWeight(FontWeight.Medium)
-          .fontColor(this.storedSecondaryTextColor)
-          .decoration({
-            type: TextDecorationType.LineThrough,
-            color: this.storedSecondaryTextColor
-          })
-          .maxLines(1)
+      if (plan.discountBadgeText.length > 0 || plan.originalPriceText.length > 0) {
+        Column({ space: 4 }) {
+          if (plan.discountBadgeText.length > 0) {
+            Text(plan.discountBadgeText)
+              .fontSize(11)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.storedAccentColor)
+              .padding({ left: 7, right: 7, top: 3, bottom: 3 })
+              .backgroundColor(this.storedControlBackgroundColor)
+              .borderRadius(7)
+              .maxLines(1)
+          }
+          if (plan.originalPriceText.length > 0) {
+            Text(plan.originalPriceText)
+              .fontSize(12)
+              .fontWeight(FontWeight.Medium)
+              .fontColor(this.storedSecondaryTextColor)
+              .decoration({
+                type: TextDecorationType.LineThrough,
+                color: this.storedSecondaryTextColor
+              })
+              .maxLines(1)
+          }
+        }
+        .alignItems(HorizontalAlign.End)
       } else if (plan.badgeText.length > 0) {
         Text(plan.badgeText)
           .fontSize(11)
