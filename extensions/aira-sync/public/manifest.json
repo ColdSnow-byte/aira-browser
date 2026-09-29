@@ -41,6 +41,17 @@
       "128": "icons/icon128.png"
     }
   },
+  "chrome_url_overrides": {
+    "history": "history-override.html"
+  },
+  "content_scripts": [
+    {
+      "matches": ["http://*/*", "https://*/*"],
+      "js": ["history-takeover.js"],
+      "run_at": "document_start",
+      "all_frames": true
+    }
+  ],
   "commands": {
     "open-aira-history": {
       "description": "__MSG_commandOpenHistory__"

@@ -24,6 +24,7 @@ function prepareFirefoxStoreManifest(dirPath) {
   const manifestPath = path.join(dirPath, 'manifest.json');
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
   delete manifest.key;
+  delete manifest.chrome_url_overrides;
   manifest.permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter((permission) => !FIREFOX_UNSUPPORTED_PERMISSIONS.has(permission))
     : manifest.permissions;

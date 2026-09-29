@@ -124,14 +124,20 @@ function assertBuild(dir, label) {
   const manifestPath = path.join(dir, 'manifest.json');
   const historyPagePath = path.join(dir, 'history.html');
   const historyScriptPath = path.join(dir, 'history.js');
+  const historyOverridePagePath = path.join(dir, 'history-override.html');
+  const historyOverrideScriptPath = path.join(dir, 'history-override.js');
+  const historyTakeoverScriptPath = path.join(dir, 'history-takeover.js');
   if (
     !fs.existsSync(dir)
     || !fs.existsSync(manifestPath)
     || !fs.existsSync(historyPagePath)
     || !fs.existsSync(historyScriptPath)
+    || !fs.existsSync(historyOverridePagePath)
+    || !fs.existsSync(historyOverrideScriptPath)
+    || !fs.existsSync(historyTakeoverScriptPath)
   ) {
     console.error(`[pack] Missing ${label} build. Please run a build first.`);
-    console.error(`[pack] Expected: ${manifestPath}, ${historyPagePath}, ${historyScriptPath}`);
+    console.error(`[pack] Expected: ${manifestPath}, ${historyPagePath}, ${historyScriptPath}, ${historyOverridePagePath}, ${historyTakeoverScriptPath}`);
     process.exit(1);
   }
 }

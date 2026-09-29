@@ -89,7 +89,7 @@ function verifyZip({
   const zipEntries = readZipEntries(zipPath);
   const permissions = readStringArray(manifest.permissions);
 
-  for (const requiredEntry of ['background-sw.js', 'popup.html', 'history.html', 'history.js']) {
+  for (const requiredEntry of ['background-sw.js', 'popup.html', 'history.html', 'history.js', 'history-override.html', 'history-override.js', 'history-takeover.js']) {
     if (!zipEntries.has(requiredEntry)) {
       throw new Error(`Package is missing ${requiredEntry} in ${path.basename(zipPath)}.`);
     }
@@ -135,6 +135,17 @@ function verifyZip({
     if (!permissions.includes('history')) {
       throw new Error(`Firefox package must include required "history" permission in ${path.basename(zipPath)}.`);
     }
+    if (Object.prototype.hasOwnProperty.call(manifest, 'chrome_url_overrides')) {
+      throw new Error(`Firefox package must not include unsupported chrome_url_overrides in ${path.basename(zipPath)}.`);
+    }
+  }
+  if (packageKind !== 'firefox' && manifest.chrome_url_overrides?.history !== 'history-override.html') {
+    throw new Error(`Package must override the browser history page with history-override.html in ${path.basename(zipPath)}.`);
+  }
+  const hasHistoryTakeoverScript = Array.isArray(manifest.content_scripts)
+    && manifest.content_scripts.some((script) => Array.isArray(script?.js) && script.js.includes('history-takeover.js'));
+  if (!hasHistoryTakeoverScript) {
+    throw new Error(`Package must include the history takeover content script in ${path.basename(zipPath)}.`);
   }
   if (packageKind === 'community' && !actualManifestKey) {
     throw new Error(

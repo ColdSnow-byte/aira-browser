@@ -1,7 +1,28 @@
 
-import { defineConfig } from 'vite';
+import { defineConfig, type Plugin } from 'vite';
 import react from '@vitejs/plugin-react-swc';
 import path from 'path';
+import { build as esbuild } from 'esbuild';
+
+function buildClassicHistoryTakeoverScript(outDir: string): Plugin {
+  const entry = path.resolve(__dirname, 'src/features/history-takeover/historyTakeoverContentScript.ts');
+  return {
+    name: 'history-takeover-classic',
+    apply: 'build',
+    async closeBundle() {
+      await esbuild({
+        absWorkingDir: __dirname,
+        entryPoints: [entry],
+        bundle: true,
+        format: 'iife',
+        platform: 'browser',
+        target: 'es2022',
+        outfile: path.resolve(__dirname, outDir, 'history-takeover.js'),
+        legalComments: 'none',
+      });
+    },
+  };
+}
 
 function getPackageName(id: string): string | null {
   const normalizedId = id.split('\\').join('/');
@@ -80,7 +101,7 @@ export default defineConfig(async () => {
   const appReactDomPath = path.resolve(__dirname, './node_modules/react-dom');
   return {
   base: './',
-  plugins: [react(), tailwindcss()],
+  plugins: [react(), tailwindcss(), buildClassicHistoryTakeoverScript(outDir)],
     resolve: {
       extensions: ['.js', '.jsx', '.ts', '.tsx', '.json'],
       dedupe: ['react', 'react-dom'],
@@ -107,6 +128,7 @@ export default defineConfig(async () => {
           'background-sw': path.resolve(__dirname, 'src/background.ts'),
           popup: path.resolve(__dirname, 'popup.html'),
           history: path.resolve(__dirname, 'history.html'),
+          'history-override': path.resolve(__dirname, 'history-override.html'),
         },
         output: {
           entryFileNames: '[name].js',

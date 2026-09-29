@@ -43,6 +43,7 @@ import {
 import { LEAFTAB_SELECTED_SYNC_SOURCE_KEY } from '@/features/sync/app/leafTabSyncStorageKeys';
 import { parseLeafTabSyncRemoteKind } from '@/sync/leaftab/source';
 import { resolveCrossDeviceTransportKind } from '@/features/device-tabs/crossDeviceTransport';
+import { bindHistoryTakeoverRuntime } from '@/features/history-takeover/historyTakeoverRuntime';
 
 const WEBDAV_PROXY_MESSAGE_TYPE = 'LEAFTAB_WEBDAV_PROXY';
 const AIRA_OPEN_HISTORY_COMMAND = 'open-aira-history';
@@ -736,6 +737,7 @@ bindLeafTabSyncDeviceIdMessageListener();
 bindPhonePagePushMessageListener();
 bindHistoryMessageListener();
 bindAiraHistoryCommandListener();
+bindHistoryTakeoverRuntime();
 bindAlarmListeners();
 bindLifecycleListeners();
 bookmarkBackgroundSyncRuntime.initialize();
