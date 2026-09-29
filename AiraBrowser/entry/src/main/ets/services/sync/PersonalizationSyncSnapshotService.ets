@@ -1334,15 +1334,18 @@ export class PersonalizationSyncSnapshotService {
     const nextShowFavorites = incomingAppearance?.showHomeShortcuts ?? currentAppearance.showHomeShortcuts;
     const nextShowRecentlyClosed =
       incomingAppearance?.showHomeRecentlyClosed ?? currentAppearance.showHomeRecentlyClosed;
-    if (payload.themeMode !== undefined) {
-      await this.dependencies.preferencesRepository.updateThemeMode(payload.themeMode, 'sync');
+    const incomingThemeMode = this.sanitizeThemeMode(payload.themeMode);
+    if (incomingThemeMode !== undefined) {
+      await this.dependencies.preferencesRepository.updateThemeMode(incomingThemeMode, 'sync');
     }
     if (incomingAppearance !== undefined) {
       const current = currentAppearance;
       await this.dependencies.preferencesRepository.updateAppearanceSettings({
-        bottomToolbarScrollBehavior:
-          incomingAppearance.bottomToolbarScrollBehavior ?? current.bottomToolbarScrollBehavior,
-        toolbarChromeStyle: incomingAppearance.toolbarChromeStyle ?? current.toolbarChromeStyle,
+        bottomToolbarScrollBehavior: this.sanitizeBottomToolbarScrollBehavior(
+          incomingAppearance.bottomToolbarScrollBehavior
+        ) ?? current.bottomToolbarScrollBehavior,
+        toolbarChromeStyle: this.sanitizeToolbarChromeStyle(incomingAppearance.toolbarChromeStyle) ??
+          current.toolbarChromeStyle,
         globalImmersionEnabled: incomingAppearance.globalImmersionEnabled ?? current.globalImmersionEnabled,
         alwaysTopImmersionEnabled: incomingAppearance.alwaysTopImmersionEnabled ?? current.alwaysTopImmersionEnabled,
         forceDarkWebContentEnabled: incomingAppearance.forceDarkWebContentEnabled ?? current.forceDarkWebContentEnabled,
@@ -1350,15 +1353,17 @@ export class PersonalizationSyncSnapshotService {
         showHomeRecentlyClosed: nextShowRecentlyClosed,
         showHomeShortcuts: nextShowFavorites,
         homeRecentlyClosedLimit: incomingAppearance.homeRecentlyClosedLimit ?? current.homeRecentlyClosedLimit,
-        homeShortcutLayoutDensity:
-          incomingAppearance.homeShortcutLayoutDensity ?? current.homeShortcutLayoutDensity,
+        homeShortcutLayoutDensity: this.sanitizeHomeShortcutLayoutDensity(
+          incomingAppearance.homeShortcutLayoutDensity
+        ) ?? current.homeShortcutLayoutDensity,
         homeShortcutIconSizeRatio:
           incomingAppearance.homeShortcutIconSizeRatio ?? current.homeShortcutIconSizeRatio,
         siteIconCornerRadiusRatio:
           incomingAppearance.siteIconCornerRadiusRatio ?? current.siteIconCornerRadiusRatio,
-        themePaletteId: incomingAppearance.themePaletteId ?? current.themePaletteId,
-        tabsOverviewLayoutStyle:
-          incomingAppearance.tabsOverviewLayoutStyle ?? current.tabsOverviewLayoutStyle,
+        themePaletteId: this.sanitizeThemePaletteId(incomingAppearance.themePaletteId) ?? current.themePaletteId,
+        tabsOverviewLayoutStyle: this.sanitizeTabsOverviewLayoutStyle(
+          incomingAppearance.tabsOverviewLayoutStyle
+        ) ?? current.tabsOverviewLayoutStyle,
         tabsOverviewCloseButtonAlwaysVisible:
           incomingAppearance.tabsOverviewCloseButtonAlwaysVisible ?? current.tabsOverviewCloseButtonAlwaysVisible,
         // Desktop chrome is device-local and must never be overwritten by a synced snapshot.
@@ -1408,17 +1413,21 @@ export class PersonalizationSyncSnapshotService {
         incomingAppearance.hideHomeSystemSearchOnScroll ?? customHomepage.hideToolbarOnScroll;
       await this.dependencies.customHomepageRepository.saveSettings(customHomepage, 'sync');
     }
-    if (incomingAppearance?.homeWallpaperMode !== undefined) {
+    const incomingWallpaperMode = this.sanitizeWallpaperMode(incomingAppearance?.homeWallpaperMode);
+    if (incomingWallpaperMode !== undefined) {
       await this.dependencies.wallpaperRepository.updateSettings({
-        mode: incomingAppearance.homeWallpaperMode
+        mode: incomingWallpaperMode
       }, 'sync');
     }
     if (payload.general !== undefined) {
       const current = preferences.general;
       await this.dependencies.preferencesRepository.updateGeneralSettings({
-        startupRestorePolicy: payload.general.startupRestorePolicy ?? current.startupRestorePolicy,
-        tabAutoClosePolicy: payload.general.tabAutoClosePolicy ?? current.tabAutoClosePolicy,
-        privateTabRestorePolicy: payload.general.privateTabRestorePolicy ?? current.privateTabRestorePolicy,
+        startupRestorePolicy: this.sanitizeStartupRestorePolicy(payload.general.startupRestorePolicy) ??
+          current.startupRestorePolicy,
+        tabAutoClosePolicy: this.sanitizeTabAutoClosePolicy(payload.general.tabAutoClosePolicy) ??
+          current.tabAutoClosePolicy,
+        privateTabRestorePolicy: this.sanitizePrivateTabRestorePolicy(payload.general.privateTabRestorePolicy) ??
+          current.privateTabRestorePolicy,
         privateModeAuthenticationEnabled: current.privateModeAuthenticationEnabled,
         privateModePreserveCookiesOnClose: current.privateModePreserveCookiesOnClose,
         privateModeThemeEnabled: payload.general.privateModeThemeEnabled ?? current.privateModeThemeEnabled

@@ -1,4 +1,3 @@
-import { PORTABLE_WALLPAPER_MODES } from '../../common/models/WallpaperModels';
 import {
   PERSONALIZATION_SYNC_ITEM_IDS,
   PERSONALIZATION_SYNC_SCHEMA_VERSION,
@@ -131,7 +130,7 @@ export class PersonalizationSyncSnapshotValidationService {
   }
 
   private isValidCorePreferencesPayload(payload: PersonalizationCorePreferencesPayload): boolean {
-    if (!this.isRecord(payload) || !this.isAllowedString(payload.themeMode as Object, ['light', 'dark', 'system']) ||
+    if (!this.isRecord(payload) || !this.isNonEmptyString(payload.themeMode as string) ||
       !this.isRecord(payload.appearance) || !this.isRecord(payload.general) || !this.isRecord(payload.toolbarLayout)) {
       return false;
     }
@@ -146,33 +145,24 @@ export class PersonalizationSyncSnapshotValidationService {
       'showHomeSettingsButton', 'showHomeSystemSearch', 'hideHomeSystemSearchOnScroll'
     ];
     if (!this.hasBooleanFields(appearance, booleanAppearanceFields) ||
-      !this.isOptionalAllowedString(
-        appearance.bottomToolbarScrollBehavior,
-        ['fixed', 'compact', 'hidden']
-      ) ||
-      !this.isOptionalAllowedString(
-        appearance.toolbarChromeStyle,
-        ['floating', 'split']
-      ) ||
+      !this.isOptionalNonEmptyString(appearance.bottomToolbarScrollBehavior as string) ||
+      !this.isOptionalNonEmptyString(appearance.toolbarChromeStyle as string) ||
       !optionalBooleanAppearanceFields.every((field: string): boolean => {
         return this.isOptionalBoolean(appearance[field]);
       }) ||
       !this.isFiniteNumber(appearance.homeRecentlyClosedLimit) ||
       !this.isFiniteNumber(appearance.homeShortcutIconSizeRatio) ||
       !this.isFiniteNumber(appearance.siteIconCornerRadiusRatio) ||
-      !this.isAllowedString(appearance.homeShortcutLayoutDensity, ['standard', 'compact']) ||
-      !this.isAllowedString(appearance.themePaletteId, [
-        'default', 'aira_classic', 'aira_origin', 'aurora', 'sage', 'cedar', 'lagoon', 'glacier',
-        'indigo', 'wisteria', 'rosewood', 'terracotta', 'amber', 'moss', 'cyan', 'steel', 'plum', 'coral'
-      ]) || !this.isAllowedString(appearance.tabsOverviewLayoutStyle, ['grid', 'horizontal_cards', 'stack', 'list']) ||
-      !this.isOptionalAllowedString(appearance.homeWallpaperMode, PORTABLE_WALLPAPER_MODES)) {
+      !this.isNonEmptyString(appearance.homeShortcutLayoutDensity as string) ||
+      !this.isNonEmptyString(appearance.themePaletteId as string) ||
+      !this.isNonEmptyString(appearance.tabsOverviewLayoutStyle as string) ||
+      !this.isOptionalNonEmptyString(appearance.homeWallpaperMode as string)) {
       return false;
     }
     const general = payload.general as Record<string, Object>;
-    if (!this.isAllowedString(general.startupRestorePolicy, ['restore_regular_tabs', 'open_home']) ||
-      !this.isAllowedString(general.tabAutoClosePolicy, [
-        'manual', 'after_15_days', 'after_7_days', 'after_3_days', 'after_1_day', 'on_app_exit'
-      ]) || !this.isAllowedString(general.privateTabRestorePolicy, ['never_restore', 'restore_private_tabs']) ||
+    if (!this.isNonEmptyString(general.startupRestorePolicy as string) ||
+      !this.isNonEmptyString(general.tabAutoClosePolicy as string) ||
+      !this.isNonEmptyString(general.privateTabRestorePolicy as string) ||
       typeof general.privateModeThemeEnabled !== 'boolean') {
       return false;
     }

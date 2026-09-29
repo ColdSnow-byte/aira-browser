@@ -373,8 +373,9 @@ test('the four styles are offered 卡片平铺 first, and every normaliser names
   assert.match(layoutViewModel,
     /return style === 'horizontal_cards' \|\| style === 'stack' \|\| style === 'list' \? style : 'grid';/);
   assert.match(layoutViewModel, /layoutStyle: 'list'/);
-  const validation = read('AiraBrowser/entry/src/main/ets/services/sync/PersonalizationSyncSnapshotValidationService.ets');
-  assert.match(validation, /\['grid', 'horizontal_cards', 'stack', 'list'\]/);
+  const snapshot = read('AiraBrowser/entry/src/main/ets/services/sync/PersonalizationSyncSnapshotService.ets');
+  assert.match(snapshot,
+    /value === 'grid' \|\| value === 'horizontal_cards' \|\| value === 'stack' \|\| value === 'list' \?/);
   const sheet = read('AiraBrowser/entry/src/main/ets/app/components/settings/TabOverviewLayoutChoiceSheet.ets');
   assert.match(sheet, /optionsInRange\(0, 2\)/);
   assert.match(sheet, /optionsInRange\(2, 4\)/);
