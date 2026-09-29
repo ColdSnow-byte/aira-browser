@@ -1,14 +1,23 @@
 {
   "latestAppGalleryRelease": {
-    "versionName": "3.4.0",
-    "versionCode": 1000462,
-    "releasedAt": "2026-09-25",
+    "versionName": "3.5.1",
+    "versionCode": 1000476,
+    "releasedAt": "2026-09-29",
     "source": "formal-package-generated",
-    "notes": "Formal AppGallery package whose desktop element inspection docks beside the page, whose bookmark bar and overflow menus share the desktop shell, and whose large-screen resource, proxy, and userscript surfaces open as centered dialogs. New-window pages no longer open chromeless, and Weibo video takeover stays on the existing surface. Built from HEAD 5f51482 plus the uncommitted desktop and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed, and the outer APP signature plus the packed release Profile were verified independently. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
-    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.4.0-1000462-release-signed.app",
-    "sha256": "07993221bdff55d766ed047fe63b2c794fdcf21951a1818a6e19a509dfbb01b5"
+    "notes": "Formal AppGallery package that adds a homepage Logo choice with preset marks and a user image plus a size slider, refreshes the homepage wallpaper tones, and offers history and bookmark suggestions in the address bar. The split address and bottom rows now reserve the painted row so a page cannot slide under it or leave an empty band, the centered-home search fades in instead of flashing, closing the active tab returns to its list neighbor, and touch-mode centered shortcuts pack from the leading edge. Built from committed HEAD 6ac705c plus the 3.5.1 (1000476) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+    "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.5.1-1000476-release-signed.app",
+    "sha256": "f5a6e247e70c0980d2de0f46135406f726659cf84949760f3baabd6dfe9d3546"
   },
   "history": [
+    {
+      "versionName": "3.5.1",
+      "versionCode": 1000476,
+      "releasedAt": "2026-09-29",
+      "source": "formal-package-generated",
+      "notes": "Formal AppGallery package that adds a homepage Logo choice with preset marks and a user image plus a size slider, refreshes the homepage wallpaper tones, and offers history and bookmark suggestions in the address bar. The split address and bottom rows now reserve the painted row so a page cannot slide under it or leave an empty band, the centered-home search fades in instead of flashing, closing the active tab returns to its list neighbor, and touch-mode centered shortcuts pack from the leading edge. Built from committed HEAD 6ac705c plus the 3.5.1 (1000476) version and release-note changes in the same working tree, signed with the Aira release certificate and the AppGallery release Profile for com.aira.browser, with crash symbols archived. The release-signed APP build passed. This records a locally generated formal package and does not claim AppGallery review approval or on-shelf publication.",
+      "artifact": "AiraBrowser/build/outputs/default/Aira-official-v3.5.1-1000476-release-signed.app",
+      "sha256": "f5a6e247e70c0980d2de0f46135406f726659cf84949760f3baabd6dfe9d3546"
+    },
     {
       "versionName": "3.4.3",
       "versionCode": 1000472,
