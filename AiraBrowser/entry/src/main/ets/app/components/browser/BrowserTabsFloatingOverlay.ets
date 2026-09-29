@@ -142,6 +142,15 @@ interface BrowserTabsFloatingContentPadding {
   bottom: number;
 }
 
+interface BrowserTabsListStackMetrics {
+  itemHeight: number;
+  gap: number;
+  spacer: number;
+  viewportHeight: number;
+  maxScroll: number;
+  contentTop: number;
+}
+
 @Component
 export struct BrowserTabsFloatingOverlay {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY)
@@ -915,6 +924,9 @@ export struct BrowserTabsFloatingOverlay {
    * default, so padding cut every row off at the status-bar line and the top blur never saw them.
    * The viewport stays full height, rows can scroll to the top, and the same gradient blur the
    * cards use fades them as they pass under the status bar.
+   *
+   * Rows stack upward: the most recently used tab is the bottom row, and a short list sits on
+   * the bottom instead of the top. Older rows are what you reach by scrolling up.
    */
   @Builder
   private buildListLayer() {
@@ -922,7 +934,7 @@ export struct BrowserTabsFloatingOverlay {
       space: this.layoutState.gridGap,
       scroller: this.scroller
     }) {
-      ForEach(this.resolveVisibleItems(), (item: BrowserTabsFloatingItem) => {
+      ForEach(this.resolveListItems(), (item: BrowserTabsFloatingItem, index: number) => {
         ListItem() {
           BrowserTabOverviewListRow({
             tab: item.tab,
@@ -953,6 +965,7 @@ export struct BrowserTabsFloatingOverlay {
         }
         .width('100%')
         .height(this.layoutState.itemHeight)
+        .margin({ top: index === 0 ? this.resolveListStackMetrics().spacer : 0 })
         .clip(false)
       }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
     }
@@ -1150,6 +1163,8 @@ export struct BrowserTabsFloatingOverlay {
     );
     if (this.isStackLayout()) {
       this.seedDeckPosition(targetIndex);
+    } else if (this.isListLayout()) {
+      this.scrollListToBottomAnchor(targetTabId);
     } else {
       this.scroller.scrollToIndex(targetIndex, false, ScrollAlign.CENTER);
     }
@@ -1167,6 +1182,13 @@ export struct BrowserTabsFloatingOverlay {
       // on, and the last card is the honest default.
       const activeTabIndex = this.resolveDisplacementTargetIndex(this.activeTabId);
       this.seedDeckPosition(activeTabIndex >= 0 ? activeTabIndex : lastItemIndex);
+      return;
+    }
+    if (this.isListLayout()) {
+      const items = this.resolveListItems();
+      if (items.length > 0) {
+        this.scrollListToBottomAnchor(items[items.length - 1].tab.id);
+      }
       return;
     }
     if (this.isHorizontalCardsLayout()) {
@@ -2442,34 +2464,110 @@ export struct BrowserTabsFloatingOverlay {
   }
 
   /**
-   * Where the current row sits after `scrollToIndex(..., CENTER)`.
+   * Where the current row sits after the list is anchored to the bottom.
    *
    * The entry morph starts from this prediction when the row has not reported its own rect yet.
    * A missing rect leaves the list invisible: the cards layer stays at opacity 0 until a target
    * exists. The measured row replaces this once `onAreaChange` arrives.
    */
   private buildListEntryTargetPreviewRect(tabId: string): BrowserTabsOverlayRect | undefined {
-    const index = this.resolveDisplacementTargetIndex(tabId);
+    const index = this.resolveListItemIndex(tabId);
     if (index < 0) {
       return undefined;
     }
+    const metrics = this.resolveListStackMetrics();
+    const itemTop = metrics.spacer + index * (metrics.itemHeight + metrics.gap);
+    const scroll = this.resolveListEntryScrollOffset(tabId);
+    return {
+      left: this.resolveRootLeft() + FLOATING_TABS_HORIZONTAL_PADDING,
+      top: this.resolveRootTop() + metrics.contentTop + itemTop - scroll,
+      width: Math.max(1, this.layoutState.cardWidth),
+      height: metrics.itemHeight
+    };
+  }
+
+  /**
+   * Oldest activity at the top, the tab you just left at the bottom. Equal times keep the
+   * current tab below the others so the shrink still lands on the bottom row.
+   */
+  private resolveListItems(): BrowserTabsFloatingItem[] {
+    const source = this.resolveVisibleItems();
+    const ordered = source.slice();
+    const activeTabId = this.activeTabId;
+    ordered.sort((left: BrowserTabsFloatingItem, right: BrowserTabsFloatingItem): number => {
+      if (left.tab.lastActiveAt !== right.tab.lastActiveAt) {
+        return left.tab.lastActiveAt - right.tab.lastActiveAt;
+      }
+      if (left.tab.id === activeTabId) {
+        return 1;
+      }
+      if (right.tab.id === activeTabId) {
+        return -1;
+      }
+      return left.index - right.index;
+    });
+    const items: BrowserTabsFloatingItem[] = [];
+    for (let index = 0; index < ordered.length; index += 1) {
+      const item = ordered[index];
+      items.push({
+        id: item.id,
+        tab: item.tab,
+        presentation: item.presentation,
+        index: index
+      });
+    }
+    return items;
+  }
+
+  private resolveListItemIndex(tabId: string): number {
+    const targetTabId = tabId.trim();
+    if (targetTabId.length <= 0) {
+      return -1;
+    }
+    const items = this.resolveListItems();
+    for (let index = 0; index < items.length; index += 1) {
+      if (items[index].tab.id === targetTabId) {
+        return index;
+      }
+    }
+    return -1;
+  }
+
+  private resolveListStackMetrics(): BrowserTabsListStackMetrics {
     const itemHeight = Math.max(1, this.layoutState.itemHeight);
     const gap = Math.max(0, this.layoutState.gridGap);
-    const count = Math.max(1, this.resolveVisibleTabIds().length);
+    const count = this.resolveListItems().length;
     const contentTop = this.resolveContentTopPadding();
     const contentBottom = this.resolveContentBottomPadding();
     const viewportHeight = Math.max(1, this.resolveRootHeight() - contentTop - contentBottom);
-    const contentHeight = count * itemHeight + Math.max(0, count - 1) * gap;
-    const itemTop = index * (itemHeight + gap);
-    const maxScroll = Math.max(0, contentHeight - viewportHeight);
-    const desiredScroll = itemTop - Math.max(0, (viewportHeight - itemHeight) / 2);
-    const scroll = Math.min(maxScroll, Math.max(0, desiredScroll));
+    const contentHeight = count <= 0 ? 0 : count * itemHeight + Math.max(0, count - 1) * gap;
+    const spacer = Math.max(0, viewportHeight - contentHeight);
     return {
-      left: this.resolveRootLeft() + FLOATING_TABS_HORIZONTAL_PADDING,
-      top: this.resolveRootTop() + contentTop + itemTop - scroll,
-      width: Math.max(1, this.layoutState.cardWidth),
-      height: itemHeight
+      itemHeight: itemHeight,
+      gap: gap,
+      spacer: spacer,
+      viewportHeight: viewportHeight,
+      maxScroll: Math.max(0, spacer + contentHeight - viewportHeight),
+      contentTop: contentTop
     };
+  }
+
+  private resolveListEntryScrollOffset(tabId: string): number {
+    const index = this.resolveListItemIndex(tabId);
+    if (index < 0) {
+      return 0;
+    }
+    const metrics = this.resolveListStackMetrics();
+    const itemBottom = metrics.spacer + index * (metrics.itemHeight + metrics.gap) + metrics.itemHeight;
+    return Math.min(metrics.maxScroll, Math.max(0, itemBottom - metrics.viewportHeight));
+  }
+
+  private scrollListToBottomAnchor(tabId: string): void {
+    this.scroller.scrollTo({
+      xOffset: 0,
+      yOffset: this.resolveListEntryScrollOffset(tabId),
+      animation: false
+    });
   }
 
   /**

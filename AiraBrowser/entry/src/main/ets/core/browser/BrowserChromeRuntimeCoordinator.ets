@@ -5,8 +5,8 @@ import {
 } from '../../common/models/BrowserModels';
 import { HomeWallpaperPresentationState } from '../../common/models/WallpaperModels';
 import {
-  BrowserForegroundBackdropEffectInput,
-  BrowserForegroundPresentationViewModel
+  BrowserForegroundPresentationViewModel,
+  BrowserForegroundTone
 } from './BrowserForegroundPresentationViewModel';
 import { AppChromeIconTone } from '../resources/AppIconResources';
 export const BROWSER_DARK_WEB_TOP_SAFE_AREA_COLOR: string = '#000000';
@@ -44,8 +44,11 @@ export interface BrowserStatusBarContentStyleInput extends BrowserWebTopSafeArea
   homePageVisible: boolean;
   homeWallpaperState: HomeWallpaperPresentationState;
   homeThemeBackgroundColor: ResourceColor;
-  homeBackdropEffectTintColor?: ResourceColor;
-  homeBackdropEffectTintOpacity?: number;
+  /**
+   * Homepage page-element tone. When the home is visible this is the status bar
+   * decision, so the icons follow the same wallpaper algorithm as the logo and text.
+   */
+  homeForegroundTone?: BrowserForegroundTone;
   webVideoControllerActive: boolean;
   bottomPanelHigh: boolean;
   bottomPanelVisible: boolean;
@@ -116,12 +119,7 @@ export class BrowserChromeRuntimeCoordinator {
     if (input.readerModeVisible) {
       return input.readerModeTheme === 'dark' || input.readerModeTheme === 'charcoal';
     }
-    const homeWallpaperStyle = this.resolveHomeWallpaperLightStatusBarContent(
-      input.homePageVisible,
-      input.homeWallpaperState,
-      input.homeThemeBackgroundColor,
-      this.resolveHomeBackdropToneEffect(input)
-    );
+    const homeWallpaperStyle = this.resolveHomeWallpaperLightStatusBarContent(input);
     if (homeWallpaperStyle !== undefined) {
       return homeWallpaperStyle;
     }
@@ -135,33 +133,18 @@ export class BrowserChromeRuntimeCoordinator {
   }
 
   private resolveHomeWallpaperLightStatusBarContent(
-    homePageVisible: boolean,
-    wallpaperState: HomeWallpaperPresentationState,
-    themeBackgroundColor: ResourceColor,
-    effect?: BrowserForegroundBackdropEffectInput
-  ): boolean | undefined {
-    if (!homePageVisible) {
-      return undefined;
-    }
-    return this.browserForegroundPresentationViewModel.resolveHomeTone(
-      wallpaperState,
-      themeBackgroundColor,
-      effect
-    ) === 'light';
-  }
-
-  private resolveHomeBackdropToneEffect(
     input: BrowserStatusBarContentStyleInput
-  ): BrowserForegroundBackdropEffectInput | undefined {
-    if (input.homeBackdropEffectTintColor === undefined ||
-      input.homeBackdropEffectTintOpacity === undefined ||
-      input.homeBackdropEffectTintOpacity <= 0) {
+  ): boolean | undefined {
+    if (!input.homePageVisible) {
       return undefined;
     }
-    return {
-      tintColor: input.homeBackdropEffectTintColor,
-      tintOpacity: input.homeBackdropEffectTintOpacity
-    };
+    const tone = input.homeForegroundTone !== undefined ?
+      input.homeForegroundTone :
+      this.browserForegroundPresentationViewModel.resolveHomeTone(
+        input.homeWallpaperState,
+        input.homeThemeBackgroundColor
+      );
+    return tone === 'light';
   }
 
   applyPageChromeTheme(

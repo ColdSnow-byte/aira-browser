@@ -214,14 +214,17 @@ export class BrowserForegroundTabCreationCoordinator {
       activeTabId: transition.activeTabId,
       tabSequence: transition.tabSequence
     });
-    this.dependencies.resolveTabsOverviewSessionCoordinator().handle({ type: 'request_close' });
     if (coldStartRestorePatch !== undefined) {
       const state = host.resolveForegroundTabCreationState();
       host.applyTabCreationState({
         tabs: this.tabManager.updateTab(state.tabs, transition.activeTabId, coldStartRestorePatch)
       });
     }
+    // Leave the homepage before the overview starts fading. Otherwise the close
+    // still treats home as the destination and the opened page appears only after
+    // that homepage has already shown through.
     this.dependencies.resolveTabSwitchCoordinator().synchronizeActiveTab();
+    this.dependencies.resolveTabsOverviewSessionCoordinator().handle({ type: 'request_close' });
     this.dependencies.resolveTabSessionPersistenceCoordinator().persist();
     host.applyTabCreationState({ helperMessage: transition.helperMessage });
   }

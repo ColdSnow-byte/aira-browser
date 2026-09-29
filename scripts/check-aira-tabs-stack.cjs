@@ -393,6 +393,8 @@ test('the four styles are offered 卡片平铺 first, and every normaliser names
   assert.match(overlay, /BrowserTabOverviewListRow/);
   const listLayer = overlay.slice(overlay.indexOf('private buildListLayer'),
     overlay.indexOf('private resolveCardSnapshotImageUri'));
+  assert.match(listLayer, /resolveListItems\(\)/);
+  assert.match(overlay, /lastActiveAt/);
   assert.match(listLayer, /contentStartOffset\(this\.resolveContentTopPadding\(\)\)/);
   assert.match(listLayer, /clipContent\(ContentClipMode\.BOUNDARY\)/);
   assert.match(listLayer, /FLOATING_TABS_TOP_BLUR_STOPS/);

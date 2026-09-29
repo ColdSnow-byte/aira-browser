@@ -221,6 +221,7 @@ interface BrowserTabHomeStateApplication {
   themeModeToastMessage?: string;
   endSearchInvocation?: boolean;
   resetHomeSearchPresentation?: boolean;
+  forceSyncStatusBarStyle?: boolean;
 }
 
 export interface BrowserTabHomeShell {
@@ -796,11 +797,11 @@ export class BrowserTabHomeCoordinator {
       state.homeSearchFocused
     )
       .then((result: HomeWallpaperRefreshResult) => {
-        this.shell.applyState({ homeWallpaperState: result.state });
+        this.shell.applyState({
+          homeWallpaperState: result.state,
+          forceSyncStatusBarStyle: true
+        });
         this.refreshBackdropAppearance('home_wallpaper');
-        if (result.presentationChanged) {
-          this.shell.syncBottomPanelStatusBarStyle();
-        }
       })
       .catch((_error: Error) => {});
   }
@@ -825,6 +826,7 @@ export class BrowserTabHomeCoordinator {
           nextState.resolvedThemeMode
         )
       });
+      this.shell.syncBottomPanelStatusBarStyle();
       hilog.info(
         TAB_HOME_LOG_DOMAIN,
         TAB_HOME_LOG_TAG,

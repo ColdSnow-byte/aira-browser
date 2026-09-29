@@ -3070,6 +3070,9 @@ struct BrowserShellPage {
         this.rootBottomAddressPanelDetent = 'low';
         this.browserRootBottomPanelSessionCoordinator.resetSearchBackdropPresentation();
       }
+      if (application.forceSyncStatusBarStyle === true) {
+        this.syncBottomPanelStatusBarStyle(true);
+      }
     },
     cancelBottomPanelBackdropFocusTransition: (): void =>
       this.cancelRootBottomPanelAddressFocusBackdropTransition(),
@@ -6731,6 +6734,7 @@ struct BrowserShellPage {
     this.browserPageForeground = true;
     this.browserWebTopImmersionSessionCoordinator.holdCoveredStatusBarForPageReturn();
     this.browserShellLifecycleCoordinator.handlePageShow();
+    this.syncBottomPanelStatusBarStyle(true);
     this.browserWebBottomSafeAreaCoordinator.setVisible(true);
     this.noteBottomToolbarGuideBrowsingSurface();
     void this.checkClientUpdatePolicy();
@@ -8134,11 +8138,12 @@ struct BrowserShellPage {
     }
   }
 
-  private syncBottomPanelStatusBarStyle(): void {
+  private syncBottomPanelStatusBarStyle(forceApply: boolean = false): void {
     this.refreshWebTopSafeAreaPageBackdropColor();
     this.browserStatusBarStyleService.applyLightContentStyle(
       getContext(this) as common.UIAbilityContext,
-      this.shouldUseLightStatusBarContent()
+      this.shouldUseLightStatusBarContent(),
+      forceApply
     );
   }
 
@@ -8148,7 +8153,9 @@ struct BrowserShellPage {
 
   private shouldUseLightStatusBarContent(): boolean {
     const preferences = sharedPreferencesRepository.getPreferences();
-    const homeDirectBackdropToneEffect = this.buildHomeDirectBackdropToneEffectState();
+    const homeForegroundTone = this.showHomePage ?
+      this.readHomeContentThemePresentation().tone :
+      undefined;
     return this.browserChromeRuntimeCoordinator.shouldUseLightStatusBarContent({
       state: this.browserChromeRuntimeState,
       activeTabId: this.activeTabId,
@@ -8162,8 +8169,7 @@ struct BrowserShellPage {
       homePageVisible: this.showHomePage,
       homeWallpaperState: this.resolveHomeWallpaperPresentationState(),
       homeThemeBackgroundColor: this.themedHomeBackground,
-      homeBackdropEffectTintColor: homeDirectBackdropToneEffect?.tintColor,
-      homeBackdropEffectTintOpacity: homeDirectBackdropToneEffect?.tintOpacity,
+      homeForegroundTone: homeForegroundTone,
       webVideoControllerActive: false,
       bottomPanelHigh: false,
       bottomPanelVisible: this.isRootBottomPanelEffectiveHomeMode() || this.isRootBottomPanelEffectiveWebMode()
@@ -9549,32 +9555,6 @@ struct BrowserShellPage {
     this.browserRootBottomPanelSessionCoordinator.cancelBackdropFocusTransition();
   }
 
-  private shouldKeepRootBottomPanelHomeBackdropSurfaceEligible(): boolean {
-    return this.isRootBottomPanelEffectiveHomeMode() &&
-      this.shouldKeepRootBottomPanelBackdropSurfaceEligible();
-  }
-
-  private shouldKeepRootBottomPanelBackdropSurfaceEligible(): boolean {
-    return !this.showTabsSheet &&
-      !this.readerModeSessionSnapshot.state.visible &&
-      !this.novelReaderSnapshot.visible &&
-      this.isRootBottomPanelExpansionEnabled();
-  }
-
-  private buildHomeDirectBackdropToneEffectState(): BrowserBackdropEffectState | undefined {
-    if (!this.shouldUseHomeDirectBackdropToneEffect()) {
-      return undefined;
-    }
-    return this.browserBackdropEffectViewModel.buildHomeLiveState(1);
-  }
-
-  private shouldUseHomeDirectBackdropToneEffect(): boolean {
-    return this.browserRootBottomPanelSessionCoordinator.shouldUseDirectSearchBackdropToneEffect(
-      this.shouldKeepRootBottomPanelHomeBackdropSurfaceEligible(),
-      this.resolveSearchBackdropRawProgress()
-    );
-  }
-
   private buildTabsHomeBackdropEffectState(): BrowserBackdropEffectState {
     return this.browserBackdropEffectViewModel.buildTabsHomeRevealState(
       this.buildTabsOverviewBackgroundRenderState().homeBackdropEffectProgress
@@ -9806,6 +9786,7 @@ struct BrowserShellPage {
       tabsOverlayExiting: this.tabsOverviewPresentationState.exiting,
       snapshotVisible: this.tabsOverviewPresentationState.surface.backdropSnapshotVisible,
       openedFromHome: this.tabsOverviewPresentationState.sceneState.openedFromHome,
+      showHomePage: this.showHomePage,
       scenePhase: this.tabsOverviewPresentationState.sceneState.phase,
       snapshotOpacity: this.tabsOverviewPresentationState.surface.backdropSnapshotOpacity,
       homeExitProgress: this.tabsOverviewPresentationState.surface.homeExitProgress,

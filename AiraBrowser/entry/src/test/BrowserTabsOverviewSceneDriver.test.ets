@@ -1,6 +1,7 @@
 import { describe, expect, it } from '@ohos/hypium';
 import {
   BrowserTabsOverviewSceneDriver,
+  shouldShowTabsOverviewHomeBackdrop,
   shouldUseHomeSurfaceForLargeScreen
 } from
   '../main/ets/core/browser/tabsOverview/BrowserTabsOverviewSceneDriver';
@@ -78,6 +79,47 @@ export default function browserTabsOverviewSceneDriverTest(): void {
       expect(shouldUseHomeSurfaceForLargeScreen(false, overviewRenderState)).assertTrue();
       expect(shouldUseHomeSurfaceForLargeScreen(false, residentHomeRenderState)).assertFalse();
       expect(shouldUseHomeSurfaceForLargeScreen(true, residentHomeRenderState)).assertTrue();
+    });
+
+    it('drops the resident home surface when closing onto a web tab', 0, () => {
+      const driver = new BrowserTabsOverviewSceneDriver();
+      const renderState = driver.buildRenderState({
+        sceneState: {
+          phase: 'closing',
+          backgroundMode: 'home',
+          openedFromHome: true,
+          activeTabIdAtOpen: 'home-tab',
+          morphCoveredTabId: ''
+        },
+        showHomePage: false,
+        showTabsSheet: true,
+        keepHomeResident: true
+      });
+
+      expect(renderState.homeLiveContentMounted).assertFalse();
+      expect(renderState.webLayerMounted).assertTrue();
+      expect(shouldUseHomeSurfaceForLargeScreen(false, renderState)).assertFalse();
+      expect(shouldShowTabsOverviewHomeBackdrop('closing', true, false)).assertFalse();
+    });
+
+    it('keeps the home surface when the close is returning home', 0, () => {
+      const driver = new BrowserTabsOverviewSceneDriver();
+      const renderState = driver.buildRenderState({
+        sceneState: {
+          phase: 'closing',
+          backgroundMode: 'home',
+          openedFromHome: true,
+          activeTabIdAtOpen: 'home-tab',
+          morphCoveredTabId: ''
+        },
+        showHomePage: true,
+        showTabsSheet: true,
+        keepHomeResident: true
+      });
+
+      expect(renderState.homeLiveContentMounted).assertTrue();
+      expect(renderState.webLayerMounted).assertFalse();
+      expect(shouldShowTabsOverviewHomeBackdrop('closing', true, true)).assertTrue();
     });
 
     it('defers the home-reveal settle while a web-entry morph is still playing', 0, () => {

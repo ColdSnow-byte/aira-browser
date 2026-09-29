@@ -54,6 +54,24 @@ export function shouldUseHomeSurfaceForLargeScreen(
   return showHomePage || (renderState.cardsLayerMounted && renderState.homeLiveContentMounted);
 }
 
+/**
+ * The home wallpaper snapshot sits above the page. It belongs to a close that is
+ * actually returning home. Closing onto a web tab must not cover that tab with it.
+ */
+export function shouldShowTabsOverviewHomeBackdrop(
+  scenePhase: BrowserTabsOverviewScenePhase,
+  openedFromHome: boolean,
+  showHomePage: boolean
+): boolean {
+  if (scenePhase === 'openingHomeCards' || scenePhase === 'openingMorphingActiveTab') {
+    return openedFromHome;
+  }
+  if (scenePhase === 'closing') {
+    return showHomePage;
+  }
+  return false;
+}
+
 export interface BrowserTabsOverviewCapturedEntryInput {
   tabId: string;
   showTabsSheet: boolean;
@@ -127,9 +145,14 @@ export class BrowserTabsOverviewSceneDriver {
   buildRenderState(input: BrowserTabsOverviewSceneRenderInput): BrowserTabsOverviewSceneRenderState {
     const currentSceneState = input.sceneState;
     const tabsSceneVisible = input.showTabsSheet && currentSceneState.phase !== 'closed';
+    // Closing onto a web tab has to reveal that tab. The resident home surface is
+    // only there so overview glass can sample it; leaving it mounted through the
+    // fade is what flashes the homepage before the opened page appears.
+    const closingOntoWeb = tabsSceneVisible &&
+      currentSceneState.phase === 'closing' &&
+      !input.showHomePage;
     const homeLayerMounted = input.showHomePage ||
-      input.keepHomeResident ||
-      tabsSceneVisible;
+      (!closingOntoWeb && (input.keepHomeResident || tabsSceneVisible));
     // The overview is a home-backed surface regardless of its entry point. Keep the
     // complete Home surface resident while the overview is mounted so its glass
     // material samples the same content when opened from Home or from Web.

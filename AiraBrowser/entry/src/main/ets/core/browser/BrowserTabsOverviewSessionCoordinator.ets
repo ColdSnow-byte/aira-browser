@@ -74,7 +74,8 @@ import {
   BrowserTabsOverviewScenePhase,
   BrowserTabsOverviewSceneRenderState,
   BrowserTabsOverviewSceneResetPatch,
-  BrowserTabsOverviewSceneState
+  BrowserTabsOverviewSceneState,
+  shouldShowTabsOverviewHomeBackdrop
 } from './tabsOverview/BrowserTabsOverviewSceneDriver';
 import { BrowserTabsOverlayRect } from './BrowserTabsOverlayViewModel';
 import {
@@ -272,6 +273,7 @@ export interface BrowserTabsOverviewBackgroundRenderInput {
   tabsOverlayExiting: boolean;
   snapshotVisible: boolean;
   openedFromHome: boolean;
+  showHomePage: boolean;
   scenePhase: BrowserTabsOverviewScenePhase;
   snapshotOpacity: number;
   homeExitProgress: number;
@@ -3154,10 +3156,11 @@ export class BrowserTabsOverviewSessionCoordinator {
   }
 
   private shouldShowOverviewBackdrop(input: BrowserTabsOverviewBackgroundRenderInput): boolean {
-    if (input.scenePhase === 'openingHomeCards' || input.scenePhase === 'openingMorphingActiveTab') {
-      return input.openedFromHome;
-    }
-    return input.scenePhase === 'closing';
+    return shouldShowTabsOverviewHomeBackdrop(
+      input.scenePhase,
+      input.openedFromHome,
+      input.showHomePage
+    );
   }
 
   private shouldUseSeparateOverviewBackdrop(input: BrowserTabsOverviewBackgroundRenderInput): boolean {
