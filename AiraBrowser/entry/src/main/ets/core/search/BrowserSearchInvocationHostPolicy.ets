@@ -43,17 +43,57 @@ export function shouldCompleteSearchClose(
 }
 
 /**
- * A new search opened from the homepage starts empty. The published draft can
- * still be the page address from the last web edit, so home must not reuse it.
- * Continuing an edit that is already open keeps that draft.
+ * One open command for the split search field. Version, draft and selection
+ * travel together so the field cannot open on a newer tick and an older draft.
+ */
+export class BrowserSplitToolbarSearchOpen {
+  version: number;
+  draft: string;
+  selectAll: boolean;
+
+  constructor(version: number, draft: string, selectAll: boolean) {
+    this.version = version;
+    this.draft = draft;
+    this.selectAll = selectAll;
+  }
+}
+
+/**
+ * A fresh homepage search starts empty. A fresh web search starts from the
+ * page address already on the address row: the published draft can still be
+ * empty because the previous close cleared it, or because that draft has not
+ * reached the field yet. Only an edit that is already open keeps its draft.
  */
 export function resolveSplitToolbarSearchPrefill(
   homeScene: boolean,
   keepPublishedDraft: boolean,
-  publishedDraft: string
+  publishedDraft: string,
+  pageAddress: string = ''
 ): string {
-  if (homeScene && !keepPublishedDraft) {
+  if (keepPublishedDraft) {
+    return publishedDraft;
+  }
+  if (homeScene) {
     return '';
   }
-  return publishedDraft;
+  if (publishedDraft.length > 0) {
+    return publishedDraft;
+  }
+  return pageAddress;
+}
+
+/**
+ * A fresh web search selects the page address. Homepage has nothing to select.
+ * An edit that is already open keeps the selection the session published.
+ */
+export function resolveSplitToolbarSearchSelectAll(
+  homeScene: boolean,
+  continuingEdit: boolean,
+  draft: string,
+  publishedSelectAll: boolean
+): boolean {
+  if (continuingEdit) {
+    return publishedSelectAll;
+  }
+  return !homeScene && draft.length > 0;
 }

@@ -97,7 +97,8 @@ export class BrowserSplitToolbarSearchInvocationAdapter implements BrowserSearch
     const draft = resolveSplitToolbarSearchPrefill(
       request.scene === 'home',
       request.reinforced,
-      request.draft
+      request.draft,
+      facts.editableWebAddress
     );
     this.suggestions.beginSearchSession(request.authorityId, {
       query: draft,

@@ -21,7 +21,7 @@ import {
   CENTERED_HOME_SEARCH_GEOMETRY_ID
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
-import { resolveSplitToolbarSearchPrefill } from '../../../core/search/BrowserSearchInvocationHostPolicy';
+import { BrowserSplitToolbarSearchOpen } from '../../../core/search/BrowserSearchInvocationHostPolicy';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { BrowserSearchSuggestionsPanel } from './BrowserSearchSuggestionsPanel';
@@ -63,19 +63,15 @@ export struct BrowserSplitToolbarChrome {
   private searchInputController: TextInputController = new TextInputController();
   private addressSelectAllTimeout: number = -1;
   private searchFocusTimeout: number = -1;
-  @State private selectAllAddressOnOpen: boolean = false;
+  private seededSelectAll: boolean = false;
   private appliedSearchDismissVersion: number = 0;
   private appliedSearchOpenRequestVersion: number = 0;
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
   @State private searching: boolean = false;
   @State private query: string = '';
-  /** New id per open, so the field cannot restore the previous page address. */
-  @State private searchInputSession: number = 0;
-  private ignoreRestoredSearchText: boolean = false;
   @State private engineMenuOpen: boolean = false;
-  @Prop @Watch('handleHomeSceneChange') homeScene: boolean = true;
+  @Prop homeScene: boolean = true;
   @Prop displayAddress: string = '';
-  @Prop editableAddress: string = '';
   @Prop secure: boolean = true;
   @Prop tabCount: number = 1;
   @Prop pageLoading: boolean = false;
@@ -88,10 +84,9 @@ export struct BrowserSplitToolbarChrome {
   @Prop widthBreakpoint: BrowserBottomPanelWidthBreakpoint = 'sm';
   @Prop keyboardInsetVp: number = 0;
   @Prop @Watch('handleSearchDismissRequest') searchDismissVersion: number = 0;
-  @Prop @Watch('handleSearchOpenRequest') searchOpenRequestVersion: number = 0;
-  /** Draft published by the search-invocation session. The open watch reads it. */
-  @Prop searchOpenDraft: string = '';
-  @Prop searchOpenSelectAll: boolean = false;
+  /** Version, draft and selection of one open. The field is created from this, not from a hidden copy. */
+  @Prop @Watch('handleSearchOpenRequest') searchOpen: BrowserSplitToolbarSearchOpen =
+    new BrowserSplitToolbarSearchOpen(0, '', false);
   @Prop sessionMode: BrowserSplitToolbarSessionMode = 'chrome';
   /**
    * The centered homepage already has a search field, so that home hides this row. Minimal keeps
@@ -223,7 +218,9 @@ export struct BrowserSplitToolbarChrome {
   private buildTopBar() {
     Column() {
       Stack() {
-        if (this.searching || this.sessionMode === 'search_only' || !this.homeScene) {
+        // The address pill is the resting page. The search field is born when search opens,
+        // so it cannot keep a previous address painted over the next site.
+        if (this.searching || this.sessionMode === 'search_only') {
           this.buildSearchPill(false)
         }
         if (!this.searching && this.sessionMode !== 'search_only') {
@@ -362,10 +359,9 @@ export struct BrowserSplitToolbarChrome {
         })
 
         Stack({ alignContent: Alignment.Center }) {
-          this.buildAddressSwipeLine(this.displayAddress, this.resolveAddressSwipeOffset())
+          this.buildCurrentAddressSwipeLine()
           if (this.tabSwipeActive && this.tabSwipeTargetAddress.length > 0) {
-            this.buildAddressSwipeLine(this.tabSwipeTargetAddress,
-              this.resolveAddressSwipeOffset() - this.tabSwipeDirection * this.addressSwipeTextWidth)
+            this.buildTargetAddressSwipeLine()
           }
         }
         .layoutWeight(1)
@@ -446,7 +442,7 @@ export struct BrowserSplitToolbarChrome {
       })
 
       TextInput({ text: this.query, placeholder: '搜索或输入网址', controller: this.searchInputController })
-        .id(this.resolveSearchInputId())
+        .id(SPLIT_TOOLBAR_SEARCH_INPUT_ID)
         .layoutWeight(1)
         .constraintSize({ minWidth: 0 })
         .height(36)
@@ -468,28 +464,20 @@ export struct BrowserSplitToolbarChrome {
         .focusable(true)
         .enableKeyboardOnFocus(true)
         .onAppear(() => {
-          // The centered homepage keeps this field unmounted until search opens, so the
-          // click that asked for search cannot focus a node that does not exist yet.
-          if (this.homeScene && this.query.length === 0) {
-            this.clearRetainedSearchInputText();
-          }
           if (this.searching || this.sessionMode === 'search_only') {
             this.scheduleSearchInputFocus();
           }
         })
         .onEditChange((editing: boolean) => {
           if (editing) {
-            this.finishAddressSelectAll();
+            this.scheduleSeededSelectAll();
           }
         })
         .onChange((value: string) => {
-          if (this.ignoreRestoredSearchText) {
-            return;
-          }
           if (value === this.query) {
             return;
           }
-          this.selectAllAddressOnOpen = false;
+          this.seededSelectAll = false;
           this.query = value;
           this.onSearchDraftChange(value);
         })
@@ -589,7 +577,7 @@ export struct BrowserSplitToolbarChrome {
               this.searching = false;
               this.engineMenuOpen = false;
               this.query = '';
-              this.selectAllAddressOnOpen = false;
+              this.seededSelectAll = false;
               this.clearAddressSelectAllTimeout();
               this.clearSearchFocusTimeout();
               this.releaseSearchInputFocus();
@@ -676,44 +664,17 @@ export struct BrowserSplitToolbarChrome {
   private openSearch(prefill: string, selectAll: boolean): void {
     this.clearAddressSelectAllTimeout();
     this.query = prefill;
-    this.searchInputSession += 1;
-    this.selectAllAddressOnOpen = selectAll && prefill.length > 0;
+    this.seededSelectAll = selectAll && prefill.length > 0;
     this.searching = true;
     this.engineMenuOpen = false;
-    if (prefill.length === 0) {
-      this.ignoreRestoredSearchText = true;
-      this.clearRetainedSearchInputText();
-      this.ignoreRestoredSearchText = false;
-    }
     this.onSearchDraftChange(prefill);
   }
 
-  private resolveSearchInputId(): string {
-    return `${SPLIT_TOOLBAR_SEARCH_INPUT_ID}-${this.searchInputSession}`;
-  }
-
-  private clearRetainedSearchInputText(): void {
-    this.searchInputController.deleteText();
-  }
-
-  private handleHomeSceneChange(): void {
-    if (!this.homeScene || this.query.length === 0) {
-      return;
-    }
-    // Leaving a page must not leave its address in the field the homepage search reuses.
-    this.query = '';
-    this.selectAllAddressOnOpen = false;
-    this.searchInputSession += 1;
-    this.ignoreRestoredSearchText = true;
-    this.clearRetainedSearchInputText();
-    this.ignoreRestoredSearchText = false;
-  }
-
   private focusSearchInput(): void {
-    if (!this.searching) {
+    if (!this.searching && this.sessionMode !== 'search_only') {
       return;
     }
-    focusControl.requestFocus(this.resolveSearchInputId());
+    focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
   }
 
   private scheduleSearchInputFocus(): void {
@@ -723,14 +684,18 @@ export struct BrowserSplitToolbarChrome {
       this.searchFocusTimeout = setTimeout(() => {
         this.searchFocusTimeout = -1;
         this.focusSearchInput();
+        this.scheduleSeededSelectAll();
       }, CENTERED_HOME_SEARCH_GEOMETRY_FOCUS_DELAY_MS);
       return;
     }
     this.focusSearchInput();
     // The first request often lands before the new field can take the keyboard.
+    // Select after that retry, or the focus itself collapses the selection.
     this.searchFocusTimeout = setTimeout(() => {
       this.searchFocusTimeout = -1;
       this.focusSearchInput();
+      this.clearAddressSelectAllTimeout();
+      this.scheduleSeededSelectAll();
     }, SPLIT_TOOLBAR_SELECT_ALL_DELAY_MS);
   }
 
@@ -746,18 +711,14 @@ export struct BrowserSplitToolbarChrome {
     focusControl.requestFocus('');
   }
 
-  private finishAddressSelectAll(): void {
-    if (!this.selectAllAddressOnOpen || this.addressSelectAllTimeout >= 0) {
+  private scheduleSeededSelectAll(): void {
+    if (!this.seededSelectAll || this.query.length <= 0 || this.addressSelectAllTimeout >= 0) {
       return;
     }
     const length = this.query.length;
-    if (length <= 0) {
-      return;
-    }
-    this.selectAllAddressOnOpen = false;
     this.addressSelectAllTimeout = setTimeout(() => {
       this.addressSelectAllTimeout = -1;
-      if (!this.searching || this.query.length !== length) {
+      if (!this.seededSelectAll || this.query.length !== length) {
         return;
       }
       this.searchInputController.setTextSelection(0, length, {
@@ -785,18 +746,12 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private handleSearchOpenRequest(): void {
-    if (this.searchOpenRequestVersion <= 0 ||
-      this.searchOpenRequestVersion === this.appliedSearchOpenRequestVersion) {
+    const request = this.searchOpen;
+    if (request.version <= 0 || request.version === this.appliedSearchOpenRequestVersion) {
       return;
     }
-    this.appliedSearchOpenRequestVersion = this.searchOpenRequestVersion;
-    const prefill = resolveSplitToolbarSearchPrefill(
-      this.homeScene,
-      this.searching,
-      this.searchOpenDraft
-    );
-    const selectAll = this.homeScene && !this.searching ? false : this.searchOpenSelectAll;
-    this.openSearch(prefill, selectAll);
+    this.appliedSearchOpenRequestVersion = request.version;
+    this.openSearch(request.draft, request.selectAll);
     this.scheduleSearchInputFocus();
   }
 
@@ -810,12 +765,13 @@ export struct BrowserSplitToolbarChrome {
   }
 
   private clearSearchSessionLocally(): void {
-    this.searching = false;
-    this.engineMenuOpen = false;
-    this.query = '';
-    this.selectAllAddressOnOpen = false;
+    this.seededSelectAll = false;
     this.clearAddressSelectAllTimeout();
     this.clearSearchFocusTimeout();
+    this.searchInputController.deleteText();
+    this.query = '';
+    this.searching = false;
+    this.engineMenuOpen = false;
     this.releaseSearchInputFocus();
   }
 
@@ -827,7 +783,7 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
-    this.selectAllAddressOnOpen = false;
+    this.seededSelectAll = false;
     this.clearAddressSelectAllTimeout();
     this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
@@ -839,7 +795,7 @@ export struct BrowserSplitToolbarChrome {
     this.searching = false;
     this.engineMenuOpen = false;
     this.query = '';
-    this.selectAllAddressOnOpen = false;
+    this.seededSelectAll = false;
     this.clearAddressSelectAllTimeout();
     this.clearSearchFocusTimeout();
     this.releaseSearchInputFocus();
@@ -970,16 +926,33 @@ export struct BrowserSplitToolbarChrome {
       !this.searching && this.sessionMode !== 'search_only';
   }
 
+  /**
+   * The address text has to be read here. A @Builder with parameters takes them by value, and two
+   * parameters never refresh, so the first painted query would stay after the page changed.
+   */
   @Builder
-  private buildAddressSwipeLine(text: string, offsetX: number) {
-    Text(text)
+  private buildCurrentAddressSwipeLine() {
+    Text(this.displayAddress)
       .width('100%')
       .fontSize(16)
       .fontColor(this.textColor)
       .textAlign(TextAlign.Center)
       .maxLines(1)
       .textOverflow({ overflow: TextOverflow.Ellipsis })
-      .translate({ x: offsetX })
+      .translate({ x: this.resolveAddressSwipeOffset() })
+      .hitTestBehavior(HitTestMode.None)
+  }
+
+  @Builder
+  private buildTargetAddressSwipeLine() {
+    Text(this.tabSwipeTargetAddress)
+      .width('100%')
+      .fontSize(16)
+      .fontColor(this.textColor)
+      .textAlign(TextAlign.Center)
+      .maxLines(1)
+      .textOverflow({ overflow: TextOverflow.Ellipsis })
+      .translate({ x: this.resolveTargetAddressSwipeOffset() })
       .hitTestBehavior(HitTestMode.None)
   }
 
@@ -992,6 +965,10 @@ export struct BrowserSplitToolbarChrome {
       Math.max(-1, Math.min(1, this.tabSwipeOffsetRatio)) : 0;
     const offset = ratio * width;
     return this.tabSwipeTargetAddress.length > 0 ? offset : Math.max(-24, Math.min(24, offset));
+  }
+
+  private resolveTargetAddressSwipeOffset(): number {
+    return this.resolveAddressSwipeOffset() - this.tabSwipeDirection * this.addressSwipeTextWidth;
   }
 
   private judgeTabSwipe(info: GestureInfo, event: BaseGestureEvent): GestureJudgeResult {
