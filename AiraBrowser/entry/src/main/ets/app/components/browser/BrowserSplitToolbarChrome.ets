@@ -21,6 +21,7 @@ import {
   CENTERED_HOME_SEARCH_GEOMETRY_ID
 } from '../../../features/newtab/CenteredHomeShortcutLayoutPolicy';
 import { BrowserSplitToolbarButtonPresentation } from '../../../core/browser/BrowserSplitToolbarCustomizationViewModel';
+import { resolveSplitToolbarSearchPrefill } from '../../../core/search/BrowserSearchInvocationHostPolicy';
 import { AiraRenderableIconId } from '../../../core/resources/GeneratedAiraIconCatalog';
 import { AiraIcon } from '../common/AiraIcon';
 import { BrowserSearchSuggestionsPanel } from './BrowserSearchSuggestionsPanel';
@@ -68,8 +69,11 @@ export struct BrowserSplitToolbarChrome {
   private externalAppSearchService: ExternalAppSearchService = new ExternalAppSearchService();
   @State private searching: boolean = false;
   @State private query: string = '';
+  /** New id per open, so the field cannot restore the previous page address. */
+  @State private searchInputSession: number = 0;
+  private ignoreRestoredSearchText: boolean = false;
   @State private engineMenuOpen: boolean = false;
-  @Prop homeScene: boolean = true;
+  @Prop @Watch('handleHomeSceneChange') homeScene: boolean = true;
   @Prop displayAddress: string = '';
   @Prop editableAddress: string = '';
   @Prop secure: boolean = true;
@@ -442,7 +446,7 @@ export struct BrowserSplitToolbarChrome {
       })
 
       TextInput({ text: this.query, placeholder: '搜索或输入网址', controller: this.searchInputController })
-        .id(SPLIT_TOOLBAR_SEARCH_INPUT_ID)
+        .id(this.resolveSearchInputId())
         .layoutWeight(1)
         .constraintSize({ minWidth: 0 })
         .height(36)
@@ -466,6 +470,9 @@ export struct BrowserSplitToolbarChrome {
         .onAppear(() => {
           // The centered homepage keeps this field unmounted until search opens, so the
           // click that asked for search cannot focus a node that does not exist yet.
+          if (this.homeScene && this.query.length === 0) {
+            this.clearRetainedSearchInputText();
+          }
           if (this.searching || this.sessionMode === 'search_only') {
             this.scheduleSearchInputFocus();
           }
@@ -476,6 +483,9 @@ export struct BrowserSplitToolbarChrome {
           }
         })
         .onChange((value: string) => {
+          if (this.ignoreRestoredSearchText) {
+            return;
+          }
           if (value === this.query) {
             return;
           }
@@ -666,17 +676,44 @@ export struct BrowserSplitToolbarChrome {
   private openSearch(prefill: string, selectAll: boolean): void {
     this.clearAddressSelectAllTimeout();
     this.query = prefill;
+    this.searchInputSession += 1;
     this.selectAllAddressOnOpen = selectAll && prefill.length > 0;
     this.searching = true;
     this.engineMenuOpen = false;
+    if (prefill.length === 0) {
+      this.ignoreRestoredSearchText = true;
+      this.clearRetainedSearchInputText();
+      this.ignoreRestoredSearchText = false;
+    }
     this.onSearchDraftChange(prefill);
+  }
+
+  private resolveSearchInputId(): string {
+    return `${SPLIT_TOOLBAR_SEARCH_INPUT_ID}-${this.searchInputSession}`;
+  }
+
+  private clearRetainedSearchInputText(): void {
+    this.searchInputController.deleteText();
+  }
+
+  private handleHomeSceneChange(): void {
+    if (!this.homeScene || this.query.length === 0) {
+      return;
+    }
+    // Leaving a page must not leave its address in the field the homepage search reuses.
+    this.query = '';
+    this.selectAllAddressOnOpen = false;
+    this.searchInputSession += 1;
+    this.ignoreRestoredSearchText = true;
+    this.clearRetainedSearchInputText();
+    this.ignoreRestoredSearchText = false;
   }
 
   private focusSearchInput(): void {
     if (!this.searching) {
       return;
     }
-    focusControl.requestFocus(SPLIT_TOOLBAR_SEARCH_INPUT_ID);
+    focusControl.requestFocus(this.resolveSearchInputId());
   }
 
   private scheduleSearchInputFocus(): void {
@@ -753,7 +790,13 @@ export struct BrowserSplitToolbarChrome {
       return;
     }
     this.appliedSearchOpenRequestVersion = this.searchOpenRequestVersion;
-    this.openSearch(this.searchOpenDraft, this.searchOpenSelectAll);
+    const prefill = resolveSplitToolbarSearchPrefill(
+      this.homeScene,
+      this.searching,
+      this.searchOpenDraft
+    );
+    const selectAll = this.homeScene && !this.searching ? false : this.searchOpenSelectAll;
+    this.openSearch(prefill, selectAll);
     this.scheduleSearchInputFocus();
   }
 

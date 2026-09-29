@@ -41,3 +41,19 @@ export function shouldCompleteSearchClose(
     callbackGeneration === closeGeneration &&
     !searchReopened;
 }
+
+/**
+ * A new search opened from the homepage starts empty. The published draft can
+ * still be the page address from the last web edit, so home must not reuse it.
+ * Continuing an edit that is already open keeps that draft.
+ */
+export function resolveSplitToolbarSearchPrefill(
+  homeScene: boolean,
+  keepPublishedDraft: boolean,
+  publishedDraft: string
+): string {
+  if (homeScene && !keepPublishedDraft) {
+    return '';
+  }
+  return publishedDraft;
+}

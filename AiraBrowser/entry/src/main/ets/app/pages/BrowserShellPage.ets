@@ -653,6 +653,7 @@ import { BrowserSearchInvocationHostRouter } from '../../core/search/BrowserSear
 import {
   BrowserSearchInvocationHostKind,
   resolveBrowserSearchInvocationHost,
+  resolveSplitToolbarSearchPrefill,
   shouldCompleteSearchClose
 } from '../../core/search/BrowserSearchInvocationHostPolicy';
 import { BrowserSearchInvocationEndReason } from '../../core/search/BrowserSearchInvocationSessionCoordinator';
@@ -9152,13 +9153,20 @@ struct BrowserShellPage {
     this.splitSearchOverlayPrepared = false;
     this.splitToolbarSearchCloseInFlight = false;
     this.splitToolbarSearchCloseGeneration += 1;
+    const continuingSearch = this.splitToolbarSearchActive;
+    const draft = resolveSplitToolbarSearchPrefill(
+      this.showHomePage,
+      continuingSearch,
+      presentation.draft
+    );
     this.splitToolbarSearchActive = true;
-    this.splitToolbarSearchOpenDraft = presentation.draft;
-    this.splitToolbarSearchOpenSelectAll = presentation.selection === 'all';
+    this.splitToolbarSearchOpenDraft = draft;
+    this.splitToolbarSearchOpenSelectAll = this.showHomePage && !continuingSearch ?
+      false : presentation.selection === 'all';
     if (this.showHomePage) {
-      this.addressInput = presentation.draft;
+      this.addressInput = draft;
     } else {
-      this.webBottomAddressDraft = presentation.draft;
+      this.webBottomAddressDraft = draft;
       this.webBottomAddressFocused = true;
     }
     const reveal = (): void => {
@@ -9224,6 +9232,8 @@ struct BrowserShellPage {
     this.centeredHomeSearchGeometryOpen = false;
     this.centeredHomeSearchChromeFade = 0;
     this.centeredHomeSearchSessionMounted = false;
+    this.splitToolbarSearchOpenDraft = '';
+    this.splitToolbarSearchOpenSelectAll = false;
     this.splitToolbarSearchDismissVersion += 1;
     this.splitToolbarSearchCloseInFlight = false;
     this.webBottomAddressFocused = false;
@@ -10139,6 +10149,8 @@ struct BrowserShellPage {
     this.centeredHomeSearchChromeFade = 0;
     this.webBottomAddressFocused = false;
     this.addressInput = '';
+    this.splitToolbarSearchOpenDraft = '';
+    this.splitToolbarSearchOpenSelectAll = false;
     this.browserSearchSuggestionCoordinator.reset();
   }
 
@@ -10189,6 +10201,8 @@ struct BrowserShellPage {
       this.centeredHomeSearchGeometryOpen = false;
       this.splitToolbarSearchActive = false;
       this.splitSearchOverlayPrepared = false;
+      this.splitToolbarSearchOpenDraft = '';
+      this.splitToolbarSearchOpenSelectAll = false;
       if (dismissChrome) {
         this.splitToolbarSearchDismissVersion += 1;
       }
@@ -12437,6 +12451,9 @@ struct BrowserShellPage {
   private restoreHomeBottomPanelForDirectHomeNavigation(detent: HomeSearchPanelDetent = 'low'): void {
     this.browserShellSearchInvocationAdapter.releaseHomeSearchFocus();
     this.addressInput = '';
+    this.webBottomAddressDraft = '';
+    this.splitToolbarSearchOpenDraft = '';
+    this.splitToolbarSearchOpenSelectAll = false;
     this.browserRootBottomPanelSessionCoordinator.resetSearchBackdropPresentation();
     this.cancelRootBottomPanelAddressFocusBackdropTransition();
     this.rootBottomAddressPanelDetent = detent;

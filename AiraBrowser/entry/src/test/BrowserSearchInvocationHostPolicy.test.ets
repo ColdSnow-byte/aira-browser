@@ -14,6 +14,7 @@ import {
 import {
   BrowserSearchInvocationHostKind,
   resolveBrowserSearchInvocationHost,
+  resolveSplitToolbarSearchPrefill,
   shouldCompleteSearchClose
 } from '../main/ets/core/search/BrowserSearchInvocationHostPolicy';
 import {
@@ -287,6 +288,59 @@ export default function browserSearchInvocationHostPolicyTest(): void {
       expect(surface.endCount).assertEqual(1);
       expect(surface.reentrantResult === false).assertTrue();
       expect(coordinator.snapshot().phase).assertEqual('ended');
+    });
+
+    it('opens_home_search_empty_even_when_the_previous_page_address_is_still_known', 0, async () => {
+      const host = new SplitHost();
+      host.homeScene = true;
+      host.webSceneVisible = false;
+      host.editableWebAddress = 'https://example.com/just-visited';
+      const suggestions = new SuggestionPort();
+      const adapter = new BrowserSplitToolbarSearchInvocationAdapter(suggestions, host);
+      const coordinator = new BrowserSearchInvocationSessionCoordinator();
+      coordinator.registerSurfaceAdapter(adapter);
+      const opened = coordinator.open('browser_chrome', true);
+      const outcome = await opened.presentation;
+      expect(outcome.kind).assertEqual('presentation_committed');
+      expect(host.published?.scene).assertEqual('home');
+      expect(host.published?.draft).assertEqual('');
+      expect(suggestions.query).assertEqual('');
+      expect(resolveSplitToolbarSearchPrefill(true, false, 'https://example.com/just-visited')).assertEqual('');
+      expect(resolveSplitToolbarSearchPrefill(true, true, 'typed on home')).assertEqual('typed on home');
+      expect(resolveSplitToolbarSearchPrefill(false, false, 'https://example.com/just-visited'))
+        .assertEqual('https://example.com/just-visited');
+    });
+
+    it('does_not_keep_a_leaked_page_address_when_a_fresh_home_search_is_presented', 0, async () => {
+      const host = new SplitHost();
+      host.homeScene = true;
+      const suggestions = new SuggestionPort();
+      const adapter = new BrowserSplitToolbarSearchInvocationAdapter(suggestions, host);
+      const result = await adapter.present(new BrowserSearchPresentationRequest(
+        'search-session-1',
+        'search-session-1-authority-1',
+        1,
+        'home',
+        'https://example.com/just-visited',
+        'all',
+        false
+      ));
+      expect(result.kind).assertEqual('committed');
+      expect(host.published?.draft).assertEqual('');
+      expect(host.published?.selection).assertEqual('caret_end');
+      expect(suggestions.query).assertEqual('');
+
+      const continued = await adapter.present(new BrowserSearchPresentationRequest(
+        'search-session-1',
+        'search-session-1-authority-1',
+        2,
+        'home',
+        'typed on home',
+        'preserve',
+        true
+      ));
+      expect(continued.kind).assertEqual('committed');
+      expect(host.published?.draft).assertEqual('typed on home');
     });
 
     it('does_not_commit_split_search_when_the_host_cannot_present', 0, async () => {

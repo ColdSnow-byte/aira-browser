@@ -1,4 +1,5 @@
 import { BrowserSearchSuggestionSessionInput } from './BrowserSearchSuggestionCoordinator';
+import { resolveSplitToolbarSearchPrefill } from '../search/BrowserSearchInvocationHostPolicy';
 import {
   BrowserSearchDraftSelection,
   BrowserSearchInvocationEndReason,
@@ -93,8 +94,13 @@ export class BrowserSplitToolbarSearchInvocationAdapter implements BrowserSearch
     if (!this.host.canPresent()) {
       return new BrowserSearchPresentationCommitResult('failed', 'presentation_commit_failed');
     }
+    const draft = resolveSplitToolbarSearchPrefill(
+      request.scene === 'home',
+      request.reinforced,
+      request.draft
+    );
     this.suggestions.beginSearchSession(request.authorityId, {
-      query: request.draft,
+      query: draft,
       focused: true,
       protectKeyboardSession: true
     });
@@ -102,8 +108,8 @@ export class BrowserSplitToolbarSearchInvocationAdapter implements BrowserSearch
       authorityId: request.authorityId,
       scene: request.scene,
       editing: true,
-      draft: request.draft,
-      selection: request.selection
+      draft: draft,
+      selection: request.scene === 'home' && !request.reinforced ? 'caret_end' : request.selection
     });
     return new BrowserSearchPresentationCommitResult('committed');
   }
