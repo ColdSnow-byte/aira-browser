@@ -343,7 +343,7 @@ export struct HistoryTimelineList {
 }
 
 @Reusable
-@Component
+@Component({ freezeWhenInactive: true })
 struct HistoryTimelineRecordRow {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_CONTROL_BACKGROUND_KEY) private storedControlBackgroundColor: string = '#EEF2F6';

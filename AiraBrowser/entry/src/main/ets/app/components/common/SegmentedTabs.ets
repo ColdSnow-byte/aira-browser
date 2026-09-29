@@ -69,6 +69,13 @@ export struct SegmentedTabs {
     )
     .blurStrategy(BlurStrategy.ADAPTIVE)
     .barFloatingStyle(this.resolveBarFloatingStyle())
+    // Page content lives outside TabContent. onChange fires after the default
+    // 300ms tab animation, which measured ~307ms after finger-up. onSelected
+    // fires on the click, so the caller can switch immediately. onChange still
+    // arrives later and is ignored once this index is already current.
+    .onSelected((index: number) => {
+      this.handleTabChange(index);
+    })
     .onChange((index: number) => {
       this.handleTabChange(index);
     })
@@ -110,8 +117,9 @@ export struct SegmentedTabs {
     if (index < 0 || index >= this.options.length) {
       return;
     }
+    const alreadyCurrent = this.selectedIndex === index;
     this.selectedIndex = index;
-    if (this.synchronizingController) {
+    if (this.synchronizingController || alreadyCurrent) {
       return;
     }
     this.onSelect(this.options[index].id);

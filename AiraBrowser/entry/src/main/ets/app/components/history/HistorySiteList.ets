@@ -232,7 +232,7 @@ export struct HistorySiteList {
 }
 
 @Reusable
-@Component
+@Component({ freezeWhenInactive: true })
 struct HistorySiteRecordRow {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';

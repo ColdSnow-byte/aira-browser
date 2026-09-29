@@ -43,6 +43,8 @@ const { HistoryManagerScreenController } = load('features/history/HistoryManager
 const { HistorySitePageController } = load('features/history/HistorySitePageController.ets');
 const { HistoryViewModel } = load('features/history/HistoryViewModel.ets');
 const screen = fs.readFileSync(path.join(root, 'app/components/history/HistoryManagerScreen.ets'), 'utf8');
+const timelineList = fs.readFileSync(path.join(root, 'app/components/history/HistoryTimelineList.ets'), 'utf8');
+const siteList = fs.readFileSync(path.join(root, 'app/components/history/HistorySiteList.ets'), 'utf8');
 
 function deferred() {
   let resolve; let reject;
@@ -144,7 +146,14 @@ test('phone screen contracts keep modes, menus, and deletions isolated', () => {
   assert.match(screen, /if \(this\.viewMode !== 'sites' \|\| !this\.isActive/);
   assert.match(screen, /if \(!\(offset > 0\)\)/);
   assert.match(screen, /prefetchInactiveHistoryMode\(/);
-  assert.match(screen, /Visibility\.Hidden/);
+  assert.match(screen, /Visibility\.None/);
+  assert.doesNotMatch(screen, /Visibility\.Hidden/);
+  assert.match(screen, /icons: this\.timelineIconStates/);
+  assert.match(screen, /icons: this\.siteIconStates/);
+  assert.doesNotMatch(screen, /icons: this\.iconStates/);
+  assert.match(screen, /selectedVisitIds\.length === 0/);
+  assert.match(timelineList, /freezeWhenInactive: true/);
+  assert.match(siteList, /freezeWhenInactive: true/);
   assert.match(screen, /allowReuse && this\.isSiteLoading/);
   assert.match(screen, /allowReuse && this\.isTimelineLoading/);
 });

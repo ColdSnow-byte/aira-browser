@@ -360,4 +360,13 @@ T2/T6 应通过实际帧/呈现工具确认，不能把“执行完状态赋值�
 
 具体 API 与通知行为须按仓库目标 SDK 核对版本，不能直接套用文档最新版本的新接口。
 
-目前未证明：HDS 动画是延迟主因、菜单 ForEach 使用 label key 导致当前缺陷、SQL 在 UI 线程同步执行、每次 reload 都重建所有节点、用户设备已触发全量回退、后台同步一定与此次卡顿有关。上述因素可以按采样进一步核查，不应代替已有明确的 F1–F4 证据。
+后续对照官方资料后，切换延迟按性能刷新范围处理，不把页签动画当成原因：
+
+- [状态变量关联组件过多](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-state-management-faq-inner-component)：同一个状态变量绑在多个复杂组件上时，一次赋值会把这些组件一起刷新。时间线和站点列表原先共用 `iconStates`，解析任一模式的图标都会深拷贝并刷新另一个列表。现已拆成 `timelineIconStates` 与 `siteIconStates`。
+- 同文「复杂类型重复赋值会触发不必要的刷新」：`exitSelectionMode()` 每次切换都执行 `selectedVisitIds = []`。空数组也是新对象，会刷新收到该 `@Prop` 的行。已有空选择时不再赋值。下钻状态同样只在确实有值时清除。
+- [组件冻结](https://developer.huawei.com/consumer/cn/doc/harmonyos-guides/arkts-custom-components-freeze)：`LazyForEach` 缓存节点和复用池节点默认仍会响应状态变化。历史行组件已有 `@Reusable`，现加上 `freezeWhenInactive`，离屏行不随图标或选择状态刷新。
+- [可见性](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ts-universal-attributes-visibility)：`Hidden` 仍参与布局。已加载的非当前列表改为 `Visibility.None`，避免切换时再测量那一棵 `LazyForEach`。这不是销毁重建，也不是动画时长调整。
+
+手机 hilog 后来补上了回调时序：数据已经复用，`switch_sync_done` 是 0–1ms，列表在回调后 14–16ms 显示。手指抬起到 `onChange` 约 307ms，对上 [HdsTabs.onChange](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ui-design-hdstabs)（切换后触发）和 [onSelected](https://developer.huawei.com/consumer/cn/doc/harmonyos-references/ui-design-hdstabs)（点击时触发）。页面内容在 `TabContent` 外，现在点击当下走 `onSelected`，晚到的 `onChange` 不再切第二次。没有改 `animationDuration`，也没有做 SQL/索引或 taskpool 改动。
+
+仍未证明：菜单 ForEach 使用 label key 导致当前缺陷、SQL 在 UI 线程同步执行、每次 reload 都重建所有节点、用户设备已触发全量回退、后台同步一定与此次卡顿有关。上述因素可以按采样进一步核查，不应代替已有明确的 F1–F4 证据。

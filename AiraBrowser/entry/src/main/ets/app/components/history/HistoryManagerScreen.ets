@@ -209,7 +209,8 @@ export struct HistoryManagerScreen {
   @State selectedSiteKeys: string[] = [];
   @State pressedVisitId: string = '';
   @State contextMenuVisitId: string = '';
-  @State iconStates: SiteIconListRenderState[] = [];
+  @State timelineIconStates: SiteIconListRenderState[] = [];
+  @State siteIconStates: SiteIconListRenderState[] = [];
   @State bookmarkedVisitIds: string[] = [];
   @State homeShortcutVisitIds: string[] = [];
   @State isTransferBusy: boolean = false;
@@ -242,6 +243,7 @@ export struct HistoryManagerScreen {
   private siteVisibleStartIndex: number = 0;
   private siteVisibleEndIndex: number = 20;
   private visibleIconResolveTimer: number = -1;
+  private inactiveIconResolveTimer: number = -1;
   @State isSessionEphemeral: boolean = false;
   @LocalStorageProp(BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY) private topSafeInsetVp: number = 0;
   aboutToAppear(): void {
@@ -289,9 +291,9 @@ export struct HistoryManagerScreen {
       'regular'
     );
     this.siteIconListPresenter.bindDomainUpdates(
-      (): SiteIconListTarget[] => this.buildVisibleIconTargets(),
+      (): SiteIconListTarget[] => this.buildIconTargets(this.viewMode),
       (result: SiteIconListResolvedIcon) => {
-        this.applyResolvedSiteIcon(result);
+        this.applyDomainIconUpdate(result);
       }
     );
     if (!this.seedStressHistoryIfRequested()) {
@@ -309,6 +311,7 @@ export struct HistoryManagerScreen {
     this.sitePageController.invalidate();
     this.controller.clearBackHandler();
     this.cancelVisibleIconResolve();
+    this.cancelInactiveIconResolve();
     this.siteIconListPresenter.dispose();
   }
 
@@ -640,8 +643,8 @@ export struct HistoryManagerScreen {
       this.buildIdleSearchList()
     } else {
       Stack({ alignContent: Alignment.Top }) {
-        // Keep a loaded list mounted. Recreating LazyForEach on every tab
-        // change is the remaining switch hitch after the query itself is reused.
+        // Keep a loaded list mounted. Visibility.None leaves it created but
+        // out of layout; Hidden would still measure the inactive LazyForEach.
         if (this.viewMode === 'timeline' || this.visits.length > 0) {
           Column() {
             this.buildTimelineList()
@@ -649,7 +652,7 @@ export struct HistoryManagerScreen {
           .width('100%')
           .height('100%')
           .zIndex(this.viewMode === 'timeline' ? 1 : 0)
-          .visibility(this.viewMode === 'timeline' ? Visibility.Visible : Visibility.Hidden)
+          .visibility(this.viewMode === 'timeline' ? Visibility.Visible : Visibility.None)
           .hitTestBehavior(this.viewMode === 'timeline' ? HitTestMode.Default : HitTestMode.None)
         }
         if (this.viewMode === 'sites' || this.sites.length > 0) {
@@ -659,7 +662,7 @@ export struct HistoryManagerScreen {
           .width('100%')
           .height('100%')
           .zIndex(this.viewMode === 'sites' ? 1 : 0)
-          .visibility(this.viewMode === 'sites' ? Visibility.Visible : Visibility.Hidden)
+          .visibility(this.viewMode === 'sites' ? Visibility.Visible : Visibility.None)
           .hitTestBehavior(this.viewMode === 'sites' ? HitTestMode.Default : HitTestMode.None)
         }
         if (this.shouldShowHistoryEmptyState(this.viewMode)) {
@@ -689,7 +692,7 @@ export struct HistoryManagerScreen {
     HistorySiteList({
         dataSource: this.historySiteListDataSource,
         listScroller: this.historySiteScroller,
-        icons: this.iconStates,
+        icons: this.siteIconStates,
         selectedSiteKeys: this.selectedSiteKeys,
         isSelectionMode: this.isSelectionMode,
         contentStartOffset: this.resolveHistoryContentTopInset(),
@@ -710,7 +713,7 @@ export struct HistoryManagerScreen {
           currentUri: string,
           sourceRevision: number
         ) => {
-          this.resolveHistoryPixelMapAfterUriFailure(target, currentUri, sourceRevision);
+          this.resolveHistoryPixelMapAfterUriFailure('sites', target, currentUri, sourceRevision);
         },
         onScrollVisibleRange: (start: number, end: number) => {
           this.updateSiteVisibleRange(start, end);
@@ -729,7 +732,7 @@ export struct HistoryManagerScreen {
     HistoryTimelineList({
         dataSource: this.historyTimelineDataSource,
         listScroller: this.controller.getTimelineScroller(),
-        icons: this.iconStates,
+        icons: this.timelineIconStates,
         bookmarkedVisitIds: this.bookmarkedVisitIds,
         homeShortcutVisitIds: this.homeShortcutVisitIds,
         selectedVisitIds: this.selectedVisitIds,
@@ -761,7 +764,7 @@ export struct HistoryManagerScreen {
           currentUri: string,
           sourceRevision: number
         ) => {
-          this.resolveHistoryPixelMapAfterUriFailure(target, currentUri, sourceRevision);
+          this.resolveHistoryPixelMapAfterUriFailure('timeline', target, currentUri, sourceRevision);
         },
         onContextAppear: () => {
           this.performLongPressFeedback();
@@ -989,6 +992,8 @@ export struct HistoryManagerScreen {
     this.refreshHomeShortcutMarkers(this.visits);
     if (this.viewMode === 'timeline') {
       this.scheduleVisibleIconResolve();
+    } else {
+      this.scheduleInactiveIconResolve('timeline');
     }
     if (shouldApplyRetention) {
       this.applyRetentionPolicyIfNeeded();
@@ -1006,7 +1011,8 @@ export struct HistoryManagerScreen {
     this.rawVisits = [];
     this.visits = [];
     this.sites = [];
-    this.iconStates = [];
+    this.timelineIconStates = [];
+    this.siteIconStates = [];
     this.bookmarkedVisitIds = [];
     this.homeShortcutVisitIds = [];
     this.siteVisibleStartIndex = 0;
@@ -1078,6 +1084,8 @@ export struct HistoryManagerScreen {
     this.pruneSelectedSites();
     if (showingSites) {
       this.scheduleVisibleIconResolve();
+    } else {
+      this.scheduleInactiveIconResolve('sites');
     }
     this.prefetchInactiveHistoryMode();
   }
@@ -1333,6 +1341,10 @@ export struct HistoryManagerScreen {
   }
 
   private clearDrilldownState(): void {
+    if (this.drilldownHost.length === 0 && this.drilldownReturnQuery.length === 0 &&
+      this.drilldownReturnMode === 'timeline') {
+      return;
+    }
     this.drilldownReturnQuery = '';
     this.drilldownReturnMode = 'timeline';
     this.drilldownHost = '';
@@ -1506,10 +1518,24 @@ export struct HistoryManagerScreen {
   }
 
   private exitSelectionMode(): void {
-    this.isSelectionMode = false;
-    this.selectedVisitIds = [];
-    this.selectedSiteKeys = [];
-    this.contextMenuVisitId = '';
+    // A new empty array is a different state value and refreshes every row that
+    // receives it. Tab switches call this even when nothing is selected.
+    if (!this.isSelectionMode && this.selectedVisitIds.length === 0 &&
+      this.selectedSiteKeys.length === 0 && this.contextMenuVisitId.length === 0) {
+      return;
+    }
+    if (this.isSelectionMode) {
+      this.isSelectionMode = false;
+    }
+    if (this.selectedVisitIds.length > 0) {
+      this.selectedVisitIds = [];
+    }
+    if (this.selectedSiteKeys.length > 0) {
+      this.selectedSiteKeys = [];
+    }
+    if (this.contextMenuVisitId.length > 0) {
+      this.contextMenuVisitId = '';
+    }
   }
 
   private isVisitSelected(visitId: string): boolean {
@@ -1679,7 +1705,13 @@ export struct HistoryManagerScreen {
     this.pruneSelectedVisits();
     this.bookmarkedVisitIds = this.bookmarkedVisitIds.filter((id: string) => !removingIds.has(id));
     this.homeShortcutVisitIds = this.homeShortcutVisitIds.filter((id: string) => !removingIds.has(id));
-    this.iconStates = this.iconStates.filter((item: SiteIconListRenderState) => !removingIds.has(item.id));
+    if (this.timelineIconStates.length > 0) {
+      const nextTimelineIcons = this.timelineIconStates
+        .filter((item: SiteIconListRenderState) => !removingIds.has(item.id));
+      if (nextTimelineIcons.length !== this.timelineIconStates.length) {
+        this.timelineIconStates = nextTimelineIcons;
+      }
+    }
     this.pruneSelectedSites();
     if (removingIds.has(this.contextMenuVisitId)) {
       this.contextMenuVisitId = '';
@@ -1702,6 +1734,19 @@ export struct HistoryManagerScreen {
       return;
     }
     const removingHosts = new Set<string>(hosts);
+    if (this.siteIconStates.length > 0) {
+      const removingKeys = new Set<string>();
+      this.sites.forEach((site: HistorySiteGroup) => {
+        if (removingHosts.has(site.host)) {
+          removingKeys.add(site.key);
+        }
+      });
+      const nextSiteIcons = this.siteIconStates.filter((item: SiteIconListRenderState) =>
+        !removingKeys.has(item.id));
+      if (nextSiteIcons.length !== this.siteIconStates.length) {
+        this.siteIconStates = nextSiteIcons;
+      }
+    }
     this.sites = this.sites.filter((site: HistorySiteGroup) => !removingHosts.has(site.host));
     this.historySiteListDataSource.replaceSites(this.sites);
     const visibleSiteKeys = this.sites.map((site: HistorySiteGroup) => site.key);
@@ -2301,6 +2346,10 @@ export struct HistoryManagerScreen {
   }
 
   private scheduleHistoryScrollRestore(mode: HistoryViewMode): void {
+    const offset = mode === 'sites' ? this.siteScrollOffset : this.timelineScrollOffset;
+    if (!(offset > 0)) {
+      return;
+    }
     this.cancelHistoryScrollRestore();
     this.scrollRestoreTimer = setTimeout(() => {
       this.scrollRestoreTimer = -1;
@@ -2471,20 +2520,26 @@ export struct HistoryManagerScreen {
 
   private resolveVisibleIcons(): void {
     this.visibleIconResolveTimer = -1;
+    this.resolveIconsForMode(this.viewMode);
+  }
+
+  private resolveIconsForMode(mode: HistoryViewMode): void {
     this.siteIconListPresenter.resolveTargets(
-      this.buildVisibleIconTargets(),
+      this.buildIconTargets(mode),
       (result: SiteIconListResolvedIcon): void => {
         if (result.uri.length > 0) {
-          this.applyResolvedSiteIcon(result);
+          this.applyResolvedSiteIcon(mode, result);
         }
       }
     );
   }
 
-  private buildVisibleIconTargets(): HistoryIconStateTarget[] {
-    if (this.viewMode === 'sites') {
+  private buildIconTargets(mode: HistoryViewMode): HistoryIconStateTarget[] {
+    if (mode === 'sites') {
+      const endIndex = this.siteVisibleEndIndex > this.siteVisibleStartIndex ?
+        this.siteVisibleEndIndex : this.siteVisibleStartIndex + 12;
       return this.historySiteListDataSource
-        .getIconTargetsAround(this.siteVisibleStartIndex, this.siteVisibleEndIndex, 8)
+        .getIconTargetsAround(this.siteVisibleStartIndex, endIndex, 8)
         .map((item: HistorySiteIconTarget): HistoryIconStateTarget => {
           return {
             id: item.id,
@@ -2546,6 +2601,24 @@ export struct HistoryManagerScreen {
     }, HISTORY_VISIBLE_ICON_RESOLVE_DELAY_MS);
   }
 
+  private scheduleInactiveIconResolve(mode: HistoryViewMode): void {
+    this.cancelInactiveIconResolve();
+    this.inactiveIconResolveTimer = setTimeout(() => {
+      this.inactiveIconResolveTimer = -1;
+      if (!this.isActive || this.viewMode === mode || this.searchQuery.trim().length > 0) {
+        return;
+      }
+      this.resolveIconsForMode(mode);
+    }, HISTORY_VISIBLE_ICON_RESOLVE_DELAY_MS);
+  }
+
+  private cancelInactiveIconResolve(): void {
+    if (this.inactiveIconResolveTimer >= 0) {
+      clearTimeout(this.inactiveIconResolveTimer);
+      this.inactiveIconResolveTimer = -1;
+    }
+  }
+
   private cancelVisibleIconResolve(): void {
     if (this.visibleIconResolveTimer >= 0) {
       clearTimeout(this.visibleIconResolveTimer);
@@ -2571,14 +2644,30 @@ export struct HistoryManagerScreen {
     return enabled ? this.storedPrimaryTextColor : this.storedSecondaryTextColor;
   }
 
-  private applyResolvedSiteIcon(result: SiteIconListResolvedIcon): void {
-    const next = this.siteIconListPresenter.applyResolvedIcon(this.iconStates, result);
-    if (next !== this.iconStates) {
-      this.iconStates = next;
+  private applyDomainIconUpdate(result: SiteIconListResolvedIcon): void {
+    if (this.sites.some((site: HistorySiteGroup) => site.key === result.id)) {
+      this.applyResolvedSiteIcon('sites', result);
+    }
+    if (this.visits.some((visit: HistoryDisplayVisit) => visit.id === result.id)) {
+      this.applyResolvedSiteIcon('timeline', result);
     }
   }
 
+  private applyResolvedSiteIcon(mode: HistoryViewMode, result: SiteIconListResolvedIcon): void {
+    const current = mode === 'sites' ? this.siteIconStates : this.timelineIconStates;
+    const next = this.siteIconListPresenter.applyResolvedIcon(current, result);
+    if (next === current) {
+      return;
+    }
+    if (mode === 'sites') {
+      this.siteIconStates = next;
+      return;
+    }
+    this.timelineIconStates = next;
+  }
+
   private resolveHistoryPixelMapAfterUriFailure(
+    mode: HistoryViewMode,
     target: SiteIconListTarget,
     currentUri: string,
     sourceRevision: number
@@ -2587,7 +2676,7 @@ export struct HistoryManagerScreen {
       target,
       currentUri,
       sourceRevision,
-      (result: SiteIconListResolvedIcon): void => this.applyResolvedSiteIcon(result)
+      (result: SiteIconListResolvedIcon): void => this.applyResolvedSiteIcon(mode, result)
     );
   }
 
