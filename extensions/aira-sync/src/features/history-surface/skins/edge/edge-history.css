@@ -1,0 +1,254 @@
+.edge-history {
+  --eh-page: #ffffff;
+  --eh-text: #1a1a1a;
+  --eh-secondary: #616161;
+  --eh-line: #e6e6e6;
+  --eh-search: #f3f3f3;
+  --eh-search-border: transparent;
+  --eh-underline: #1a1a1a;
+  --eh-menu: #ffffff;
+  --eh-menu-border: #e1e1e1;
+  --eh-hover: #f5f5f5;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  height: 100vh;
+  overflow: hidden;
+  box-sizing: border-box;
+  background: var(--eh-page);
+  color: var(--eh-text);
+  font-family: "Segoe UI Variable", "Segoe UI", system-ui, sans-serif;
+  font-size: 14px;
+  line-height: 20px;
+}
+
+.edge-history[data-edge-theme="dark"] {
+  --eh-page: #2c2c2c;
+  --eh-text: #ffffff;
+  --eh-secondary: #c8c8c8;
+  --eh-line: #4a4a4a;
+  --eh-search: transparent;
+  --eh-search-border: #6d6d6d;
+  --eh-underline: #ffffff;
+  --eh-menu: #3a3a3a;
+  --eh-menu-border: #555555;
+  --eh-hover: #454545;
+}
+
+body.edge-history-body,
+body.edge-history-body #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  overflow: hidden;
+  background: var(--eh-page, #2c2c2c);
+  color: var(--eh-text, #ffffff);
+}
+
+.edge-history-header,
+.edge-history-search,
+.edge-history-tabs {
+  flex: none;
+}
+
+.edge-history-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  height: 48px;
+  padding: 8px 12px 0 16px;
+}
+
+.edge-history-header h1 {
+  margin: 0;
+  font-size: 16px;
+  font-weight: 600;
+}
+
+.edge-history-tools {
+  display: flex;
+  align-items: center;
+  gap: 2px;
+}
+
+.edge-history-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  border: 0;
+  border-radius: 6px;
+  background: transparent;
+  color: var(--eh-text);
+  cursor: pointer;
+}
+
+.edge-history-icon:hover,
+.edge-history-row:hover,
+.edge-history-menu button:hover {
+  background: var(--eh-hover);
+}
+
+.edge-history-search {
+  display: flex;
+  align-items: center;
+  height: 36px;
+  margin: 12px 16px 8px;
+  padding: 0 10px;
+  border: 1px solid var(--eh-search-border);
+  border-radius: 8px;
+  background: var(--eh-search);
+}
+
+.edge-history-search svg {
+  flex: none;
+  color: var(--eh-secondary);
+}
+
+.edge-history-search input {
+  width: 100%;
+  height: 100%;
+  margin-left: 8px;
+  border: 0;
+  outline: none;
+  background: transparent;
+  color: var(--eh-text);
+  font: inherit;
+}
+
+.edge-history-search input::placeholder {
+  color: var(--eh-secondary);
+}
+
+.edge-history-tabs {
+  display: flex;
+  gap: 18px;
+  padding: 4px 16px 0;
+  border-bottom: 1px solid var(--eh-line);
+}
+
+.edge-history-tabs button {
+  position: relative;
+  height: 36px;
+  padding: 0;
+  border: 0;
+  background: transparent;
+  color: var(--eh-secondary);
+  font: inherit;
+  cursor: pointer;
+}
+
+.edge-history-tabs button.is-selected {
+  color: var(--eh-text);
+  font-weight: 600;
+}
+
+.edge-history-tabs button.is-selected::after {
+  content: "";
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: -1px;
+  height: 2px;
+  background: var(--eh-underline);
+}
+
+.edge-history-list {
+  flex: 1;
+  min-height: 0;
+  overflow: auto;
+  padding: 8px 0 12px;
+}
+
+.edge-history-day {
+  margin: 0;
+  padding: 10px 16px 6px;
+  color: var(--eh-text);
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.edge-history-row,
+.edge-history-closed {
+  display: grid;
+  grid-template-columns: 20px minmax(0, 1fr) auto;
+  align-items: center;
+  gap: 10px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 16px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edge-history-closed.is-child {
+  padding-left: 42px;
+}
+
+.edge-history-row .title,
+.edge-history-closed .title {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.edge-history-time,
+.edge-history-hint {
+  color: var(--eh-secondary);
+  font-size: 12px;
+  font-variant-numeric: tabular-nums;
+}
+
+.edge-history-favicon {
+  width: 16px;
+  height: 16px;
+  object-fit: contain;
+}
+
+.edge-history-status {
+  margin: 0;
+  padding: 24px 16px;
+  color: var(--eh-secondary);
+}
+
+.edge-history-menu {
+  position: fixed;
+  z-index: 5;
+  min-width: 248px;
+  padding: 6px 0;
+  border: 1px solid var(--eh-menu-border);
+  border-radius: 8px;
+  background: var(--eh-menu);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.28);
+}
+
+.edge-history-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 14px;
+  border: 0;
+  background: transparent;
+  color: var(--eh-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edge-history-menu .divider {
+  height: 1px;
+  margin: 6px 0;
+  background: var(--eh-line);
+}
+
+.edge-history-menu .site-more {
+  justify-content: center;
+  padding-left: 8px;
+}

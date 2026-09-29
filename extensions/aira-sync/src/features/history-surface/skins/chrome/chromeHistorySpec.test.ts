@@ -11,9 +11,9 @@ describe('chrome history skin', () => {
     expect(label).toContain('星期二');
   });
 
-  test('registers only the Chrome skin for now', () => {
+  test('registers Chrome and Edge skins separately', () => {
     expect(resolveHistorySkin('chrome')).not.toBeNull();
+    expect(resolveHistorySkin('edge')).not.toBeNull();
     expect(resolveHistorySkin('brave')).toBeNull();
-    expect(resolveHistorySkin('edge')).toBeNull();
   });
 });

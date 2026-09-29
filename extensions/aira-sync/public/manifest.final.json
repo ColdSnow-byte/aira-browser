@@ -17,6 +17,7 @@
     "bookmarks",
     "favicon",
     "history",
+    "sessions",
     "storage",
     "unlimitedStorage"
   ],
