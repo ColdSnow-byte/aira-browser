@@ -38,15 +38,21 @@ const TABS_OVERLAY_EXIT_CURVE: Curve = Curve.Friction;
 const TABS_OVERLAY_SHARED_SNAPSHOT_ENTER_DURATION_MS: number = 350;
 const TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_DURATION_MS: number = 400;
 const TABS_OVERLAY_SHARED_SNAPSHOT_ENTER_HANDOFF_DELAY_MS: number = 0;
-// The page reaches the row early, then the last half is the settle. A near-linear shrink
-// stays large until the end and then squashes, which reads as a cut into the chip.
-const TABS_OVERLAY_LIST_ENTRY_DURATION_MS: number = 420;
-const TABS_OVERLAY_LIST_ENTRY_CURVE: string = 'cubic-bezier(0.08, 0.78, 0.16, 1)';
-// Unmount waits until the picture has already been transparent for a frame. Removing it
-// while an opacity animation is still settling paints one frame at full opacity — the flash.
-const TABS_OVERLAY_LIST_ENTRY_HANDOFF_DELAY_MS: number = 80;
-const TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS: number = 0.58;
-const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_CURVE: string = 'cubic-bezier(0.22, 0.0, 0.18, 1)';
+// List mode clips a stationary page down to the row. Ease-out, no spring: a bounce would
+// move the window past the row and then back, which reads as the picture shifting.
+const TABS_OVERLAY_LIST_CLIP_DURATION_MS: number = 340;
+const TABS_OVERLAY_LIST_CLIP_CURVE: string = 'cubic-bezier(0.22, 1, 0.36, 1)';
+// Returning to the page should feel quicker than the open shrink.
+const TABS_OVERLAY_LIST_EXIT_DURATION_MS: number = 280;
+const TABS_OVERLAY_LIST_EXIT_CURVE: string = 'cubic-bezier(0.2, 0, 0, 1)';
+const TABS_OVERLAY_LIST_EXIT_HANDOFF_DELAY_MS: number = 48;
+// Entry waits out the icon, title and close fade. Unmounting earlier paints them at full opacity.
+const TABS_OVERLAY_LIST_ENTRY_HANDOFF_DELAY_MS: number = 240;
+// Start the title as soon as the window has landed, not after a long hold.
+const TABS_OVERLAY_LIST_ENTRY_CHROME_REVEAL_DELAY_MS: number = 48;
+const TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS: number = 1;
+const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_DURATION_MS: number = 140;
+const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_CURVE: string = 'cubic-bezier(0.2, 0, 0, 1)';
 const TABS_OVERLAY_LIST_ENTRY_IMAGE_BLUR: number = 0;
 const TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_HANDOFF_DELAY_MS: number = 120;
 const TABS_OVERLAY_WEB_CHROME_SELECTION_REVEAL_DURATION_MS: number = 160;
@@ -156,19 +162,39 @@ export class BrowserTabsOverlayAnimationViewModel {
   }
 
   getListEntryDurationMs(): number {
-    return TABS_OVERLAY_LIST_ENTRY_DURATION_MS;
+    return TABS_OVERLAY_LIST_CLIP_DURATION_MS;
   }
 
   getListEntryCurve(): string {
-    return TABS_OVERLAY_LIST_ENTRY_CURVE;
+    return TABS_OVERLAY_LIST_CLIP_CURVE;
   }
 
   getListEntryHandoffDelayMs(): number {
     return TABS_OVERLAY_LIST_ENTRY_HANDOFF_DELAY_MS;
   }
 
+  getListExitDurationMs(): number {
+    return TABS_OVERLAY_LIST_EXIT_DURATION_MS;
+  }
+
+  getListExitCurve(): string {
+    return TABS_OVERLAY_LIST_EXIT_CURVE;
+  }
+
+  getListExitHandoffDelayMs(): number {
+    return TABS_OVERLAY_LIST_EXIT_HANDOFF_DELAY_MS;
+  }
+
   getListEntryCrossfadeStartProgress(): number {
     return TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS;
+  }
+
+  getListEntryChromeRevealDelayMs(): number {
+    return TABS_OVERLAY_LIST_ENTRY_CHROME_REVEAL_DELAY_MS;
+  }
+
+  getListEntryDissolveDurationMs(): number {
+    return TABS_OVERLAY_LIST_ENTRY_DISSOLVE_DURATION_MS;
   }
 
   getListEntryDissolveCurve(): string {

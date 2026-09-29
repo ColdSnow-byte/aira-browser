@@ -47,6 +47,8 @@ export interface BrowserTabsSharedSnapshotTransitionState {
    * Omitted means the default, so every existing state stays square-to-round.
    */
   cornerRadiusFollowsProgress?: boolean;
+  /** List clip: the picture stays on its full-screen pixels while the frame crops to the row. */
+  pinImageToSource?: boolean;
 }
 
 export interface BrowserTabsSharedSnapshotTransitionInput {
@@ -63,6 +65,7 @@ export interface BrowserTabsSharedSnapshotTransitionInput {
   previewCornerRadius: number;
   imageBlurRadius?: number;
   cornerRadiusFollowsProgress?: boolean;
+  pinImageToSource?: boolean;
 }
 
 export interface BrowserTabsSharedSnapshotWindowInput {
@@ -198,7 +201,8 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
     windowInput: BrowserTabsSharedSnapshotWindowInput,
     targetInput: BrowserTabsSharedSnapshotTargetRectInput,
     previewCornerRadius: number,
-    imageBlurRadius: number = 0
+    imageBlurRadius: number = 0,
+    pinImageToSource: boolean = false
   ): BrowserTabsSharedSnapshotTransitionState | undefined {
     const imageInput = this.buildImageInput(previewState);
     if (imageInput === undefined) {
@@ -216,7 +220,8 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: imageInput.useFullWebSnapshot,
       sourceImageTopInset: this.resolveSourceImageTopInset(windowInput),
       previewCornerRadius: previewCornerRadius,
-      imageBlurRadius: imageBlurRadius
+      imageBlurRadius: imageBlurRadius,
+      pinImageToSource: pinImageToSource
     });
   }
 
@@ -226,7 +231,8 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
     windowInput: BrowserTabsSharedSnapshotWindowInput,
     targetInput: BrowserTabsSharedSnapshotTargetRectInput,
     previewCornerRadius: number,
-    imageBlurRadius: number = 0
+    imageBlurRadius: number = 0,
+    pinImageToSource: boolean = false
   ): BrowserTabsSharedSnapshotTransitionState | undefined {
     const imageInput = this.buildImageInput(previewState);
     if (imageInput === undefined) {
@@ -244,7 +250,8 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: imageInput.useFullWebSnapshot,
       sourceImageTopInset: this.resolveSourceImageTopInset(windowInput),
       previewCornerRadius: previewCornerRadius,
-      imageBlurRadius: imageBlurRadius
+      imageBlurRadius: imageBlurRadius,
+      pinImageToSource: pinImageToSource
     });
   }
 
@@ -386,7 +393,9 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: state.useFullWebSnapshot,
       sourceImageTopInset: state.sourceImageTopInset,
       previewCornerRadius: state.previewCornerRadius,
-      imageBlurRadius: state.imageBlurRadius
+      imageBlurRadius: state.imageBlurRadius,
+      cornerRadiusFollowsProgress: state.cornerRadiusFollowsProgress,
+      pinImageToSource: state.pinImageToSource
     };
   }
 
@@ -420,7 +429,9 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: state.useFullWebSnapshot,
       sourceImageTopInset: state.sourceImageTopInset,
       previewCornerRadius: state.previewCornerRadius,
-      imageBlurRadius: state.imageBlurRadius
+      imageBlurRadius: state.imageBlurRadius,
+      cornerRadiusFollowsProgress: state.cornerRadiusFollowsProgress,
+      pinImageToSource: state.pinImageToSource
     };
   }
 
@@ -451,7 +462,9 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: state.useFullWebSnapshot,
       sourceImageTopInset: state.sourceImageTopInset,
       previewCornerRadius: state.previewCornerRadius,
-      imageBlurRadius: state.imageBlurRadius
+      imageBlurRadius: state.imageBlurRadius,
+      cornerRadiusFollowsProgress: state.cornerRadiusFollowsProgress,
+      pinImageToSource: state.pinImageToSource
     };
   }
 
@@ -492,6 +505,7 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       sourceImageTopInset: state.sourceImageTopInset,
       previewCornerRadius: state.previewCornerRadius,
       cornerRadiusFollowsProgress: state.cornerRadiusFollowsProgress,
+      pinImageToSource: state.pinImageToSource,
       useFullWebSnapshot: state.useFullWebSnapshot,
       imageWidth: state.imageWidth,
       imageHeight: state.imageHeight
@@ -561,7 +575,9 @@ export class BrowserTabsSharedSnapshotTransitionCoordinator {
       useFullWebSnapshot: input.useFullWebSnapshot,
       sourceImageTopInset: this.normalizeSourceImageTopInset(input.sourceImageTopInset),
       previewCornerRadius: input.previewCornerRadius,
-      imageBlurRadius: Math.max(0, input.imageBlurRadius ?? 0)
+      imageBlurRadius: Math.max(0, input.imageBlurRadius ?? 0),
+      cornerRadiusFollowsProgress: input.cornerRadiusFollowsProgress,
+      pinImageToSource: input.pinImageToSource === true
     };
   }
 

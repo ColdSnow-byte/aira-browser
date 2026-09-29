@@ -1647,7 +1647,8 @@ export class BrowserTabsOverviewSessionCoordinator {
         this.buildSharedSnapshotWindowInput(windowFacts, morphSource),
         this.buildSharedSnapshotTargetInput(tabId, facts, preparedTargetRect),
         listEntry ? BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS : BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
-        0
+        0,
+        listEntry
       );
     }
     if (state === undefined) {
@@ -1682,13 +1683,15 @@ export class BrowserTabsOverviewSessionCoordinator {
     const runId = this.createSharedSnapshotRunId();
     const windowFacts = facts.sharedSnapshotWindow;
     const previewState = visualFacts.morphSource.previewState;
+    const listEntry = facts.tabOverviewLayoutStyle === 'list';
     const state = this.sharedSnapshotTransitionCoordinator.buildExitStateFromContext(
       tabId,
       previewState,
       this.buildSharedSnapshotWindowInput(windowFacts, visualFacts.morphSource),
       this.buildSharedSnapshotTargetInput(tabId, facts),
-      BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
-      0
+      listEntry ? BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS : BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
+      0,
+      listEntry
     );
     if (state === undefined) {
       host.executeEffect({
@@ -1729,9 +1732,15 @@ export class BrowserTabsOverviewSessionCoordinator {
     return this.buildSharedSnapshotAnimationPlan(
       state,
       runId,
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitDurationMs(),
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitCurve(),
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitHandoffDelayMs(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListExitDurationMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitDurationMs(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListExitCurve() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitCurve(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListExitHandoffDelayMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitHandoffDelayMs(),
       true
     );
   }
@@ -1753,14 +1762,19 @@ export class BrowserTabsOverviewSessionCoordinator {
     if (state === undefined) {
       return undefined;
     }
+    const listClip = currentState.pinImageToSource === true;
     const durationMs = this.sharedSnapshotTransitionCoordinator.resolveInterruptedEntryExitDurationMs(
       currentState,
       targetRect,
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitDurationMs()
+      listClip ?
+        this.sharedSnapshotAnimationViewModel.getListExitDurationMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitDurationMs()
     );
     const handoffDelayMs = Math.min(
       40,
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitHandoffDelayMs()
+      listClip ?
+        this.sharedSnapshotAnimationViewModel.getListExitHandoffDelayMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitHandoffDelayMs()
     );
     this.previewCoordinator.recordTransitionImageUse(tabId, 'exit');
     this.snapshotPipelineCoordinator.resetMeasuredEntryFrameForOwner();
@@ -1768,7 +1782,9 @@ export class BrowserTabsOverviewSessionCoordinator {
       state,
       runId,
       durationMs,
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitCurve(),
+      listClip ?
+        this.sharedSnapshotAnimationViewModel.getListExitCurve() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotExitCurve(),
       handoffDelayMs,
       true
     );

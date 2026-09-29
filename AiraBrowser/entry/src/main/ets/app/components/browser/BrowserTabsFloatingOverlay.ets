@@ -74,11 +74,13 @@ import {
 import {
   BROWSER_TABS_OVERVIEW_IDENTITY_HORIZONTAL_INSET,
   BROWSER_TABS_OVERVIEW_IDENTITY_ICON_SIZE,
-  BROWSER_TABS_OVERVIEW_IDENTITY_ICON_TEXT_GAP
+  BROWSER_TABS_OVERVIEW_IDENTITY_ICON_TEXT_GAP,
+  BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS
 } from '../../../core/browser/BrowserTabsOverviewVisualTokens';
 import {
   BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBLE_KEY,
   BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY,
+  BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY,
   BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY,
   BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY,
   BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY
@@ -162,6 +164,8 @@ export struct BrowserTabsFloatingOverlay {
   @StorageProp(BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_CLOSE_BUTTON_ALWAYS_VISIBLE_KEY)
   private storedTabsOverviewCloseButtonAlwaysVisible: boolean = false;
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
+  @StorageProp(BROWSER_THEME_STORAGE_FLOATING_SURFACE_KEY)
+  private storedFloatingSurfaceColor: string = '#FFFFFF';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @StorageProp(BROWSER_THEME_STORAGE_TEXT_SECONDARY_KEY) private storedSecondaryTextColor: string = '#5F6875';
 
@@ -225,6 +229,9 @@ export struct BrowserTabsFloatingOverlay {
   @State private listEntrySnapshotOpacity: number = 1;
   @State private listEntryChromeOpacity: number = 1;
   @State private listEntryFrameOpacity: number = 1;
+  @State private listEntryChromeRevealStarted: boolean = false;
+  @State private listEntrySurfaceOpacity: number = 0;
+  @State private listEntrySurfaceFadeStarted: boolean = false;
   @State private listEntryFrameScale: number = 1;
   @State private listEntryImageBlur: number = 0;
   @State private listEntrySnapshotSuppressed: boolean = false;
@@ -473,6 +480,10 @@ export struct BrowserTabsFloatingOverlay {
         this.buildSharedSnapshotOverlay()
       }
 
+      if (this.shouldShowListEntrySurface()) {
+        this.buildListEntrySurface()
+      }
+
       if (this.chromeMounted) {
         // Closing tabs is local-only: the cross-device page lists tabs owned by other
         // installations, which this surface may open but never close.
@@ -625,6 +636,42 @@ export struct BrowserTabsFloatingOverlay {
       imageBlurExtra: this.isListLayout() ? this.listEntryImageBlur : 0
     })
     .opacity(this.resolveListEntrySnapshotOpacity())
+  }
+
+  @Builder
+  private buildListEntrySurface() {
+    Row()
+      .width(Math.max(1, this.entrySharedSnapshotState.targetRect.width))
+      .height(Math.max(1, this.entrySharedSnapshotState.targetRect.height))
+      .position({
+        x: this.entrySharedSnapshotState.targetRect.left,
+        y: this.entrySharedSnapshotState.targetRect.top
+      })
+      .borderRadius(BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS)
+      .backgroundColor(this.storedFloatingSurfaceColor)
+      .opacity(this.resolveListEntrySurfaceOpacity())
+      .hitTestBehavior(HitTestMode.None)
+      .zIndex(FLOATING_TABS_SHARED_SNAPSHOT_DECORATION_Z_INDEX + 1)
+  }
+
+  private shouldShowListEntrySurface(): boolean {
+    if (!this.isListLayout() || this.exiting || this.closeAllExitActive) {
+      return false;
+    }
+    const state = this.entrySharedSnapshotState;
+    return this.entrySharedSnapshotMounted &&
+      state.direction === 'enter' &&
+      state.phase !== 'idle' &&
+      state.phase !== 'settled' &&
+      state.targetRect.width > 0 &&
+      state.targetRect.height > 0;
+  }
+
+  private resolveListEntrySurfaceOpacity(): number {
+    if (!this.listEntrySurfaceFadeStarted && !this.listEntryChromeRevealStarted) {
+      return 0;
+    }
+    return this.listEntrySurfaceOpacity;
   }
 
   /**
@@ -1280,17 +1327,49 @@ export struct BrowserTabsFloatingOverlay {
    * The other rows stay readable for the whole open.
    */
   private resolveListRowContentOpacity(tabId: string): number {
-    if (this.listEntryCrossfadeTabId.length === 0 || !this.isMorphCoveredTab(tabId)) {
+    if (!this.shouldHoldListEntryChrome(tabId)) {
       return 1;
     }
-    return this.listEntryChromeOpacity;
+    return this.listEntryChromeRevealStarted ? this.listEntryChromeOpacity : 0;
   }
 
   private resolveListRowFrameOpacity(tabId: string): number {
-    if (this.listEntryCrossfadeTabId.length === 0 || !this.isMorphCoveredTab(tabId)) {
+    if (!this.isCoveredListEntryRow(tabId) || this.exiting || this.closeAllExitActive) {
       return 1;
     }
+    if (this.entrySharedSnapshotState.direction === 'exit') {
+      return 1;
+    }
+    const state = this.entrySharedSnapshotState;
+    if (state.phase === 'settled') {
+      return 1;
+    }
+    if (!this.listEntrySurfaceFadeStarted) {
+      return 0;
+    }
     return this.listEntryFrameOpacity;
+  }
+
+  private isCoveredListEntryRow(tabId: string): boolean {
+    return this.isListLayout() &&
+      (this.isMorphCoveredTab(tabId) || this.listEntryCrossfadeTabId === tabId);
+  }
+
+  /**
+   * The covered row is hidden from the first open frame. Waiting for a timer left the icon and
+   * title at full opacity for that click frame.
+   */
+  private shouldHoldListEntryChrome(tabId: string): boolean {
+    if (!this.isListLayout() || this.exiting || this.closeAllExitActive) {
+      return false;
+    }
+    if (this.listEntryCrossfadeTabId === tabId) {
+      return true;
+    }
+    if (!this.isMorphCoveredTab(tabId)) {
+      return false;
+    }
+    return this.entrySharedSnapshotState.direction !== 'exit';
   }
 
   private resolveListRowFrameScale(tabId: string): number {
@@ -1319,6 +1398,11 @@ export struct BrowserTabsFloatingOverlay {
     }
     this.listEntryCrossfadeVersion += 1;
     this.listEntryCrossfadeTabId = tabId;
+    this.listEntryChromeRevealStarted = false;
+    this.listEntrySurfaceFadeStarted = false;
+    this.listEntryChromeOpacity = 0;
+    this.listEntryFrameOpacity = 0;
+    this.listEntrySurfaceOpacity = 0;
     this.clearListEntryCrossfadeTimer();
     const version = this.listEntryCrossfadeVersion;
     setTimeout(() => {
@@ -1327,10 +1411,23 @@ export struct BrowserTabsFloatingOverlay {
       }
       this.listEntrySnapshotSuppressed = false;
       this.listEntrySnapshotOpacity = 1;
+      this.listEntryChromeRevealStarted = false;
       this.listEntryChromeOpacity = 0;
       this.listEntryFrameOpacity = 0;
+      this.listEntrySurfaceOpacity = 0;
       this.listEntryFrameScale = 1;
       this.listEntryImageBlur = 0;
+      this.listEntrySurfaceFadeStarted = true;
+      animateTo({
+        duration: this.animationViewModel.getListEntryDurationMs(),
+        curve: this.animationViewModel.getListEntryCurve()
+      }, () => {
+        if (version !== this.listEntryCrossfadeVersion) {
+          return;
+        }
+        this.listEntryFrameOpacity = 1;
+        this.listEntrySurfaceOpacity = 1;
+      });
       if (this.entrySharedSnapshotState.progress > 0) {
         this.scheduleListEntryCrossfade(version);
       }
@@ -1354,18 +1451,20 @@ export struct BrowserTabsFloatingOverlay {
       return;
     }
     const enterDuration = this.animationViewModel.getListEntryDurationMs();
-    const delay = Math.round(enterDuration * this.animationViewModel.getListEntryCrossfadeStartProgress());
-    // Finish before the geometry does, so the picture is already gone when unmount starts.
-    const fadeDuration = Math.max(140, enterDuration - delay - 48);
+    const delay = Math.round(enterDuration * this.animationViewModel.getListEntryCrossfadeStartProgress()) +
+      this.animationViewModel.getListEntryChromeRevealDelayMs();
+    // Wait until the window has finished shrinking onto the row, then fade the title in.
+    const fadeDuration = this.animationViewModel.getListEntryDissolveDurationMs();
     this.listEntryCrossfadeTimer = setTimeout(() => {
       this.listEntryCrossfadeTimer = 0;
       if (version !== this.listEntryCrossfadeVersion || !this.shouldArmListEntryCrossfade()) {
         return;
       }
-      // The row is covered by the still-solid picture. Reveal it first, then let the picture leave.
-      this.listEntryChromeOpacity = 1;
-      this.listEntryFrameOpacity = 1;
       this.listEntryFrameScale = 1;
+      this.listEntrySurfaceOpacity = 1;
+      this.listEntryChromeRevealStarted = true;
+      this.listEntryChromeOpacity = 0;
+      // The bar is already visible. Let the covering copy leave so the title can fade in on it.
       animateTo({
         duration: fadeDuration,
         curve: this.animationViewModel.getListEntryDissolveCurve()
@@ -1373,6 +1472,8 @@ export struct BrowserTabsFloatingOverlay {
         if (version !== this.listEntryCrossfadeVersion) {
           return;
         }
+        this.listEntryChromeOpacity = 1;
+        this.listEntrySurfaceOpacity = 0;
         this.listEntrySnapshotOpacity = 0;
         this.holdListEntrySnapshotHidden(version);
       });

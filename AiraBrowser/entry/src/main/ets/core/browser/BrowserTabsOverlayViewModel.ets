@@ -93,6 +93,11 @@ export interface BrowserTabsSharedSnapshotInput {
   imageHeight: number;
   /** Omitted, or true, grows the radius with the morph; false keeps the final radius throughout. */
   cornerRadiusFollowsProgress?: boolean;
+  /**
+   * List rows are a clip window, not a scaled card. The page picture stays on the full-screen
+   * pixels it already occupies; only the frame moves, shrinks and rounds.
+   */
+  pinImageToSource?: boolean;
 }
 
 export interface BrowserTabsSharedSnapshotVisualState {
@@ -231,11 +236,13 @@ export class BrowserTabsOverlayViewModel {
     const endImageRect = input.direction === 'exit' ? sourceImageRect : targetImageRect;
 
     const frame = this.interpolateRect(startRect, endRect, progress);
-    const imageFrame = this.resolveSharedSnapshotImageFrame(
-      input,
-      frame,
-      this.interpolateRect(startImageRect, endImageRect, progress)
-    );
+    const imageFrame = input.pinImageToSource === true ?
+      this.buildPinnedSourceImageFrame(sourceFrame, sourceImageRect, frame) :
+      this.resolveSharedSnapshotImageFrame(
+        input,
+        frame,
+        this.interpolateRect(startImageRect, endImageRect, progress)
+      );
     // A finger-driven morph is a card from its first frame, so it holds the radius it will settle
     // with. Anything else keeps the square-to-round growth that makes a page read as a page.
     const cornerRadius = input.cornerRadiusFollowsProgress === false ?
@@ -449,6 +456,23 @@ export class BrowserTabsOverlayViewModel {
       top: safeTopInset,
       width: renderedImageWidth,
       height: renderedImageHeight
+    };
+  }
+
+  /**
+   * Keep the page picture on the screen pixels it had at full size. The moving frame is only a
+   * clip, so its own motion is cancelled by the image offset.
+   */
+  private buildPinnedSourceImageFrame(
+    sourceFrame: BrowserTabsOverlayRect,
+    sourceImageRect: BrowserTabsOverlayRect,
+    frame: BrowserTabsOverlayRect
+  ): BrowserTabsOverlayRect {
+    return {
+      left: sourceFrame.left + sourceImageRect.left - frame.left,
+      top: sourceFrame.top + sourceImageRect.top - frame.top,
+      width: sourceImageRect.width,
+      height: sourceImageRect.height
     };
   }
 
