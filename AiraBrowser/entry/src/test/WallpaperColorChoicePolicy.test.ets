@@ -12,10 +12,12 @@ import {
   paintsHomeBackdrop,
   resolveHomeWallpaperAutoColor,
   usesOwnHomeForegroundTone,
+  WallpaperAsset,
   WallpaperMode,
   WallpaperRepositorySnapshot,
   WallpaperSettings
 } from '../main/ets/common/models/WallpaperModels';
+import { HOME_IMAGE_WALLPAPER_MASK_OPACITY } from '../main/ets/services/wallpaper/HomeWallpaperAnalysisPolicy';
 import { WallpaperSettingsViewModel, WallpaperColorChoiceViewState } from '../main/ets/core/wallpaper/WallpaperSettingsViewModel';
 import { WallpaperPresentationService } from '../main/ets/services/wallpaper/WallpaperPresentationService';
 
@@ -88,11 +90,13 @@ export default function wallpaperColorChoicePolicyTest(): void {
 
     it('embraces_auto_in_the_painted_backdrop', 0, () => {
       expect(paintsHomeBackdrop('image')).assertTrue();
+      expect(paintsHomeBackdrop('video')).assertTrue();
       expect(paintsHomeBackdrop('solid')).assertTrue();
       expect(paintsHomeBackdrop('auto')).assertTrue();
       expect(paintsHomeBackdrop('default')).assertFalse();
-      // Auto borrows the theme's tone instead of naming one.
+      // Auto borrows the theme's tone instead of naming one. A video names its own, like a photo.
       expect(usesOwnHomeForegroundTone('image')).assertTrue();
+      expect(usesOwnHomeForegroundTone('video')).assertTrue();
       expect(usesOwnHomeForegroundTone('solid')).assertTrue();
       expect(usesOwnHomeForegroundTone('auto')).assertFalse();
       expect(usesOwnHomeForegroundTone('default')).assertFalse();
@@ -133,6 +137,7 @@ export default function wallpaperColorChoicePolicyTest(): void {
       expect(auto.mode).assertEqual('auto');
       expect(auto.solidColor).assertEqual('');
       expect(auto.imagePath).assertEqual('');
+      expect(auto.videoPath).assertEqual('');
       expect(auto.maskOpacity).assertEqual(0);
 
       const sage = service.buildPresentationState(snapshotWith(settingsWith('solid', 'sage')));
@@ -144,5 +149,59 @@ export default function wallpaperColorChoicePolicyTest(): void {
       expect(theme.kind).assertEqual('default');
       expect(theme.solidColor).assertEqual('');
     });
+
+    it('plays_a_custom_video_without_a_new_sync_mode', 0, () => {
+      const service = new WallpaperPresentationService();
+      const viewModel = new WallpaperSettingsViewModel();
+      const settings = settingsWith('custom', 'mist');
+      settings.customWallpaperId = 'custom-home';
+      const snapshot: WallpaperRepositorySnapshot = {
+        settings: settings,
+        assets: [videoAsset()]
+      };
+
+      const state = service.buildPresentationState(snapshot);
+      expect(state.kind).assertEqual('video');
+      expect(state.mode).assertEqual('custom');
+      expect(state.videoPath).assertEqual('file://video.mp4');
+      expect(state.imagePath).assertEqual('file://poster.jpg');
+      expect(state.foregroundTone).assertEqual('lightText');
+      expect(state.maskOpacity).assertEqual(HOME_IMAGE_WALLPAPER_MASK_OPACITY);
+
+      const view = viewModel.buildState(snapshot);
+      expect(view.modeTitle).assertEqual('视频壁纸');
+      expect(view.imageOptions.length).assertEqual(3);
+      expect(view.imageOptions[1].id).assertEqual('custom');
+      expect(view.imageOptions[1].isSelected).assertFalse();
+      expect(view.imageOptions[2].id).assertEqual('video');
+      expect(view.imageOptions[2].isSelected).assertTrue();
+      expect(view.imageOptions[2].previewPath).assertEqual('file://poster.jpg');
+    });
   });
+}
+
+function videoAsset(): WallpaperAsset {
+  return {
+    id: 'custom-home',
+    source: 'custom',
+    mediaType: 'video',
+    originalPath: 'file://video.mp4',
+    displayPath: 'file://video.mp4',
+    thumbPath: 'file://poster.jpg',
+    contentSignature: 'custom-1',
+    foregroundTone: 'lightText',
+    foregroundToneContentSignature: 'custom-1',
+    foregroundToneCropSignature: 'crop',
+    foregroundToneSampleSignature: 'sample',
+    foregroundToneAlgorithmVersion: 4,
+    width: 720,
+    height: 1280,
+    mimeType: 'video/mp4',
+    byteSize: 1000,
+    title: '视频壁纸',
+    attribution: '',
+    createdAt: 1,
+    updatedAt: 2,
+    isFavorite: false
+  };
 }

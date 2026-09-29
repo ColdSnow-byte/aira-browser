@@ -12,6 +12,7 @@ const WALLPAPER_ROOT_DIR: string = 'wallpapers';
 const WALLPAPER_ORIGINAL_DIR: string = 'original';
 const WALLPAPER_DOWNLOAD_DIR: string = 'downloads';
 const MAX_IMPORTED_IMAGE_BYTES: number = 30 * 1024 * 1024;
+const MAX_IMPORTED_VIDEO_BYTES: number = 100 * 1024 * 1024;
 
 export class WallpaperAssetStore {
   async saveDownloadedImage(
@@ -166,20 +167,137 @@ export class WallpaperAssetStore {
 
   async pruneObsoleteImportedImages(activeAsset: WallpaperAsset): Promise<void> {
     const prefix = `${this.sanitizeAssetId(activeAsset.id)}-`;
-    const activeUri = activeAsset.originalPath;
+    const activeOriginal = activeAsset.originalPath;
+    const activeDisplay = activeAsset.displayPath;
+    const activeThumb = activeAsset.thumbPath;
     const fileNames = await fileIo.listFile(this.getOriginalDir());
     for (let index = 0; index < fileNames.length; index += 1) {
       const fileName = fileNames[index];
       const path = `${this.getOriginalDir()}/${fileName}`;
-      if (!fileName.startsWith(prefix) || fileUri.getUriFromPath(path) === activeUri) {
+      const pathUri = fileUri.getUriFromPath(path);
+      if (!fileName.startsWith(prefix) ||
+        pathUri === activeOriginal ||
+        pathUri === activeDisplay ||
+        pathUri === activeThumb) {
         continue;
       }
       await this.deleteIfExists(path);
     }
   }
 
+  async saveImportedVideo(
+    sourceUri: string,
+    sourceFileName: string,
+    assetId: string,
+    width: number,
+    height: number,
+    foregroundAnalysis: HomeWallpaperForegroundAnalysis,
+    posterBytes: ArrayBuffer,
+    nowMs: number = Date.now()
+  ): Promise<WallpaperAsset> {
+    const normalizedSourceUri = sourceUri.trim();
+    if (normalizedSourceUri.length <= 0 || assetId.trim().length <= 0) {
+      throw new Error('未选择视频壁纸。');
+    }
+    await this.ensureDirectories();
+    const id = this.sanitizeAssetId(assetId);
+    const contentSignature = this.sanitizeAssetId(foregroundAnalysis.contentSignature);
+    if (contentSignature.length <= 0) {
+      throw new Error('视频壁纸内容标识无效。');
+    }
+    const extension = this.resolveImportedVideoExtension(sourceFileName);
+    const fileName = `${id}-${contentSignature}.${extension}`;
+    const tempPath = `${this.getDownloadsDir()}/${fileName}.import`;
+    const finalPath = `${this.getOriginalDir()}/${fileName}`;
+    await this.deleteIfExists(tempPath);
+    try {
+      await fileIo.copy(normalizedSourceUri, fileUri.getUriFromPath(tempPath));
+      const stat = await fileIo.stat(tempPath);
+      if (stat.isDirectory() || stat.size <= 0) {
+        throw new Error('这个视频不可用。');
+      }
+      if (stat.size > MAX_IMPORTED_VIDEO_BYTES) {
+        throw new Error('视频超过 100 MB，请换一个短一些的再试。');
+      }
+      if (await this.fileExists(finalPath)) {
+        await this.deleteIfExists(tempPath);
+      } else {
+        await fileIo.rename(tempPath, finalPath);
+      }
+      const finalUri = fileUri.getUriFromPath(finalPath);
+      const thumbUri = await this.writeImportedPoster(id, foregroundAnalysis.contentSignature, posterBytes);
+      return {
+        id: id,
+        source: 'custom',
+        mediaType: 'video',
+        originalPath: finalUri,
+        displayPath: finalUri,
+        thumbPath: thumbUri,
+        contentSignature: foregroundAnalysis.contentSignature,
+        foregroundTone: foregroundAnalysis.foregroundTone,
+        foregroundToneContentSignature: foregroundAnalysis.contentSignature,
+        foregroundToneCropSignature: foregroundAnalysis.cropSignature,
+        foregroundToneSampleSignature: foregroundAnalysis.sampleSignature,
+        foregroundToneAlgorithmVersion: foregroundAnalysis.algorithmVersion,
+        width: Math.max(1, Math.floor(width)),
+        height: Math.max(1, Math.floor(height)),
+        mimeType: this.resolveImportedVideoMimeType(extension),
+        byteSize: Math.max(0, Math.floor(stat.size)),
+        title: '视频壁纸',
+        attribution: '',
+        createdAt: nowMs,
+        updatedAt: nowMs,
+        isFavorite: false
+      };
+    } catch (error) {
+      await this.deleteIfExists(tempPath);
+      if (error instanceof Error && error.message.length > 0) {
+        throw error;
+      }
+      throw new Error('无法保存这个视频，请换一个再试。');
+    }
+  }
+
+  async writeImportedPoster(
+    assetId: string,
+    contentSignature: string,
+    posterBytes: ArrayBuffer
+  ): Promise<string> {
+    if (posterBytes.byteLength <= 0) {
+      return '';
+    }
+    await this.ensureDirectories();
+    const id = this.sanitizeAssetId(assetId);
+    const signature = this.sanitizeAssetId(contentSignature);
+    if (id.length <= 0 || signature.length <= 0) {
+      return '';
+    }
+    const posterPath = `${this.getOriginalDir()}/${id}-${signature}.poster.jpg`;
+    let file: fileIo.File | undefined = undefined;
+    try {
+      file = await fileIo.open(
+        posterPath,
+        fileIo.OpenMode.WRITE_ONLY | fileIo.OpenMode.CREATE | fileIo.OpenMode.TRUNC
+      );
+      await fileIo.write(file.fd, posterBytes);
+      return fileUri.getUriFromPath(posterPath);
+    } catch (_error) {
+      return '';
+    } finally {
+      if (file !== undefined) {
+        try {
+          await fileIo.close(file);
+        } catch (_closeError) {
+        }
+      }
+    }
+  }
+
   async discardStoredImage(asset: WallpaperAsset): Promise<void> {
     await this.deleteIfExists(asset.originalPath);
+    if (asset.thumbPath.length > 0 && asset.thumbPath !== asset.originalPath) {
+      await this.deleteIfExists(asset.thumbPath);
+    }
   }
 
   private async ensureDirectories(): Promise<void> {
@@ -253,6 +371,42 @@ export class WallpaperAssetStore {
       return 'heif';
     }
     return 'image';
+  }
+
+  private resolveImportedVideoExtension(fileName: string): string {
+    const normalized = fileName.trim().toLowerCase().split('?')[0].split('#')[0];
+    if (normalized.endsWith('.mov')) {
+      return 'mov';
+    }
+    if (normalized.endsWith('.m4v')) {
+      return 'm4v';
+    }
+    if (normalized.endsWith('.webm')) {
+      return 'webm';
+    }
+    if (normalized.endsWith('.mkv')) {
+      return 'mkv';
+    }
+    if (normalized.endsWith('.3gp')) {
+      return '3gp';
+    }
+    return 'mp4';
+  }
+
+  private resolveImportedVideoMimeType(extension: string): string {
+    if (extension === 'mov') {
+      return 'video/quicktime';
+    }
+    if (extension === 'webm') {
+      return 'video/webm';
+    }
+    if (extension === 'mkv') {
+      return 'video/x-matroska';
+    }
+    if (extension === '3gp') {
+      return 'video/3gpp';
+    }
+    return 'video/mp4';
   }
 
   private resolveImportedMimeType(extension: string): string {

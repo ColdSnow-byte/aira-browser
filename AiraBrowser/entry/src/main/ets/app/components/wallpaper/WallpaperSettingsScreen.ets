@@ -53,6 +53,7 @@ export struct WallpaperSettingsContent {
   });
   onColorSelect: (choiceId: string) => void = (_choiceId: string) => {};
   onModeSelect: (mode: WallpaperMode) => void = (_mode: WallpaperMode) => {};
+  onVideoSelect: () => void = () => {};
   onBingRetry: () => void = () => {};
 
   build() {
@@ -214,14 +215,14 @@ export struct WallpaperSettingsContent {
     Row() {
       Column() {
         SettingsSection({
-          title: '图片壁纸',
+          title: '图片与视频',
           secondaryTextColor: this.storedSecondaryTextColor
         }) {
           Row({ space: this.layoutState.cardGap }) {
             ForEach(this.state.imageOptions, (option: WallpaperImageOptionViewState) => {
               this.buildImageModeCard(option)
             }, (option: WallpaperImageOptionViewState) =>
-              `${option.id}:${option.previewPath}:${this.state.bingPreviewStatus}:${this.state.mode}:${this.layoutState.mode}`)
+              `${option.id}:${option.previewPath}:${option.isSelected}:${this.state.bingPreviewStatus}:${this.state.mode}:${this.layoutState.mode}`)
           }
           .width('100%')
           .alignItems(VerticalAlign.Top)
@@ -257,16 +258,14 @@ export struct WallpaperSettingsContent {
       .padding(0)
       .backgroundColor(this.storedControlBackgroundColor)
       .border({
-        width: this.state.mode === option.id ? WALLPAPER_IMAGE_SELECTED_BORDER_WIDTH : 0,
+        width: option.isSelected ? WALLPAPER_IMAGE_SELECTED_BORDER_WIDTH : 0,
         color: this.storedAccentColor
       })
       .borderRadius(WALLPAPER_IMAGE_CARD_CORNER_RADIUS)
       .clip(true)
       .stateEffect(true)
       .onClick(() => {
-        if (option.isEnabled) {
-          this.onModeSelect(option.id);
-        }
+        this.selectImageOption(option);
       })
 
       this.buildImageModeSelection(option)
@@ -279,7 +278,7 @@ export struct WallpaperSettingsContent {
   @Builder
   private buildImageModePreview(option: WallpaperImageOptionViewState) {
     Stack({ alignContent: Alignment.Center }) {
-      if (!option.isEmpty) {
+      if (option.previewPath.trim().length > 0) {
         Image(option.previewPath)
           .width('100%')
           .height('100%')
@@ -287,9 +286,14 @@ export struct WallpaperSettingsContent {
           .interpolation(ImageInterpolation.Medium)
           .borderRadius(WALLPAPER_IMAGE_CARD_CORNER_RADIUS)
           .clip(true)
-        if (option.id === 'custom') {
+        if (option.id === 'custom' || option.id === 'video') {
           this.buildCustomReplaceCapsule()
         }
+      } else if (option.id === 'video') {
+        SymbolGlyph($r('sys.symbol.play_fill'))
+          .fontSize(34)
+          .fontWeight(FontWeight.Medium)
+          .fontColor([this.storedSecondaryTextColor])
       } else if (option.id === 'bing' && this.state.bingPreviewStatus === 'loading') {
         LoadingProgress()
           .width(30)
@@ -357,9 +361,7 @@ export struct WallpaperSettingsContent {
       .justifyContent(FlexAlign.Center)
       .opacity(this.state.mode === 'theme' ? 0.45 : 1)
       .onClick(() => {
-        if (option.isEnabled) {
-          this.onModeSelect(option.id);
-        }
+        this.selectImageOption(option);
       })
     } else {
       Column({ space: 6 }) {
@@ -372,9 +374,7 @@ export struct WallpaperSettingsContent {
       .justifyContent(FlexAlign.Center)
       .opacity(this.state.mode === 'theme' ? 0.45 : 1)
       .onClick(() => {
-        if (option.isEnabled) {
-          this.onModeSelect(option.id);
-        }
+        this.selectImageOption(option);
       })
     }
   }
@@ -385,7 +385,7 @@ export struct WallpaperSettingsContent {
       value: option.id,
       group: WALLPAPER_IMAGE_CARD_RADIO_GROUP
     })
-      .checked(this.state.mode === option.id)
+      .checked(option.isSelected)
       .enabled(option.isEnabled)
       .hitTestBehavior(HitTestMode.None)
       .radioStyle({
@@ -436,9 +436,25 @@ export struct WallpaperSettingsContent {
     .alignItems(VerticalAlign.Center)
   }
 
+  private selectImageOption(option: WallpaperImageOptionViewState): void {
+    if (!option.isEnabled) {
+      return;
+    }
+    if (option.id === 'video') {
+      this.onVideoSelect();
+      return;
+    }
+    if (option.id === 'bing' || option.id === 'custom') {
+      this.onModeSelect(option.id);
+    }
+  }
+
   private resolvePreviewAccessibilityText(option: WallpaperImageOptionViewState): string {
     if (option.id === 'custom') {
       return option.isEmpty ? '添加自定义壁纸' : '更换自定义壁纸';
+    }
+    if (option.id === 'video') {
+      return option.isEmpty ? '添加视频壁纸' : '更换视频壁纸';
     }
     if (this.state.bingPreviewStatus === 'loading') {
       return '正在加载必应壁纸';

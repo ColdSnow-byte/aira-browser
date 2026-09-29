@@ -603,7 +603,8 @@ export struct SystemHomepageLivePreview {
           .width('100%')
           .height('100%')
           .backgroundColor(this.wallpaper.solidColor)
-      } else if (this.hasPaintedWallpaper()) {
+      } else if ((this.wallpaper.kind === 'image' || this.wallpaper.kind === 'video') &&
+        this.wallpaper.imagePath.length > 0) {
         Image(this.wallpaper.imagePath)
           .width('100%')
           .height('100%')
@@ -1034,6 +1035,9 @@ export struct SystemHomepageLivePreview {
     }
     if (this.wallpaper.kind === 'solid') {
       return this.wallpaper.solidColor.length > 0;
+    }
+    if (this.wallpaper.kind === 'video') {
+      return this.wallpaper.imagePath.length > 0 || this.wallpaper.videoPath.length > 0;
     }
     return this.wallpaper.kind === 'image' && this.wallpaper.imagePath.length > 0;
   }

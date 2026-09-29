@@ -19,6 +19,7 @@ interface WallpaperPresentationContentState {
   mode: WallpaperMode;
   foregroundTone: HomeWallpaperForegroundTone;
   imagePath: string;
+  videoPath: string;
   solidColor: string;
   assetId: string;
   updatedAt: number;
@@ -59,6 +60,7 @@ export class WallpaperPresentationService {
       mode: 'auto',
       foregroundTone: 'darkText',
       imagePath: '',
+      videoPath: '',
       solidColor: '',
       assetId: '',
       updatedAt: settings.updatedAt
@@ -74,6 +76,7 @@ export class WallpaperPresentationService {
       mode: 'solid',
       foregroundTone: choice === undefined ? 'darkText' : choice.foregroundTone,
       imagePath: '',
+      videoPath: '',
       solidColor: choice === undefined ? '#FFFFFF' : choice.color,
       assetId: solidColorId,
       updatedAt: settings.updatedAt
@@ -97,6 +100,7 @@ export class WallpaperPresentationService {
       mode: 'bing',
       foregroundTone: asset.foregroundTone,
       imagePath: asset.displayPath,
+      videoPath: '',
       solidColor: '',
       assetId: asset.id,
       updatedAt: this.resolveContentUpdatedAt(asset.updatedAt, settings.updatedAt)
@@ -107,6 +111,21 @@ export class WallpaperPresentationService {
     settings: WallpaperSettings,
     assets: WallpaperAsset[]
   ): HomeWallpaperPresentationState {
+    // Video stays on the custom mode so sync still sends one preference, not a new mode string.
+    // A device without the file falls back the same way a missing custom photo does.
+    const selectedVideo = this.findSelectedVideoAsset(assets, settings.customWallpaperId);
+    if (selectedVideo !== undefined) {
+      return this.withSharedSettings(settings, {
+        kind: 'video',
+        mode: 'custom',
+        foregroundTone: selectedVideo.foregroundTone,
+        imagePath: this.resolveVideoPosterPath(selectedVideo),
+        videoPath: this.resolvePlayableVideoPath(selectedVideo.displayPath),
+        solidColor: '',
+        assetId: selectedVideo.id,
+        updatedAt: this.resolveContentUpdatedAt(selectedVideo.updatedAt, settings.updatedAt)
+      });
+    }
     const customAssets = this.filterUsableImageAssets(assets, 'custom');
     const asset = this.findAsset(customAssets, settings.customWallpaperId);
     if (asset === undefined) {
@@ -117,10 +136,42 @@ export class WallpaperPresentationService {
       mode: 'custom',
       foregroundTone: asset.foregroundTone,
       imagePath: asset.displayPath,
+      videoPath: '',
       solidColor: '',
       assetId: asset.id,
       updatedAt: this.resolveContentUpdatedAt(asset.updatedAt, settings.updatedAt)
     });
+  }
+
+  private findSelectedVideoAsset(assets: WallpaperAsset[], assetId: string): WallpaperAsset | undefined {
+    const selectedId = assetId.trim();
+    if (selectedId.length <= 0) {
+      return undefined;
+    }
+    return assets.find((asset: WallpaperAsset) => {
+      return asset.source === 'custom' &&
+        asset.id === selectedId &&
+        asset.mediaType === 'video' &&
+        asset.displayPath.length > 0;
+    });
+  }
+
+  /** The video player wants a sandbox path. Image still uses the file URI. */
+  private resolvePlayableVideoPath(uri: string): string {
+    const normalized = uri.trim();
+    if (!normalized.startsWith('file://')) {
+      return normalized;
+    }
+    const path = normalized.substring('file://'.length);
+    return path.startsWith('/') ? path : normalized;
+  }
+
+  private resolveVideoPosterPath(asset: WallpaperAsset): string {
+    const thumb = asset.thumbPath.trim();
+    if (thumb.length <= 0 || thumb === asset.displayPath.trim()) {
+      return '';
+    }
+    return thumb;
   }
 
   private filterUsableImageAssets(assets: WallpaperAsset[], source: string): WallpaperAsset[] {
@@ -154,8 +205,9 @@ export class WallpaperPresentationService {
       mode: state.mode,
       foregroundTone: state.foregroundTone,
       imagePath: state.imagePath,
+      videoPath: state.videoPath,
       solidColor: state.solidColor,
-      maskOpacity: state.kind === 'image' ? HOME_IMAGE_WALLPAPER_MASK_OPACITY : 0,
+      maskOpacity: state.kind === 'image' || state.kind === 'video' ? HOME_IMAGE_WALLPAPER_MASK_OPACITY : 0,
       assetId: state.assetId,
       updatedAt: this.resolveContentUpdatedAt(state.updatedAt, settings.updatedAt)
     };

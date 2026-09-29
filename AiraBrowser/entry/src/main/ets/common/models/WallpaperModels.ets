@@ -4,9 +4,9 @@ export type WallpaperMode = 'auto' | 'theme' | 'solid' | 'bing' | 'custom';
 
 export type WallpaperAssetSource = 'bing' | 'custom' | 'builtin';
 
-export type WallpaperAssetMediaType = 'image';
+export type WallpaperAssetMediaType = 'image' | 'video';
 
-export type HomeWallpaperPresentationKind = 'default' | 'auto' | 'solid' | 'image';
+export type HomeWallpaperPresentationKind = 'default' | 'auto' | 'solid' | 'image' | 'video';
 
 export type HomeWallpaperForegroundTone = 'lightText' | 'darkText';
 
@@ -148,6 +148,8 @@ export interface HomeWallpaperPresentationState {
   mode: WallpaperMode;
   foregroundTone: HomeWallpaperForegroundTone;
   imagePath: string;
+  /** Sandbox video for a looping wallpaper. Empty unless kind is video. */
+  videoPath: string;
   solidColor: string;
   maskOpacity: number;
   assetId: string;
@@ -183,6 +185,7 @@ export const DEFAULT_HOME_WALLPAPER_PRESENTATION_STATE: HomeWallpaperPresentatio
   mode: DEFAULT_WALLPAPER_SETTINGS.mode,
   foregroundTone: 'darkText',
   imagePath: '',
+  videoPath: '',
   solidColor: '',
   maskOpacity: 0,
   assetId: '',
@@ -197,6 +200,7 @@ export function cloneHomeWallpaperPresentationState(
     mode: state.mode,
     foregroundTone: state.foregroundTone,
     imagePath: state.imagePath,
+    videoPath: state.videoPath,
     solidColor: state.solidColor,
     maskOpacity: state.maskOpacity,
     assetId: state.assetId,
@@ -212,6 +216,7 @@ export function isSameHomeWallpaperPresentationState(
     left.mode === right.mode &&
     left.foregroundTone === right.foregroundTone &&
     left.imagePath === right.imagePath &&
+    left.videoPath === right.videoPath &&
     left.solidColor === right.solidColor &&
     left.maskOpacity === right.maskOpacity &&
     left.assetId === right.assetId &&
@@ -228,9 +233,9 @@ export function paintsHomeBackdrop(kind: HomeWallpaperPresentationKind): boolean
 }
 
 /**
- * A photo or a chosen flat color says what its own text tone is. Auto takes the theme's tone,
- * because it is white in light mode and black in dark mode, exactly like the theme surface.
+ * A photo, a looping video or a chosen flat color says what its own text tone is. Auto takes the
+ * theme's tone, because it is white in light mode and black in dark mode, exactly like the theme surface.
  */
 export function usesOwnHomeForegroundTone(kind: HomeWallpaperPresentationKind): boolean {
-  return kind === 'image' || kind === 'solid';
+  return kind === 'image' || kind === 'video' || kind === 'solid';
 }

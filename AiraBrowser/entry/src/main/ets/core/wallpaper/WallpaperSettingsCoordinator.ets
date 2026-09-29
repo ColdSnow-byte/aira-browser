@@ -81,6 +81,34 @@ export class WallpaperSettingsCoordinator {
     return state;
   }
 
+  async selectVideo(onStateChange: WallpaperSettingsStateListener): Promise<WallpaperSettingsViewState> {
+    const revision = ++this.modeSelectionRevision;
+    const snapshot = await this.ensureSnapshot();
+    if (revision !== this.modeSelectionRevision) {
+      return this.getCurrentState();
+    }
+    const reusableVideo = snapshot.assets.find((asset) => {
+      return asset.source === 'custom' &&
+        asset.mediaType === 'video' &&
+        asset.id === snapshot.settings.customWallpaperId &&
+        asset.displayPath.trim().length > 0;
+    });
+    if (snapshot.settings.mode !== 'custom' && reusableVideo !== undefined) {
+      await this.repository.saveSettings(this.viewModel.buildSettingsWithMode(snapshot.settings, 'custom'));
+      const state = await this.getState();
+      if (revision === this.modeSelectionRevision) {
+        onStateChange(state);
+      }
+      return this.getCurrentState();
+    }
+    await this.customWallpaperService.selectVideoAndApply();
+    const state = await this.getState();
+    if (revision === this.modeSelectionRevision) {
+      onStateChange(state);
+    }
+    return state;
+  }
+
   /**
    * Every swatch in the row arrives here, so the coordinator routes each one to its own mode:
    * auto black/white and follow-theme are modes with no color, a swatch with a color is solid.
@@ -191,7 +219,9 @@ export class WallpaperSettingsCoordinator {
     }
     if (mode === 'custom') {
       const reusableAsset = snapshot.assets.find((asset) => {
-        return asset.source === 'custom' && asset.id === snapshot.settings.customWallpaperId;
+        return asset.source === 'custom' &&
+          asset.mediaType === 'image' &&
+          asset.id === snapshot.settings.customWallpaperId;
       });
       if (snapshot.settings.mode !== 'custom' && reusableAsset !== undefined) {
         await this.repository.saveSettings(this.viewModel.buildSettingsWithMode(snapshot.settings, mode));

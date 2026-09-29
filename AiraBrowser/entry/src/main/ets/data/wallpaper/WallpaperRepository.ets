@@ -369,7 +369,7 @@ export class WallpaperRepository {
   }
 
   private normalizeMediaType(value: WallpaperAssetMediaType | undefined): WallpaperAssetMediaType {
-    return 'image';
+    return value === 'video' ? 'video' : 'image';
   }
 
   private normalizeForegroundTone(value: HomeWallpaperForegroundTone | undefined): HomeWallpaperForegroundTone {

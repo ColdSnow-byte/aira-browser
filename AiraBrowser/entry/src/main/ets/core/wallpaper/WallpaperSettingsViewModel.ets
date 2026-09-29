@@ -5,13 +5,12 @@ import {
   listHomeWallpaperChoices,
   normalizeHomeWallpaperSolidColorId,
   WallpaperAsset,
-  WallpaperAssetSource,
   WallpaperMode,
   WallpaperRepositorySnapshot,
   WallpaperSettings
 } from '../../common/models/WallpaperModels';
 
-export type WallpaperImageMode = 'bing' | 'custom';
+export type WallpaperImageMode = 'bing' | 'custom' | 'video';
 export type WallpaperBingPreviewStatus = 'idle' | 'loading' | 'ready' | 'error';
 
 export interface WallpaperModeOptionViewState {
@@ -61,10 +60,10 @@ export class WallpaperSettingsViewModel {
     const hasBingPreview = this.findImageAsset('bing', snapshot) !== undefined;
     const bingPreviewStatusText = this.buildBingPreviewStatusText(bingPreviewStatus, hasBingPreview);
     const bingRetryVisible = bingPreviewStatus === 'error';
-    const footerText = '必应壁纸每天自动检查更新，仅用于 Aira 原生主页；自定义主页和隐私主页不会显示。';
+    const footerText = '必应壁纸每天自动检查更新。视频壁纸静音循环播放。两者仅用于 Aira 原生主页；自定义主页和隐私主页不会显示。';
     return {
       mode: settings.mode,
-      modeTitle: this.resolveModeTitle(settings),
+      modeTitle: this.resolveModeTitle(snapshot),
       colorChoices: this.buildColorChoices(settings),
       imageOptions: this.buildImageOptions(snapshot),
       bingPreviewStatus: bingPreviewStatus,
@@ -124,10 +123,14 @@ export class WallpaperSettingsViewModel {
   }
 
   /** Names the current wallpaper, so the settings row can show what is actually painted. */
-  private resolveModeTitle(settings: WallpaperSettings): string {
+  private resolveModeTitle(snapshot: WallpaperRepositorySnapshot): string {
+    const settings = snapshot.settings;
     if (settings.mode === 'solid') {
       const choice = findHomeWallpaperChoice(settings.solidColorId);
       return choice === undefined ? this.getModeTitle('solid') : choice.label;
+    }
+    if (settings.mode === 'custom' && this.findCustomMediaAsset(snapshot, 'video') !== undefined) {
+      return '视频壁纸';
     }
     return this.getModeTitle(settings.mode);
   }
@@ -135,7 +138,8 @@ export class WallpaperSettingsViewModel {
   private buildImageOptions(snapshot: WallpaperRepositorySnapshot): WallpaperImageOptionViewState[] {
     return [
       this.buildImageOption('bing', snapshot),
-      this.buildImageOption('custom', snapshot)
+      this.buildImageOption('custom', snapshot),
+      this.buildImageOption('video', snapshot)
     ];
   }
 
@@ -147,34 +151,64 @@ export class WallpaperSettingsViewModel {
     const previewPath = this.resolvePreviewPath(asset);
     return {
       id: mode,
-      title: this.getModeTitle(mode),
+      title: this.resolveImageOptionTitle(mode),
       previewPath: previewPath,
-      isSelected: snapshot.settings.mode === mode,
-      isEmpty: previewPath.trim().length <= 0,
+      isSelected: this.isImageOptionSelected(mode, snapshot),
+      isEmpty: mode === 'video' ?
+        this.findCustomMediaAsset(snapshot, 'video') === undefined :
+        previewPath.trim().length <= 0,
       isEnabled: true
     };
+  }
+
+  private isImageOptionSelected(mode: WallpaperImageMode, snapshot: WallpaperRepositorySnapshot): boolean {
+    if (mode === 'bing') {
+      return snapshot.settings.mode === 'bing';
+    }
+    if (snapshot.settings.mode !== 'custom') {
+      return false;
+    }
+    const videoAsset = this.findCustomMediaAsset(snapshot, 'video');
+    return mode === 'video' ? videoAsset !== undefined : videoAsset === undefined;
   }
 
   private findImageAsset(
     mode: WallpaperImageMode,
     snapshot: WallpaperRepositorySnapshot
   ): WallpaperAsset | undefined {
-    const source: WallpaperAssetSource = mode;
-    const selectedId = mode === 'bing' ?
-      (snapshot.settings.bingWallpaperId.trim().length > 0 ?
-        snapshot.settings.bingWallpaperId : snapshot.settings.bing.currentAssetId) :
-      snapshot.settings.customWallpaperId;
-    if (mode === 'custom' && selectedId.trim().length <= 0) {
-      return undefined;
+    if (mode === 'video') {
+      return this.findCustomMediaAsset(snapshot, 'video');
     }
+    if (mode === 'custom') {
+      return this.findCustomMediaAsset(snapshot, 'image');
+    }
+    const selectedId = snapshot.settings.bingWallpaperId.trim().length > 0 ?
+      snapshot.settings.bingWallpaperId :
+      snapshot.settings.bing.currentAssetId;
     const selected = snapshot.assets.find((asset: WallpaperAsset) => {
-      return asset.source === source && asset.id === selectedId && this.resolvePreviewPath(asset).length > 0;
+      return asset.source === 'bing' && asset.id === selectedId && this.resolvePreviewPath(asset).length > 0;
     });
-    if (selected !== undefined || mode === 'custom') {
+    if (selected !== undefined) {
       return selected;
     }
     return snapshot.assets.find((asset: WallpaperAsset) => {
-      return asset.source === source && this.resolvePreviewPath(asset).length > 0;
+      return asset.source === 'bing' && this.resolvePreviewPath(asset).length > 0;
+    });
+  }
+
+  private findCustomMediaAsset(
+    snapshot: WallpaperRepositorySnapshot,
+    mediaType: 'image' | 'video'
+  ): WallpaperAsset | undefined {
+    const selectedId = snapshot.settings.customWallpaperId.trim();
+    if (selectedId.length <= 0) {
+      return undefined;
+    }
+    return snapshot.assets.find((asset: WallpaperAsset) => {
+      return asset.source === 'custom' &&
+        asset.id === selectedId &&
+        asset.mediaType === mediaType &&
+        asset.displayPath.trim().length > 0;
     });
   }
 
@@ -182,10 +216,24 @@ export class WallpaperSettingsViewModel {
     if (asset === undefined) {
       return '';
     }
+    if (asset.mediaType === 'video') {
+      const thumb = asset.thumbPath.trim();
+      if (thumb.length <= 0 || thumb === asset.displayPath.trim()) {
+        return '';
+      }
+      return thumb;
+    }
     if (asset.thumbPath.trim().length > 0) {
       return asset.thumbPath;
     }
     return asset.displayPath.trim();
+  }
+
+  private resolveImageOptionTitle(mode: WallpaperImageMode): string {
+    if (mode === 'video') {
+      return '视频壁纸';
+    }
+    return this.getModeTitle(mode);
   }
 
   private getModeTitle(mode: WallpaperMode): string {
