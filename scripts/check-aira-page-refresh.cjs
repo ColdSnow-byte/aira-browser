@@ -34,7 +34,9 @@ function load(relative) {
 const { BrowserRestoreCoordinator } = load('core/browser/BrowserRestoreCoordinator.ets');
 const { BrowserWebLoadFailureSurfaceCoordinator } = load('core/browser/BrowserWebLoadFailureSurfaceCoordinator.ets');
 const { BrowserActiveTabRuntimeRestoreCoordinator } = load('services/web/BrowserActiveTabRuntimeRestoreCoordinator.ets');
-function fixture({ attached = true, hosted = true, errorSurface = false, refreshSucceeds = true } = {}) {
+function fixture({
+  attached = true, hosted = true, errorSurface = false, refreshSucceeds = true, prepareIdentitySucceeds = true
+} = {}) {
   const calls = [];
   const tab = {
     id: 'tab', url: 'https://example.test/detail', pendingUrl: '', isHome: false,
@@ -61,6 +63,10 @@ function fixture({ attached = true, hosted = true, errorSurface = false, refresh
     tabSwitchCoordinator: { applyTabPatch: (_id, patch) => Object.assign(tab, patch) },
     runtimeLifecyclePort: { refreshControllerPage: () => { calls.push('refresh'); return refreshSucceeds; } },
     webLoadRuntimeCoordinator: {
+      prepareIdentityBeforeLiveRefresh: (...args) => {
+        calls.push(['prepare_identity', ...args]);
+        return prepareIdentitySucceeds;
+      },
       syncEventContext: (...args) => calls.push(['context', ...args]),
       loadUrlForTab: (...args) => { calls.push(['load', ...args]); return true; }
     }
@@ -74,7 +80,13 @@ function fixture({ attached = true, hosted = true, errorSurface = false, refresh
 {
   const f = fixture();
   f.coordinator.reloadActive('user_manual_reload');
-  assert.deepEqual(f.calls, [['context', 'tab', f.tab.url, true], 'refresh']);
+  assert.deepEqual(f.calls, [
+    ['prepare_identity', 'tab', f.tab.url],
+    ['context', 'tab', f.tab.url, true],
+    'refresh'
+  ]);
+  assert.equal(f.calls.findIndex(call => Array.isArray(call) && call[0] === 'prepare_identity'), 0);
+  assert.equal(f.calls[2], 'refresh');
   assert.equal(f.tab.scrollOffsetY, 720, 'live refresh must preserve the last observed scroll position');
   assert.equal(f.tab.navigationIndex, 1);
   assert.deepEqual(f.tab.navigationHistory, ['https://example.test/list', 'https://example.test/detail']);
@@ -123,6 +135,14 @@ for (const reason of ['user_agent_changed', 'site_permission_apply']) {
   f.coordinator.reloadActive('user_manual_reload');
   assert.equal(f.calls.includes('sync_surface'), false, 'failed live refresh must not silently rebuild Web');
   assert.equal(f.calls.some(call => Array.isArray(call) && call[0] === 'load'), false);
+  assert.equal(f.calls[0][0], 'prepare_identity');
+  assert.ok(f.states.some(state => state.errorMessage?.startsWith('刷新下发失败')));
+}
+{
+  const f = fixture({ prepareIdentitySucceeds: false });
+  f.coordinator.reloadActive('user_manual_reload');
+  assert.equal(f.calls.includes('refresh'), false, 'a refused identity change must not refresh under the old identity');
+  assert.equal(f.calls.some(call => Array.isArray(call) && call[0] === 'load'), false);
   assert.ok(f.states.some(state => state.errorMessage?.startsWith('刷新下发失败')));
 }
 for (const home of [true, false]) {
@@ -132,4 +152,4 @@ for (const home of [true, false]) {
   f.coordinator.reloadActive('user_manual_reload');
   assert.deepEqual(f.calls, []);
 }
-console.log('Page-refresh runtime contract passed (12 cases; native BFCache requires device validation).');
+console.log('Page-refresh runtime contract passed (13 cases; native BFCache requires device validation).');

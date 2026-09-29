@@ -570,6 +570,13 @@ export class BrowserWebLoadRuntimeCoordinator implements BrowserWebLoadExecution
     this.resolveUserAgentForContext(context, true);
   }
 
+  prepareIdentityBeforeLiveRefresh(tabId: string, targetUrl: string): boolean {
+    // A live refresh() keeps the native back-forward list, but it also re-enters onLoadIntercept.
+    // ArkWeb aborts if the identity setter runs inside that callback, and refuses the change there.
+    // Apply the already-selected identity first, while this call is still outside the callback.
+    return this.prepareUserAgentForNavigation(tabId, targetUrl);
+  }
+
   prepareWebMainFrameNavigation(tabId: string, targetUrl: string, startsNewTransaction: boolean): boolean {
     const facts = this.bindings.readFacts();
     const context = this.resolveUserAgentRuntimeContext(tabId, targetUrl, facts.currentProfileId);

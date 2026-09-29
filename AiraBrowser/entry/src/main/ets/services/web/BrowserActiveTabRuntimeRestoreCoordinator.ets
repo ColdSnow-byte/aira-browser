@@ -503,8 +503,13 @@ export class BrowserActiveTabRuntimeRestoreCoordinator {
     }
     // refresh() reloads the current document and keeps the back-forward list.
     // loadUrl + clearHistory makes the next Back look terminal and jump home.
+    // The selected identity has to be written before refresh(), because the reload re-enters
+    // onLoadIntercept and that callback cannot mutate the Controller.
     AiraNavForensicsProbe.logLoadIssued('ActiveTabRuntimeRestoreRefresh', tabId, targetUrl, false);
     try {
+      if (!this.dependencies.webLoadRuntimeCoordinator.prepareIdentityBeforeLiveRefresh(tabId, targetUrl)) {
+        return `刷新下发失败：${targetUrl}`;
+      }
       this.dependencies.webLoadRuntimeCoordinator.syncEventContext(tabId, targetUrl, true);
       if (this.dependencies.runtimeLifecyclePort.refreshControllerPage(tabId)) {
         return '';

@@ -357,6 +357,47 @@ export default function browserUserAgentRuntimeServiceTest(): void {
       expect(fixture.platformAdapter.appliedCustomUserAgents.length).assertEqual(2);
     });
 
+    it('an identity applied before refresh survives the navigation callback', 0, () => {
+      const fixture = createRuntimeFixture();
+      const mobileDecision = buildDecision('mobile_chrome_android', 'snapshot-mobile');
+      const desktopDecision = buildDecision('desktop_chrome_windows', 'snapshot-desktop');
+      fixture.runtime.prepareNavigation(
+        fixture.controllerResolver,
+        'tab-runtime',
+        'https://example.com/page',
+        mobileDecision
+      );
+      const prepared = fixture.runtime.prepareNavigation(
+        fixture.controllerResolver,
+        'tab-runtime',
+        'https://example.com/page',
+        desktopDecision
+      );
+      expect(prepared.applicationStatus).assertEqual('custom_applied');
+      expect(prepared.transitionNoticeRequired).assertFalse();
+
+      const scope = fixture.navigationGuard.openTabNavigationScope('tab-runtime');
+      let duringRefresh: BrowserUserAgentApplicationStatus = 'failed';
+      let noticeRequired = true;
+      try {
+        const duringCallback = fixture.runtime.prepareWebMainFrameNavigation(
+          fixture.controllerResolver,
+          'tab-runtime',
+          'https://example.com/page',
+          desktopDecision,
+          true
+        );
+        duringRefresh = duringCallback.applicationStatus;
+        noticeRequired = duringCallback.transitionNoticeRequired;
+      } finally {
+        scope.close();
+      }
+
+      expect(duringRefresh).assertEqual('unchanged');
+      expect(noticeRequired).assertFalse();
+      expect(fixture.platformAdapter.appliedCustomUserAgents.length).assertEqual(2);
+    });
+
     it('an in-navigation scope never reaches the ArkWeb UA setter', 0, () => {
       const fixture = createRuntimeFixture();
       const decision = buildDecision('mobile_chrome_android', 'snapshot-mobile');
