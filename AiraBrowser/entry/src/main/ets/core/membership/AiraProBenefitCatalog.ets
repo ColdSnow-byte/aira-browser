@@ -44,15 +44,15 @@ export const AIRA_PRO_BENEFITS: AiraProBenefitDefinition[] = [
 ];
 
 /**
- * The endpoints Aira Pro reaches. The row plays the same role as the model
- * logos on a subscription page: it answers "which of my devices does this
- * cover" without repeating the benefit list above it.
+ * The desktop endpoints Aira Pro reaches. The row plays the same role as the
+ * model logos on a subscription page: it answers which browsers this covers
+ * without repeating the benefit list above it.
  *
- * Only endpoints that ship a real brand asset or an Aira device glyph appear
- * here. The desktop entry is the browser, not the operating system, because
+ * The desktop entry is the browser, not the operating system, because
  * Aira-sync installs into Chrome, Edge, and Firefox on either Windows or macOS.
+ * The HarmonyOS client itself is not listed; this page is already that app.
  */
-export type AiraProReachableDeviceGlyph = 'phone' | 'chrome' | 'edge' | 'firefox';
+export type AiraProReachableDeviceGlyph = 'chrome' | 'edge' | 'firefox';
 
 export interface AiraProReachableDeviceDefinition {
   id: string;
@@ -61,9 +61,8 @@ export interface AiraProReachableDeviceDefinition {
 }
 
 export const AIRA_PRO_REACHABLE_DEVICES: AiraProReachableDeviceDefinition[] = [
-  { id: 'phone', label: 'Aira 手机端', glyph: 'phone' },
-  // The three desktop entries are browser extensions, not desktop apps: Aira
-  // itself only ships for HarmonyOS, and the desktop side is Aira-sync.
+  // Browser extensions, not desktop apps: Aira itself only ships for
+  // HarmonyOS, and the desktop side is Aira-sync.
   { id: 'chrome', label: 'Chrome 扩展', glyph: 'chrome' },
   { id: 'edge', label: 'Edge 扩展', glyph: 'edge' },
   { id: 'firefox', label: 'Firefox 扩展', glyph: 'firefox' }

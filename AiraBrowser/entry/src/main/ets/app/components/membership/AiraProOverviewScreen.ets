@@ -243,18 +243,10 @@ export struct AiraProOverviewScreen {
   @Builder
   private buildReachableDeviceChip(device: AiraProOverviewReachableDeviceState) {
     Row({ space: 7 }) {
-      if (this.isBrowserBrandDevice(device.glyph)) {
-        Image(this.resolveBrowserBrandIcon(device.glyph))
-          .width(AIRA_PRO_DEVICE_CHIP_ICON_SIZE)
-          .height(AIRA_PRO_DEVICE_CHIP_ICON_SIZE)
-          .objectFit(ImageFit.Contain)
-      } else {
-        AiraIcon({
-          airaIconId: 'crossDeviceLink.localDevice',
-          iconSize: AIRA_PRO_DEVICE_CHIP_ICON_SIZE,
-          iconColor: this.accentColor
-        })
-      }
+      Image(this.resolveBrowserBrandIcon(device.glyph))
+        .width(AIRA_PRO_DEVICE_CHIP_ICON_SIZE)
+        .height(AIRA_PRO_DEVICE_CHIP_ICON_SIZE)
+        .objectFit(ImageFit.Contain)
 
       Text(device.label)
         .fontSize(14)
@@ -748,10 +740,6 @@ export struct AiraProOverviewScreen {
       width: AIRA_PRO_PLAN_CARD_SELECTED_BORDER_WIDTH,
       color: selected ? this.accentColor : AIRA_PRO_TRANSPARENT_COLOR
     };
-  }
-
-  private isBrowserBrandDevice(glyph: AiraProReachableDeviceGlyph): boolean {
-    return glyph === 'chrome' || glyph === 'edge' || glyph === 'firefox';
   }
 
   private resolveBrowserBrandIcon(glyph: AiraProReachableDeviceGlyph): Resource {
