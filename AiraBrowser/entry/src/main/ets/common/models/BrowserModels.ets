@@ -1172,14 +1172,14 @@ export interface ReaderModePreferences {
 }
 
 /**
- * 标签页概览的三种样式。
+ * 标签页概览的四种样式。
  *
- * `grid` is 卡片平铺 and the default, `horizontal_cards` is the large centred card strip, and
- * `stack` is the stacked deck. `horizontal_cards` keeps its released meaning: a stored value from a
- * shipped build is a large card strip, so the deck had to take a value of its own instead of
- * reusing it.
+ * `grid` is 卡片平铺 and the default, `horizontal_cards` is the large centred card strip,
+ * `stack` is the stacked deck, and `list` is the icon-and-title list. `horizontal_cards` keeps its
+ * released meaning: a stored value from a shipped build is a large card strip, so the deck had to
+ * take a value of its own instead of reusing it.
  */
-export type BrowserTabsOverviewLayoutStyle = 'grid' | 'horizontal_cards' | 'stack';
+export type BrowserTabsOverviewLayoutStyle = 'grid' | 'horizontal_cards' | 'stack' | 'list';
 export type BrowserHomeShortcutLayoutDensity = 'standard' | 'compact';
 export type BrowserBottomToolbarScrollBehavior = 'fixed' | 'compact' | 'hidden';
 /** Phone chrome frame. `floating` is the bottom capsule; `split` is a top address bar and bottom nav. */

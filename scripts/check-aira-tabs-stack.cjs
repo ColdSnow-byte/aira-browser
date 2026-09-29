@@ -351,26 +351,66 @@ test('a removal moves only the cards beyond it, and only towards the focus', () 
   assert.deepEqual(shift(tabs, 'zz', 2), { nextPosition: 2, moved: {} });
 });
 
-test('the three styles are offered 卡片平铺 first, and every normaliser names all three', () => {
+test('the four styles are offered 卡片平铺 first, and every normaliser names all four', () => {
   const read = relative => fs.readFileSync(path.resolve(__dirname, '..', relative), 'utf8');
   const coordinator = read('AiraBrowser/entry/src/main/ets/core/settings/TabOverviewLayoutSettingsCoordinator.ets');
   const options = coordinator.slice(coordinator.indexOf('buildOptions('),
     coordinator.indexOf('private normalizeStyle('));
   assert.ok(options.indexOf("style: 'grid'") >= 0 &&
     options.indexOf("style: 'grid'") < options.indexOf("style: 'horizontal_cards'") &&
-    options.indexOf("style: 'horizontal_cards'") < options.indexOf("style: 'stack'"),
-  '卡片平铺 must lead, then 横向大卡片, then 堆叠式');
-  // Every normaliser has to name all three styles. Naming only the non-default ones would quietly
+    options.indexOf("style: 'horizontal_cards'") < options.indexOf("style: 'stack'") &&
+    options.indexOf("style: 'stack'") < options.indexOf("style: 'list'"),
+  '卡片平铺 must lead, then 横向大卡片, then 堆叠式, then 列表式');
+  // Every normaliser has to name all four styles. Naming only the non-default ones would quietly
   // turn a stored style back into the default the moment the default changed.
   assert.match(coordinator,
-    /return style === 'horizontal_cards' \|\| style === 'stack' \? style : 'grid';/);
+    /return style === 'horizontal_cards' \|\| style === 'stack' \|\| style === 'list' \? style : 'grid';/);
   const preferences = read('AiraBrowser/entry/src/main/ets/data/preferences/PreferencesRepository.ets');
   assert.match(preferences, /tabsOverviewLayoutStyle: 'grid',/);
   assert.match(preferences,
-    /return value === 'grid' \|\| value === 'horizontal_cards' \|\| value === 'stack' \?/);
+    /return value === 'grid' \|\| value === 'horizontal_cards' \|\| value === 'stack' \|\| value === 'list' \?/);
   const layoutViewModel = read('AiraBrowser/entry/src/main/ets/core/browser/BrowserTabsOverviewLayoutViewModel.ets');
   assert.match(layoutViewModel,
-    /return style === 'horizontal_cards' \|\| style === 'stack' \? style : 'grid';/);
+    /return style === 'horizontal_cards' \|\| style === 'stack' \|\| style === 'list' \? style : 'grid';/);
+  assert.match(layoutViewModel, /layoutStyle: 'list'/);
+  const validation = read('AiraBrowser/entry/src/main/ets/services/sync/PersonalizationSyncSnapshotValidationService.ets');
+  assert.match(validation, /\['grid', 'horizontal_cards', 'stack', 'list'\]/);
+  const sheet = read('AiraBrowser/entry/src/main/ets/app/components/settings/TabOverviewLayoutChoiceSheet.ets');
+  assert.match(sheet, /optionsInRange\(0, 2\)/);
+  assert.match(sheet, /optionsInRange\(2, 4\)/);
+  assert.match(sheet, /TAB_OVERVIEW_LAYOUT_FOOTER_CLEARANCE/);
+  assert.doesNotMatch(sheet, /Grid\(\)/);
+  assert.match(sheet, /tab_overview_list_light/);
+  const intro = read('AiraBrowser/entry/src/main/ets/app/pages/FeatureIntroAppearancePage.ets');
+  assert.match(intro, /TabOverviewLayoutOptionGrid/);
+  assert.match(intro, /feature-intro-tab-overview-style/);
+  const introViewModel = read('AiraBrowser/entry/src/main/ets/core/onboarding/FeatureIntroAppearanceViewModel.ets');
+  assert.match(introViewModel, /style: 'list'/);
+  assert.match(introViewModel,
+    /value === 'horizontal_cards' \|\| value === 'stack' \|\| value === 'list'/);
+  const overlay = read('AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabsFloatingOverlay.ets');
+  assert.match(overlay, /private buildListLayer\(\)/);
+  assert.match(overlay, /BrowserTabOverviewListRow/);
+  const listLayer = overlay.slice(overlay.indexOf('private buildListLayer'),
+    overlay.indexOf('private resolveCardSnapshotImageUri'));
+  assert.match(listLayer, /contentStartOffset\(this\.resolveContentTopPadding\(\)\)/);
+  assert.match(listLayer, /clipContent\(ContentClipMode\.BOUNDARY\)/);
+  assert.match(listLayer, /FLOATING_TABS_TOP_BLUR_STOPS/);
+  assert.match(listLayer, /contentOpacity: this\.resolveListRowContentOpacity\(item\.tab\.id\)/);
+  assert.match(listLayer, /frameScale: this\.resolveListRowFrameScale\(item\.tab\.id\)/);
+  assert.match(overlay, /getListEntryDissolveCurve\(\)/);
+  assert.match(overlay, /listEntrySnapshotSuppressed/);
+  assert.match(overlay, /imageBlurExtra: this\.isListLayout\(\) \? this\.listEntryImageBlur : 0/);
+  assert.doesNotMatch(listLayer, /top: this\.resolveContentTopPadding\(\)/);
+  assert.match(overlay, /listEntrySnapshotOpacity = 0/);
+  const session = read('AiraBrowser/entry/src/main/ets/core/browser/BrowserTabsOverviewSessionCoordinator.ets');
+  assert.match(session, /tabOverviewLayoutStyle === 'list'/);
+  assert.match(session, /BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS/);
+  assert.match(overlay, /!this\.isMorphCoveredTab\(tabId\)/);
+  const listRow = read('AiraBrowser/entry/src/main/ets/app/components/browser/BrowserTabOverviewListRow.ets');
+  assert.match(listRow, /\.opacity\(this\.contentOpacity\)/);
+  assert.match(listRow, /\.opacity\(this\.frameOpacity\)/);
+  assert.match(listRow, /\.opacity\(this\.rowOpacity\)/);
 });
 
 test('the middle bar\'s swipe-up is a second trigger for the same open, not a second animation', () => {

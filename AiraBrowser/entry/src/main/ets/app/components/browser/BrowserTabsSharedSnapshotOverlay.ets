@@ -24,6 +24,7 @@ export struct BrowserTabsSharedSnapshotOverlay {
   @Prop snapshotDecorationLayerZIndex: number = -1;
   @Prop viewportLeft: number = 0;
   @Prop viewportTop: number = 0;
+  @Prop imageBlurExtra: number = 0;
 
   @Watch('syncOverlayState')
   @Prop imagePixelMap: image.PixelMap | undefined = undefined;
@@ -247,7 +248,7 @@ export struct BrowserTabsSharedSnapshotOverlay {
   }
 
   private imageBlurRadius(): number {
-    return this.resolvePresentationState().imageBlurRadius;
+    return this.resolvePresentationState().imageBlurRadius + Math.max(0, this.imageBlurExtra);
   }
 
   private resolveBackgroundColor(): ResourceColor {

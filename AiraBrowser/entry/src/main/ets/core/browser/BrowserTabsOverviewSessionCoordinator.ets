@@ -53,7 +53,10 @@ import {
   BrowserTabsSharedSnapshotInterruptedEntryExitInput,
   buildBrowserTabsSharedSnapshotIdleState
 } from './BrowserTabsSharedSnapshotTransitionCoordinator';
-import { BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS } from './BrowserTabsOverviewVisualTokens';
+import {
+  BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
+  BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS
+} from './BrowserTabsOverviewVisualTokens';
 import {
   BrowserTabsOverviewSnapshotMorphSource,
   BrowserTabsOverviewSnapshotPipelineCoordinator
@@ -174,6 +177,7 @@ export interface BrowserTabsOverviewSessionFacts {
   rootBottomPanelDetent: HomeSearchPanelDetent;
   rootBottomPanelEffectiveHomeMode: boolean;
   backdropOpenStartProgress: number;
+  tabOverviewLayoutStyle: string;
   sharedSnapshotWindow: BrowserTabsOverviewSharedSnapshotWindowFacts;
 }
 
@@ -1622,6 +1626,7 @@ export class BrowserTabsOverviewSessionCoordinator {
     const runId = this.createSharedSnapshotRunId();
     const facts = host.readSessionFacts();
     const windowFacts = facts.sharedSnapshotWindow;
+    const listEntry = facts.tabOverviewLayoutStyle === 'list';
     const morphSource = this.snapshotPipelineCoordinator.resolveEntryMorphSourceForOwner({
       tabId: tabId,
       fallbackWebRect: this.buildSharedSnapshotWebRect(windowFacts),
@@ -1639,7 +1644,7 @@ export class BrowserTabsOverviewSessionCoordinator {
         morphSource.previewState,
         this.buildSharedSnapshotWindowInput(windowFacts, morphSource),
         this.buildSharedSnapshotTargetInput(tabId, facts, preparedTargetRect),
-        BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
+        listEntry ? BROWSER_TABS_OVERVIEW_LIST_ROW_CORNER_RADIUS : BROWSER_TABS_OVERVIEW_CARD_CORNER_RADIUS,
         0
       );
     }
@@ -1653,9 +1658,15 @@ export class BrowserTabsOverviewSessionCoordinator {
     return this.buildSharedSnapshotAnimationPlan(
       state,
       runId,
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterDurationMs(),
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterCurve(),
-      this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterHandoffDelayMs(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListEntryDurationMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterDurationMs(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListEntryCurve() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterCurve(),
+      listEntry ?
+        this.sharedSnapshotAnimationViewModel.getListEntryHandoffDelayMs() :
+        this.sharedSnapshotAnimationViewModel.getSharedSnapshotEnterHandoffDelayMs(),
       false
     );
   }

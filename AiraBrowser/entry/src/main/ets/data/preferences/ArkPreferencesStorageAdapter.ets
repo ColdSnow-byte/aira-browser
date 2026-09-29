@@ -391,7 +391,8 @@ export class ArkPreferencesStorageAdapter implements PreferencesStorageAdapter {
     value: BrowserTabsOverviewLayoutStyle | string | undefined,
     defaultValue: BrowserTabsOverviewLayoutStyle
   ): BrowserTabsOverviewLayoutStyle {
-    return value === 'grid' || value === 'horizontal_cards' || value === 'stack' ? value : defaultValue;
+    return value === 'grid' || value === 'horizontal_cards' || value === 'stack' || value === 'list' ?
+      value : defaultValue;
   }
 
   private parseAppearanceSettings(

@@ -14,10 +14,10 @@ import {
 } from '../../core/onboarding/FeatureIntroAppearanceViewModel';
 import { CustomHomepageEnvironmentService } from '../../services/customhome/CustomHomepageEnvironmentService';
 import { FeatureIntroExitDestination } from '../../core/onboarding/FeatureIntroRoutePolicy';
-import { TabOverviewLayoutOptionState } from '../../core/settings/TabOverviewLayoutSettingsCoordinator';
 import { sharedBrowserThemeModeCoordinator } from '../bootstrap/BrowserAppRuntime';
 import { FeatureIntroSkipControl } from '../components/onboarding/FeatureIntroSkipControl';
-import { TabOverviewLayoutOption } from '../components/settings/TabOverviewLayoutChoiceSheet';
+import { TabOverviewLayoutOptionGrid } from '../components/settings/TabOverviewLayoutChoiceSheet';
+import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } from '../components/browser/BrowserModalBottomSheet';
 import { BrowserStatusBarStyleService } from '../../services/browser/BrowserStatusBarStyleService';
 import { SettingsTopSafeInsetService } from '../../services/settings/SettingsTopSafeInsetService';
 import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../core/theme/BrowserThemeStorageKeys';
@@ -28,6 +28,14 @@ const FEATURE_INTRO_APPEARANCE_HORIZONTAL_PADDING: number = 24;
 const FEATURE_INTRO_APPEARANCE_CONTENT_MAX_WIDTH: number = 430;
 const FEATURE_INTRO_APPEARANCE_ACTION_HEIGHT: number = 40;
 const FEATURE_INTRO_APPEARANCE_SWATCH_SIZE: number = 36;
+/**
+ * Shorter than the settings sheet. The welcome step already shows theme mode and six colors, so a
+ * full sheet preview would push 堆叠式 and 列表式 a whole screen below the first pair.
+ */
+const FEATURE_INTRO_APPEARANCE_TAB_PREVIEW_HEIGHT: number = 128;
+const FEATURE_INTRO_APPEARANCE_TAB_RADIO_GROUP: string = 'feature-intro-tab-overview-style';
+const FEATURE_INTRO_APPEARANCE_HEADER_GAP: number = 12;
+const FEATURE_INTRO_APPEARANCE_HEADER_FALLBACK: number = 40;
 
 @Entry
 @Component
@@ -47,6 +55,9 @@ struct FeatureIntroAppearancePage {
   @State private desktopPresentation: boolean = false;
   @State private busy: boolean = false;
   @State private topInset: number = 0;
+  @State private contentTopInset: number = 0;
+  @State private headerBlurRadius: number = 0;
+  private readonly scroller: Scroller = new Scroller();
   private readonly viewModel: FeatureIntroAppearanceViewModel = new FeatureIntroAppearanceViewModel();
   private readonly environmentService: CustomHomepageEnvironmentService = new CustomHomepageEnvironmentService();
   private readonly topSafeInsetService: SettingsTopSafeInsetService = new SettingsTopSafeInsetService();
@@ -99,56 +110,71 @@ struct FeatureIntroAppearancePage {
 
   build() {
     Column() {
-      FeatureIntroSkipControl({
-        label: this.viewModel.skipLabel(),
-        leadingLabel: this.viewModel.previousLabel(),
-        topInsetVp: this.topInset,
-        skipEnabled: !this.busy,
-        onConfirm: (): void => {
-          this.skipSetup();
-        },
-        onLeading: (): void => {
-          this.returnToHomepage();
-        }
-      })
+      Stack({ alignContent: Alignment.TopStart }) {
+        Scroll(this.scroller) {
+          Column() {
+            Text(this.viewModel.title())
+              .width('100%')
+              .fontSize(26)
+              .lineHeight(34)
+              .fontWeight(FontWeight.Bold)
+              .fontColor(this.previewPrimaryTextColor)
+              .textAlign(TextAlign.Center)
 
-      Scroll() {
-        Column() {
-          Text(this.viewModel.title())
-            .width('100%')
-            .fontSize(26)
-            .lineHeight(34)
-            .fontWeight(FontWeight.Bold)
-            .fontColor(this.previewPrimaryTextColor)
-            .textAlign(TextAlign.Center)
+            Text(this.viewModel.subtitle())
+              .width('100%')
+              .fontSize(15)
+              .lineHeight(23)
+              .fontColor(this.previewSecondaryTextColor)
+              .textAlign(TextAlign.Center)
+              .margin({ top: 10 })
 
-          Text(this.viewModel.subtitle())
-            .width('100%')
-            .fontSize(15)
-            .lineHeight(23)
-            .fontColor(this.previewSecondaryTextColor)
-            .textAlign(TextAlign.Center)
-            .margin({ top: 10 })
-
-          this.buildThemeModeTabs()
-          this.buildThemeSection()
-          this.buildTabSection()
+            this.buildThemeModeTabs()
+            this.buildThemeSection()
+            this.buildTabSection()
+          }
+          .width('100%')
+          .constraintSize({ maxWidth: FEATURE_INTRO_APPEARANCE_CONTENT_MAX_WIDTH })
+          .padding({
+            left: FEATURE_INTRO_APPEARANCE_HORIZONTAL_PADDING,
+            right: FEATURE_INTRO_APPEARANCE_HORIZONTAL_PADDING,
+            bottom: 24
+          })
+          .alignItems(HorizontalAlign.Center)
         }
         .width('100%')
-        .constraintSize({ maxWidth: FEATURE_INTRO_APPEARANCE_CONTENT_MAX_WIDTH })
-        .padding({
-          left: FEATURE_INTRO_APPEARANCE_HORIZONTAL_PADDING,
-          right: FEATURE_INTRO_APPEARANCE_HORIZONTAL_PADDING,
-          top: 12,
-          bottom: 24
+        .height('100%')
+        // Offset, not top padding: padding would clip the title at the skip row.
+        // The page can scroll up under that row, where the blur takes over.
+        .contentStartOffset(this.resolveContentTopInset())
+        .scrollBar(BarState.Off)
+        .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+        .align(Alignment.Top)
+        .clipContent(ContentClipMode.BOUNDARY)
+        .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius))
+        .onDidScroll((_xOffset: number, _yOffset: number) => {
+          this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.scroller.currentOffset().yOffset);
         })
-        .alignItems(HorizontalAlign.Center)
+
+        FeatureIntroSkipControl({
+          label: this.viewModel.skipLabel(),
+          leadingLabel: this.viewModel.previousLabel(),
+          topInsetVp: this.topInset,
+          skipEnabled: !this.busy,
+          onConfirm: (): void => {
+            this.skipSetup();
+          },
+          onLeading: (): void => {
+            this.returnToHomepage();
+          }
+        })
+        .onAreaChange((_oldArea: Area, area: Area) => {
+          this.noteHeaderBottom(area);
+        })
       }
       .width('100%')
       .layoutWeight(1)
-      .scrollBar(BarState.Off)
-      .edgeEffect(EdgeEffect.None)
-      .align(Alignment.Top)
+      .alignContent(Alignment.TopStart)
 
       this.buildContinueButton()
     }
@@ -271,22 +297,16 @@ struct FeatureIntroAppearancePage {
         .width('100%')
         .alignItems(VerticalAlign.Top)
       } else {
-        Row({ space: 8 }) {
-          ForEach(this.viewModel.tabOptions(this.selectedTabStyle), (option: TabOverviewLayoutOptionState) => {
-            TabOverviewLayoutOption({
-              option: option,
-              previewResource: this.resolvePreviewResource(option.style),
-              accentColor: this.previewAccentColor,
-              primaryTextColor: this.previewPrimaryTextColor,
-              onSelect: (style: BrowserTabsOverviewLayoutStyle): void => {
-                this.selectTabStyle(style);
-              }
-            })
-              .layoutWeight(1)
-          }, (option: TabOverviewLayoutOptionState) => `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Top)
+        TabOverviewLayoutOptionGrid({
+          options: this.viewModel.tabOptions(this.selectedTabStyle),
+          accentColor: this.previewAccentColor,
+          primaryTextColor: this.previewPrimaryTextColor,
+          previewHeight: FEATURE_INTRO_APPEARANCE_TAB_PREVIEW_HEIGHT,
+          radioGroup: FEATURE_INTRO_APPEARANCE_TAB_RADIO_GROUP,
+          onSelect: (style: BrowserTabsOverviewLayoutStyle): void => {
+            this.selectTabStyle(style);
+          }
+        })
       }
     }
     .width('100%')
@@ -489,19 +509,6 @@ struct FeatureIntroAppearancePage {
     returnToPreviousOnboardingStep('appearance');
   }
 
-  private resolvePreviewResource(style: BrowserTabsOverviewLayoutStyle): Resource {
-    if (style === 'horizontal_cards') {
-      return this.storedResolvedThemeMode === 'dark' ?
-        $r('app.media.tab_overview_large_cards_dark') : $r('app.media.tab_overview_large_cards_light');
-    }
-    if (style === 'stack') {
-      return this.storedResolvedThemeMode === 'dark' ?
-        $r('app.media.tab_overview_stack_dark') : $r('app.media.tab_overview_stack_light');
-    }
-    return this.storedResolvedThemeMode === 'dark' ?
-      $r('app.media.tab_overview_grid_dark') : $r('app.media.tab_overview_grid_light');
-  }
-
   private syncPreviewTheme(): void {
     const tokens = this.viewModel.previewTokens(this.selectedPaletteId, this.storedResolvedThemeMode);
     this.previewAccentColor = tokens.accent;
@@ -522,6 +529,31 @@ struct FeatureIntroAppearancePage {
 
   private refreshDesktopPresentation(): void {
     this.desktopPresentation = this.environmentService.resolveNativeState().shellFamily === 'large_screen';
+  }
+
+  private resolveContentTopInset(): number {
+    if (this.contentTopInset > 0) {
+      return this.contentTopInset;
+    }
+    return this.topInset + FEATURE_INTRO_APPEARANCE_HEADER_FALLBACK + FEATURE_INTRO_APPEARANCE_HEADER_GAP;
+  }
+
+  private noteHeaderBottom(area: Area): void {
+    const top = this.parseAreaLength(area.position.y);
+    const height = this.parseAreaLength(area.height);
+    const next = top + height + FEATURE_INTRO_APPEARANCE_HEADER_GAP;
+    if (next <= 0 || Math.abs(next - this.contentTopInset) < 0.5) {
+      return;
+    }
+    this.contentTopInset = next;
+  }
+
+  private parseAreaLength(value: Length | undefined): number {
+    if (typeof value === 'number' && Number.isFinite(value)) {
+      return value;
+    }
+    const parsed = Number.parseFloat(`${value ?? ''}`);
+    return Number.isFinite(parsed) ? parsed : 0;
   }
 
   private readTopInset(): void {

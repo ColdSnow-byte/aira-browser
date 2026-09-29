@@ -62,7 +62,8 @@ export function resolveFeatureIntroAppearanceThemeMode(value: string): BrowserTh
 }
 
 export function resolveFeatureIntroAppearanceTabStyle(value: string): BrowserTabsOverviewLayoutStyle {
-  return value === 'horizontal_cards' || value === 'stack' ? value : FEATURE_INTRO_APPEARANCE_DEFAULT_TAB_STYLE;
+  return value === 'horizontal_cards' || value === 'stack' || value === 'list' ?
+    value : FEATURE_INTRO_APPEARANCE_DEFAULT_TAB_STYLE;
 }
 
 /** PC keeps a top tab strip or a side tab strip. It does not use the phone overview styles. */
@@ -203,6 +204,11 @@ export class FeatureIntroAppearanceViewModel {
         style: 'stack',
         title: '堆叠式',
         isSelected: selected === 'stack'
+      },
+      {
+        style: 'list',
+        title: '列表式',
+        isSelected: selected === 'list'
       }
     ];
   }

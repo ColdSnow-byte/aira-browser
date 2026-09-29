@@ -32,6 +32,7 @@ import { BrowserTabsOverviewSection, BrowserTabsOverviewSectionPolicy } from '..
 import { sharedBrowserTabsOverviewThumbnailStore } from '../../../core/browser/tabsOverview/BrowserTabsOverviewThumbnailStore';
 import { BrowserTabOverviewCardSelectRect } from './BrowserTabOverviewCard';
 import { BrowserTabOverviewItem } from './BrowserTabOverviewItem';
+import { BrowserTabOverviewListRow } from './BrowserTabOverviewListRow';
 import { BrowserTabsSharedSnapshotOverlay } from './BrowserTabsSharedSnapshotOverlay';
 import {
   BrowserTabsOverviewBottomChrome,
@@ -91,8 +92,8 @@ import { browserSheetHeaderBlurModifier, resolveBrowserSheetHeaderBlurRadius } f
 const FLOATING_TABS_HORIZONTAL_PADDING: number = 16;
 const FLOATING_TABS_TOP_PADDING: number = 28;
 // Cards dissolve into the top edge instead of being cut off by it, the same way the
-// settings pages and the bookmark/history lists do. The stops are shared by all three tab
-// layouts so a card fades out identically whichever deck the user is in. The band is
+// settings pages and the bookmark/history lists do. The stops are shared by every tab
+// layout so a card fades out identically whichever deck the user is in. The band is
 // deliberately shorter than the list surfaces': this page's top chrome is only the corner
 // button, so a full-height fade was blurring rows the user was still reading.
 const FLOATING_TABS_TOP_BLUR_STOPS: Array<[number, number]> = [[1, 0], [1, 0.033], [0, 0.093], [0, 1]];
@@ -191,7 +192,9 @@ export struct BrowserTabsFloatingOverlay {
   @Prop regularChromeIconTone: AppChromeIconTone = 'light';
   @Watch('startCloseAllTabsAnimationFromRequest')
   @Prop closeAllTabsAnimationRequestVersion: number = 0;
+  @Watch('armListEntryCrossfade')
   @Prop entrySharedSnapshotMounted: boolean = false;
+  @Watch('armListEntryCrossfade')
   @Prop entrySharedSnapshotState: BrowserTabsSharedSnapshotTransitionState =
     new BrowserTabsSharedSnapshotTransitionCoordinator().buildIdleState();
   @Prop entrySharedSnapshotBackgroundColor: ResourceColor | undefined = undefined;
@@ -210,6 +213,13 @@ export struct BrowserTabsFloatingOverlay {
       layoutStyle: 'grid'
     });
   @State private entryProgress: number = 0;
+  @State private listEntrySnapshotOpacity: number = 1;
+  @State private listEntryChromeOpacity: number = 1;
+  @State private listEntryFrameOpacity: number = 1;
+  @State private listEntryFrameScale: number = 1;
+  @State private listEntryImageBlur: number = 0;
+  @State private listEntrySnapshotSuppressed: boolean = false;
+  private listEntrySnapshotReleaseTimer: number = 0;
   @State private removalState: BrowserTabsOverviewLocalRemovalState =
     new BrowserTabsOverviewShadowViewModel().buildInitialLocalRemovalState();
   @State private lateMountEntryAnimationEnabled: boolean = false;
@@ -248,6 +258,9 @@ export struct BrowserTabsFloatingOverlay {
   private entryTargetReadyTimer: number = 0;
   private chromeMountTimer: number = 0;
   private entryDisplacementTargetId: string = '';
+  private listEntryCrossfadeTabId: string = '';
+  private listEntryCrossfadeVersion: number = 0;
+  private listEntryCrossfadeTimer: number = 0;
   private entryReturnTabId: string = '';
   /**
    * The tab whose preview has already been composited under the entering morph.
@@ -403,6 +416,7 @@ export struct BrowserTabsFloatingOverlay {
     this.removalState = this.shadowViewModel.buildInitialLocalRemovalState();
     this.ensureDeckPositionForCurrentSection();
     this.syncEntryDisplacementFromProps();
+    this.armListEntryCrossfade();
     this.prepareBottomEntryAnimation();
     this.refreshBottomChromeCounts();
     // Resolve identity icons before the grid is first built. The grid is keyed by tab
@@ -420,6 +434,8 @@ export struct BrowserTabsFloatingOverlay {
     this.clearLateMountEntryAnimationTimer();
     this.clearCloseAllCommitTimer();
     this.clearEntryTargetReadyTimer();
+    this.finishListEntryCrossfade();
+    this.clearListEntrySnapshotReleaseTimer();
     if (this.chromeMountTimer > 0) {
       clearTimeout(this.chromeMountTimer);
       this.chromeMountTimer = 0;
@@ -596,8 +612,10 @@ export struct BrowserTabsFloatingOverlay {
       },
       onSnapshotTap: (tabId: string) => {
         this.onEntrySharedSnapshotTap(tabId);
-      }
+      },
+      imageBlurExtra: this.isListLayout() ? this.listEntryImageBlur : 0
     })
+    .opacity(this.resolveListEntrySnapshotOpacity())
   }
 
   /**
@@ -665,6 +683,8 @@ export struct BrowserTabsFloatingOverlay {
       this.buildHorizontalCardsLayer()
     } else if (this.layoutState.layoutStyle === 'stack') {
       this.buildStackCardsLayer()
+    } else if (this.layoutState.layoutStyle === 'list') {
+      this.buildListLayer()
     } else {
       this.buildGridCardsLayer()
     }
@@ -884,6 +904,79 @@ export struct BrowserTabsFloatingOverlay {
     .height(this.layoutState.itemHeight)
   }
 
+  /**
+   * The icon-and-title list.
+   *
+   * Each row is the tab: the site icon and title on the left, the close button on the right. It
+   * shares the grid's scroller so opening still lands on the current tab, and it does not borrow
+   * the card swipe — a vertical list already owns that gesture for scrolling.
+   *
+   * Top and bottom insets are content offsets, not padding. A List clips to its content box by
+   * default, so padding cut every row off at the status-bar line and the top blur never saw them.
+   * The viewport stays full height, rows can scroll to the top, and the same gradient blur the
+   * cards use fades them as they pass under the status bar.
+   */
+  @Builder
+  private buildListLayer() {
+    List({
+      space: this.layoutState.gridGap,
+      scroller: this.scroller
+    }) {
+      ForEach(this.resolveVisibleItems(), (item: BrowserTabsFloatingItem) => {
+        ListItem() {
+          BrowserTabOverviewListRow({
+            tab: item.tab,
+            presentation: item.presentation,
+            active: item.tab.id === this.activeTabId,
+            rowEnabled: this.interactionEnabled && !this.exiting && !this.closeAllExitActive &&
+              !this.isSelectionDisplacementActive() && !this.isEntryDisplacementActive() &&
+              !this.isMorphCoveredTab(item.tab.id),
+            rowHeight: this.layoutState.itemHeight,
+            rowTranslateX: this.resolveCardTranslateX(item),
+            rowOpacity: this.resolveCardOpacity(item),
+            motionDurationMs: this.resolveCardMotionDurationMs(),
+            motionCurve: this.resolveCardMotionCurve(),
+            motionDelayMs: this.resolveCardMotionDelayMs(item.index),
+            onSelect: (tabId: string, rect?: BrowserTabOverviewCardSelectRect) => {
+              this.selectOverviewTab(tabId, rect);
+            },
+            onCloseTab: (tabId: string) => {
+              this.closeTabFromOverlay(tabId);
+            },
+            onPreviewRectChange: (tabId: string, left: number, top: number, width: number, height: number) => {
+              this.handlePreviewRectChange(tabId, left, top, width, height);
+            },
+            contentOpacity: this.resolveListRowContentOpacity(item.tab.id),
+            frameOpacity: this.resolveListRowFrameOpacity(item.tab.id),
+            frameScale: this.resolveListRowFrameScale(item.tab.id)
+          })
+        }
+        .width('100%')
+        .height(this.layoutState.itemHeight)
+        .clip(false)
+      }, (item: BrowserTabsFloatingItem) => this.resolveCardIdentityKey(item))
+    }
+    .width('100%')
+    .height('100%')
+    .cachedCount(8)
+    .padding({
+      left: FLOATING_TABS_HORIZONTAL_PADDING,
+      right: FLOATING_TABS_HORIZONTAL_PADDING
+    })
+    .contentStartOffset(this.resolveContentTopPadding())
+    .contentEndOffset(this.resolveContentBottomPadding())
+    .clipContent(ContentClipMode.BOUNDARY)
+    .attributeModifier(browserSheetHeaderBlurModifier(this.headerBlurRadius, FLOATING_TABS_TOP_BLUR_STOPS))
+    .scrollBar(BarState.Off)
+    .edgeEffect(EdgeEffect.Spring, { alwaysEnabled: true })
+    .onDidScroll(() => {
+      this.headerBlurRadius = resolveBrowserSheetHeaderBlurRadius(this.scroller.currentOffset().yOffset);
+    })
+    .hitTestBehavior((this.interactionEnabled && !this.closeAllExitActive) ?
+      HitTestMode.Transparent : HitTestMode.None)
+    .zIndex(FLOATING_TABS_CARDS_Z_INDEX)
+  }
+
   private resolveCardSnapshotImageUri(item: BrowserTabsFloatingItem): string {
     const previewUri = item.presentation.preview.sharedSnapshotImageUri.trim();
     if (previewUri.length > 0) {
@@ -974,10 +1067,10 @@ export struct BrowserTabsFloatingOverlay {
    *
    * The strip and the deck are both one card wide, so a sideways flick belongs to their own paging
    * and the dismiss gesture has to take the other axis. The grid has no paging, so it keeps the
-   * sideways flick.
+   * sideways flick. The list has a close button and a vertical scroller, so it is not a card flick.
    */
   private usesUpwardCardDismiss(): boolean {
-    return this.layoutState.layoutStyle !== 'grid';
+    return this.isStackLayout() || this.isHorizontalCardsLayout();
   }
 
   private startEntryAnimation(): void {
@@ -1158,6 +1251,173 @@ export struct BrowserTabsFloatingOverlay {
     }, () => {
       this.entryDisplacementProgress = 1;
     });
+  }
+
+  /**
+   * Only the row the page is shrinking into holds its icon, title and close button.
+   * The other rows stay readable for the whole open.
+   */
+  private resolveListRowContentOpacity(tabId: string): number {
+    if (this.listEntryCrossfadeTabId.length === 0 || !this.isMorphCoveredTab(tabId)) {
+      return 1;
+    }
+    return this.listEntryChromeOpacity;
+  }
+
+  private resolveListRowFrameOpacity(tabId: string): number {
+    if (this.listEntryCrossfadeTabId.length === 0 || !this.isMorphCoveredTab(tabId)) {
+      return 1;
+    }
+    return this.listEntryFrameOpacity;
+  }
+
+  private resolveListRowFrameScale(tabId: string): number {
+    if (this.listEntryCrossfadeTabId.length === 0 || !this.isMorphCoveredTab(tabId)) {
+      return 1;
+    }
+    return this.listEntryFrameScale;
+  }
+
+  /**
+   * The page is the shrinking shape. The row is already complete underneath it, so the
+   * only visible join is the picture fading away. Unmount must not restore that opacity.
+   * A write during the geometry animateTo would be captured for the whole flight.
+   */
+  private armListEntryCrossfade(): void {
+    if (!this.shouldArmListEntryCrossfade()) {
+      this.finishListEntryCrossfade();
+      return;
+    }
+    const tabId = this.resolveMorphCoveredTabId();
+    if (this.listEntryCrossfadeTabId === tabId) {
+      if (this.entrySharedSnapshotState.progress > 0) {
+        this.scheduleListEntryCrossfade(this.listEntryCrossfadeVersion);
+      }
+      return;
+    }
+    this.listEntryCrossfadeVersion += 1;
+    this.listEntryCrossfadeTabId = tabId;
+    this.clearListEntryCrossfadeTimer();
+    const version = this.listEntryCrossfadeVersion;
+    setTimeout(() => {
+      if (version !== this.listEntryCrossfadeVersion) {
+        return;
+      }
+      this.listEntrySnapshotSuppressed = false;
+      this.listEntrySnapshotOpacity = 1;
+      this.listEntryChromeOpacity = 0;
+      this.listEntryFrameOpacity = 0;
+      this.listEntryFrameScale = 1;
+      this.listEntryImageBlur = 0;
+      if (this.entrySharedSnapshotState.progress > 0) {
+        this.scheduleListEntryCrossfade(version);
+      }
+    }, 0);
+  }
+
+  private shouldArmListEntryCrossfade(): boolean {
+    if (!this.isListLayout() || this.exiting || this.closeAllExitActive) {
+      return false;
+    }
+    const state = this.entrySharedSnapshotState;
+    return this.entrySharedSnapshotMounted &&
+      state.direction === 'enter' &&
+      state.phase !== 'idle' &&
+      state.phase !== 'settled' &&
+      this.resolveMorphCoveredTabId().length > 0;
+  }
+
+  private scheduleListEntryCrossfade(version: number): void {
+    if (this.listEntryCrossfadeTimer !== 0 || version !== this.listEntryCrossfadeVersion) {
+      return;
+    }
+    const enterDuration = this.animationViewModel.getListEntryDurationMs();
+    const delay = Math.round(enterDuration * this.animationViewModel.getListEntryCrossfadeStartProgress());
+    // Finish before the geometry does, so the picture is already gone when unmount starts.
+    const fadeDuration = Math.max(140, enterDuration - delay - 48);
+    this.listEntryCrossfadeTimer = setTimeout(() => {
+      this.listEntryCrossfadeTimer = 0;
+      if (version !== this.listEntryCrossfadeVersion || !this.shouldArmListEntryCrossfade()) {
+        return;
+      }
+      // The row is covered by the still-solid picture. Reveal it first, then let the picture leave.
+      this.listEntryChromeOpacity = 1;
+      this.listEntryFrameOpacity = 1;
+      this.listEntryFrameScale = 1;
+      animateTo({
+        duration: fadeDuration,
+        curve: this.animationViewModel.getListEntryDissolveCurve()
+      }, () => {
+        if (version !== this.listEntryCrossfadeVersion) {
+          return;
+        }
+        this.listEntrySnapshotOpacity = 0;
+        this.holdListEntrySnapshotHidden(version);
+      });
+    }, delay);
+  }
+
+  private finishListEntryCrossfade(): void {
+    if (this.listEntryCrossfadeTabId.length === 0 && this.listEntryCrossfadeTimer === 0) {
+      return;
+    }
+    this.clearListEntryCrossfadeTimer();
+    this.listEntryCrossfadeVersion += 1;
+    this.listEntryCrossfadeTabId = '';
+    // Stay transparent through unmount. Restoring 1 here flashes the page back on.
+    this.listEntrySnapshotOpacity = 0;
+    this.listEntryChromeOpacity = 1;
+    this.listEntryFrameOpacity = 1;
+    this.listEntryFrameScale = 1;
+    this.listEntryImageBlur = 0;
+    this.holdListEntrySnapshotHidden(this.listEntryCrossfadeVersion);
+  }
+
+  private holdListEntrySnapshotHidden(version: number): void {
+    this.listEntrySnapshotSuppressed = true;
+    this.clearListEntrySnapshotReleaseTimer();
+    this.listEntrySnapshotReleaseTimer = setTimeout(() => {
+      this.listEntrySnapshotReleaseTimer = 0;
+      if (version !== this.listEntryCrossfadeVersion) {
+        return;
+      }
+      const state = this.entrySharedSnapshotState;
+      if (state.direction === 'enter' && state.phase !== 'idle' && state.phase !== 'settled') {
+        return;
+      }
+      this.listEntrySnapshotSuppressed = false;
+      this.listEntrySnapshotOpacity = 1;
+    }, 96);
+  }
+
+  private clearListEntrySnapshotReleaseTimer(): void {
+    if (this.listEntrySnapshotReleaseTimer === 0) {
+      return;
+    }
+    clearTimeout(this.listEntrySnapshotReleaseTimer);
+    this.listEntrySnapshotReleaseTimer = 0;
+  }
+
+  private resolveListEntrySnapshotOpacity(): number {
+    if (this.listEntrySnapshotSuppressed) {
+      return 0;
+    }
+    if (!this.isListLayout()) {
+      return 1;
+    }
+    if (this.entrySharedSnapshotState.direction === 'enter' &&
+      this.entrySharedSnapshotState.phase !== 'idle') {
+      return this.listEntrySnapshotOpacity;
+    }
+    return 1;
+  }
+
+  private clearListEntryCrossfadeTimer(): void {
+    if (this.listEntryCrossfadeTimer === 0) {
+      return;
+    }
+    clearTimeout(this.listEntryCrossfadeTimer);
+    this.listEntryCrossfadeTimer = 0;
   }
 
   private switchSection(section: BrowserTabsOverviewSection): void {
@@ -1502,6 +1762,9 @@ export struct BrowserTabsFloatingOverlay {
     const targetTabId = tabId.trim();
     if (targetTabId.length <= 0) {
       return undefined;
+    }
+    if (this.isListLayout()) {
+      return this.buildListEntryTargetPreviewRect(targetTabId);
     }
     const visibleTabIds = this.resolveVisibleTabIds();
     if (this.isHorizontalCardsLayout()) {
@@ -2172,6 +2435,41 @@ export struct BrowserTabsFloatingOverlay {
    */
   private isHorizontalCardsLayout(): boolean {
     return this.layoutState.layoutStyle === 'horizontal_cards';
+  }
+
+  private isListLayout(): boolean {
+    return this.layoutState.layoutStyle === 'list';
+  }
+
+  /**
+   * Where the current row sits after `scrollToIndex(..., CENTER)`.
+   *
+   * The entry morph starts from this prediction when the row has not reported its own rect yet.
+   * A missing rect leaves the list invisible: the cards layer stays at opacity 0 until a target
+   * exists. The measured row replaces this once `onAreaChange` arrives.
+   */
+  private buildListEntryTargetPreviewRect(tabId: string): BrowserTabsOverlayRect | undefined {
+    const index = this.resolveDisplacementTargetIndex(tabId);
+    if (index < 0) {
+      return undefined;
+    }
+    const itemHeight = Math.max(1, this.layoutState.itemHeight);
+    const gap = Math.max(0, this.layoutState.gridGap);
+    const count = Math.max(1, this.resolveVisibleTabIds().length);
+    const contentTop = this.resolveContentTopPadding();
+    const contentBottom = this.resolveContentBottomPadding();
+    const viewportHeight = Math.max(1, this.resolveRootHeight() - contentTop - contentBottom);
+    const contentHeight = count * itemHeight + Math.max(0, count - 1) * gap;
+    const itemTop = index * (itemHeight + gap);
+    const maxScroll = Math.max(0, contentHeight - viewportHeight);
+    const desiredScroll = itemTop - Math.max(0, (viewportHeight - itemHeight) / 2);
+    const scroll = Math.min(maxScroll, Math.max(0, desiredScroll));
+    return {
+      left: this.resolveRootLeft() + FLOATING_TABS_HORIZONTAL_PADDING,
+      top: this.resolveRootTop() + contentTop + itemTop - scroll,
+      width: Math.max(1, this.layoutState.cardWidth),
+      height: itemHeight
+    };
   }
 
   /**

@@ -11,8 +11,8 @@ import {
 } from '../../../core/theme/BrowserThemeStorageKeys';
 import {
   BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
+  BROWSER_MODAL_BOTTOM_SHEET_ACTION_HEIGHT,
   BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING,
-  BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE,
   resolveBrowserSheetHeaderBlurRadius,
   BrowserBottomSheetSurface,
   BrowserFeatureSheetHeader,
@@ -26,15 +26,19 @@ import { SettingsGroupCard } from './SettingsLayout';
 import { SettingsSwitchRow } from './SettingsRows';
 
 const TAB_OVERVIEW_LAYOUT_SHEET_MAX_WIDTH: number = 620;
-const TAB_OVERVIEW_LAYOUT_OPTION_PREVIEW_HEIGHT: number = 168;
+const TAB_OVERVIEW_LAYOUT_OPTION_PREVIEW_HEIGHT: number = 120;
 const TAB_OVERVIEW_LAYOUT_RADIO_GROUP: string = 'tab-overview-layout-style';
+/**
+ * The 应用 / 取消 pair floats over the phone sheet. 110 was short of two 44vp buttons, the gap
+ * and the footer padding, so the close-button switch came to rest underneath them.
+ */
+const TAB_OVERVIEW_LAYOUT_FOOTER_CLEARANCE: number =
+  BROWSER_MODAL_BOTTOM_SHEET_ACTION_HEIGHT * 2 + 8 + BROWSER_SHEET_IMMERSIVE_BOTTOM_PADDING + 20;
 
 @Component
 export struct TabOverviewLayoutChoiceSheet {
   @StorageProp(BROWSER_THEME_STORAGE_ACCENT_KEY) private storedAccentColor: string = '#0A59F7';
   @StorageProp(BROWSER_THEME_STORAGE_PAGE_BACKGROUND_KEY) private storedPageBackgroundColor: string = DEFAULT_THEME_PALETTE.light.pageBackground;
-  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
-  @StorageProp(BROWSER_THEME_STORAGE_TEXT_PRIMARY_KEY) private storedPrimaryTextColor: string = '#111318';
   @Prop options: TabOverviewLayoutOptionState[] = [];
   @Prop layoutMode: 'phone' | 'large_screen' = 'phone';
   @Prop closeButtonAlwaysVisible: boolean = false;
@@ -133,7 +137,7 @@ export struct TabOverviewLayoutChoiceSheet {
   private buildPhoneScrollContent() {
     this.buildChoiceScroll(
       BROWSER_IMMERSIVE_SHEET_HEADER_CONTENT_TOP_INSET,
-      BROWSER_SHEET_IMMERSIVE_FOOTER_CLEARANCE
+      TAB_OVERVIEW_LAYOUT_FOOTER_CLEARANCE
     )
   }
 
@@ -141,20 +145,12 @@ export struct TabOverviewLayoutChoiceSheet {
   private buildChoiceScroll(topPadding: number, bottomPadding: number) {
     Scroll(this.sheetBlurScroller) {
       Column({ space: 18 }) {
-        Row({ space: 12 }) {
-          ForEach(this.options, (option: TabOverviewLayoutOptionState) => {
-            TabOverviewLayoutOption({
-              option: option,
-              previewResource: this.resolvePreviewResource(option.style),
-              onSelect: (style: BrowserTabsOverviewLayoutStyle) => {
-                this.onSelect(style);
-              }
-            })
-              .layoutWeight(1)          }, (option: TabOverviewLayoutOptionState) =>
-            `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
-        }
-        .width('100%')
-        .alignItems(VerticalAlign.Top)
+        TabOverviewLayoutOptionGrid({
+          options: this.options,
+          onSelect: (style: BrowserTabsOverviewLayoutStyle) => {
+            this.onSelect(style);
+          }
+        })
 
         SettingsGroupCard({}) {
           SettingsSwitchRow({
@@ -222,6 +218,83 @@ export struct TabOverviewLayoutChoiceSheet {
     .width('100%')
   }
 
+}
+
+/**
+ * Two by two: the first pair on top, the second pair below.
+ *
+ * A single row of four previews is too narrow to read. The sheet and the appearance intro share
+ * this grid so the fourth style does not get squeezed back into one line.
+ */
+@Component
+export struct TabOverviewLayoutOptionGrid {
+  @StorageProp(BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY) private storedResolvedThemeMode: string = 'light';
+  @Prop options: TabOverviewLayoutOptionState[] = [];
+  @Prop accentColor: string = '';
+  @Prop primaryTextColor: string = '';
+  @Prop previewHeight: number = TAB_OVERVIEW_LAYOUT_OPTION_PREVIEW_HEIGHT;
+  @Prop radioGroup: string = TAB_OVERVIEW_LAYOUT_RADIO_GROUP;
+  onSelect: (style: BrowserTabsOverviewLayoutStyle) => void = (_style: BrowserTabsOverviewLayoutStyle) => {};
+
+  build() {
+    // Two content-sized rows, not a Grid. Grid fills the sheet and pushed the switch down into
+    // the floating buttons. ForEach keeps each tile's click on its own style.
+    Column({ space: 18 }) {
+      Row({ space: 12 }) {
+        ForEach(this.optionsInRange(0, 2), (option: TabOverviewLayoutOptionState) => {
+          TabOverviewLayoutOption({
+            option: option,
+            previewResource: this.resolvePreviewResource(option.style),
+            accentColor: this.accentColor,
+            primaryTextColor: this.primaryTextColor,
+            previewHeight: this.previewHeight,
+            radioGroup: this.radioGroup,
+            onSelect: (style: BrowserTabsOverviewLayoutStyle) => {
+              this.onSelect(style);
+            }
+          })
+            .layoutWeight(1)
+        }, (option: TabOverviewLayoutOptionState) => `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
+      }
+      .width('100%')
+      .alignItems(VerticalAlign.Top)
+
+      if (this.options.length > 2) {
+        Row({ space: 12 }) {
+          ForEach(this.optionsInRange(2, 4), (option: TabOverviewLayoutOptionState) => {
+            TabOverviewLayoutOption({
+              option: option,
+              previewResource: this.resolvePreviewResource(option.style),
+              accentColor: this.accentColor,
+              primaryTextColor: this.primaryTextColor,
+              previewHeight: this.previewHeight,
+              radioGroup: this.radioGroup,
+              onSelect: (style: BrowserTabsOverviewLayoutStyle) => {
+                this.onSelect(style);
+              }
+            })
+              .layoutWeight(1)
+          }, (option: TabOverviewLayoutOptionState) => `${option.style}:${option.isSelected ? 'selected' : 'idle'}`)
+        }
+        .width('100%')
+        .alignItems(VerticalAlign.Top)
+      }
+    }
+    .width('100%')
+  }
+
+  private optionsInRange(start: number, end: number): TabOverviewLayoutOptionState[] {
+    const result: TabOverviewLayoutOptionState[] = [];
+    const last = Math.min(end, this.options.length);
+    for (let index = start; index < last; index++) {
+      const option = this.options[index];
+      if (option !== undefined) {
+        result.push(option);
+      }
+    }
+    return result;
+  }
+
   private resolvePreviewResource(style: BrowserTabsOverviewLayoutStyle): Resource {
     if (style === 'horizontal_cards') {
       return this.storedResolvedThemeMode === 'dark' ?
@@ -230,6 +303,10 @@ export struct TabOverviewLayoutChoiceSheet {
     if (style === 'stack') {
       return this.storedResolvedThemeMode === 'dark' ?
         $r('app.media.tab_overview_stack_dark') : $r('app.media.tab_overview_stack_light');
+    }
+    if (style === 'list') {
+      return this.storedResolvedThemeMode === 'dark' ?
+        $r('app.media.tab_overview_list_dark') : $r('app.media.tab_overview_list_light');
     }
     return this.storedResolvedThemeMode === 'dark' ?
       $r('app.media.tab_overview_grid_dark') : $r('app.media.tab_overview_grid_light');
@@ -248,13 +325,15 @@ export struct TabOverviewLayoutOption {
   @Prop previewResource: Resource = $r('app.media.tab_overview_grid_light');
   @Prop accentColor: string = '';
   @Prop primaryTextColor: string = '';
+  @Prop previewHeight: number = TAB_OVERVIEW_LAYOUT_OPTION_PREVIEW_HEIGHT;
+  @Prop radioGroup: string = TAB_OVERVIEW_LAYOUT_RADIO_GROUP;
   onSelect: (style: BrowserTabsOverviewLayoutStyle) => void = (_style: BrowserTabsOverviewLayoutStyle) => {};
 
   build() {
     Column({ space: 10 }) {
       Image(this.previewResource)
         .width('100%')
-        .height(TAB_OVERVIEW_LAYOUT_OPTION_PREVIEW_HEIGHT)
+        .height(this.previewHeight)
         .objectFit(ImageFit.Contain)
 
       Text(this.option.title)
@@ -268,7 +347,7 @@ export struct TabOverviewLayoutOption {
 
       Radio({
         value: this.option.style,
-        group: TAB_OVERVIEW_LAYOUT_RADIO_GROUP
+        group: this.radioGroup
       })
         .checked(this.option.isSelected)
         .hitTestBehavior(HitTestMode.None)

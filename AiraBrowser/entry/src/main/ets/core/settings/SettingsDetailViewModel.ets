@@ -1852,7 +1852,10 @@ export class SettingsDetailViewModel {
     if (style === 'horizontal_cards') {
       return '横向大卡片';
     }
-    return style === 'stack' ? '堆叠式' : '卡片平铺';
+    if (style === 'stack') {
+      return '堆叠式';
+    }
+    return style === 'list' ? '列表式' : '卡片平铺';
   }
 
   private getDesktopTabPlacementLabel(verticalTabsEnabled: boolean): string {

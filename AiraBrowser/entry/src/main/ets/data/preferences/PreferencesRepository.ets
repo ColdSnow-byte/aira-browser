@@ -1206,15 +1206,15 @@ export class PreferencesRepository {
   }
 
   /**
-   * Each of the three styles is its own value; only an unknown one falls back to the default.
+   * Each of the four styles is its own value; only an unknown one falls back to the default.
    *
    * The default is 卡片平铺, so every stored style has to be named here: testing only for the
-   * non-default one would quietly turn a stored `horizontal_cards` or `stack` back into `grid`.
+   * non-default ones would quietly turn a stored `horizontal_cards`, `stack` or `list` back into `grid`.
    */
   private normalizeTabsOverviewLayoutStyle(
     value: BrowserTabsOverviewLayoutStyle | string | undefined
   ): BrowserTabsOverviewLayoutStyle {
-    return value === 'grid' || value === 'horizontal_cards' || value === 'stack' ?
+    return value === 'grid' || value === 'horizontal_cards' || value === 'stack' || value === 'list' ?
       value :
       DEFAULT_BROWSER_APPEARANCE_SETTINGS.tabsOverviewLayoutStyle;
   }

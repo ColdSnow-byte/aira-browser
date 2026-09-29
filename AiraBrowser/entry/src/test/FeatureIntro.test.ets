@@ -211,7 +211,7 @@ export default function featureIntroTest(): void {
   });
 
   describe('featureIntroAppearance', () => {
-    it('offers six theme colors and the three tab styles, with the defaults selected', 0, () => {
+    it('offers six theme colors and the four tab styles, with the defaults selected', 0, () => {
       const viewModel = new FeatureIntroAppearanceViewModel();
       const palettes = viewModel.palettes(viewModel.defaultPaletteId());
       const tabs = viewModel.tabOptions(viewModel.defaultTabStyle());
@@ -236,7 +236,7 @@ export default function featureIntroTest(): void {
       expect(palettes[5].id).assertEqual('coral');
       expect(palettes[5].title).assertEqual('橙潮');
       expect(palettes[5].isSelected).assertFalse();
-      expect(tabs.length).assertEqual(3);
+      expect(tabs.length).assertEqual(4);
       expect(tabs[0].style).assertEqual('grid');
       expect(tabs[0].title).assertEqual('卡片平铺');
       expect(tabs[0].isSelected).assertTrue();
@@ -245,11 +245,16 @@ export default function featureIntroTest(): void {
       expect(tabs[1].isSelected).assertFalse();
       expect(tabs[2].style).assertEqual('stack');
       expect(tabs[2].title).assertEqual('堆叠式');
+      expect(tabs[3].style).assertEqual('list');
+      expect(tabs[3].title).assertEqual('列表式');
+      expect(tabs[3].isSelected).assertFalse();
       expect(viewModel.palettes('coral')[5].isSelected).assertTrue();
       expect(viewModel.tabOptions('stack')[2].isSelected).assertTrue();
+      expect(viewModel.tabOptions('list')[3].isSelected).assertTrue();
       expect(resolveFeatureIntroAppearancePalette('indigo')).assertEqual('indigo');
       expect(resolveFeatureIntroAppearancePalette('sage')).assertEqual('default');
       expect(resolveFeatureIntroAppearanceTabStyle('horizontal_cards')).assertEqual('horizontal_cards');
+      expect(resolveFeatureIntroAppearanceTabStyle('list')).assertEqual('list');
       expect(resolveFeatureIntroAppearanceTabStyle('other')).assertEqual('grid');
       const desktopTabs = viewModel.desktopTabOptions(viewModel.defaultDesktopTabPlacement());
       expect(viewModel.defaultDesktopTabPlacement()).assertEqual('horizontal');

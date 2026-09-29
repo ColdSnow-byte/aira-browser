@@ -38,6 +38,16 @@ const TABS_OVERLAY_EXIT_CURVE: Curve = Curve.Friction;
 const TABS_OVERLAY_SHARED_SNAPSHOT_ENTER_DURATION_MS: number = 350;
 const TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_DURATION_MS: number = 400;
 const TABS_OVERLAY_SHARED_SNAPSHOT_ENTER_HANDOFF_DELAY_MS: number = 0;
+// The page reaches the row early, then the last half is the settle. A near-linear shrink
+// stays large until the end and then squashes, which reads as a cut into the chip.
+const TABS_OVERLAY_LIST_ENTRY_DURATION_MS: number = 420;
+const TABS_OVERLAY_LIST_ENTRY_CURVE: string = 'cubic-bezier(0.08, 0.78, 0.16, 1)';
+// Unmount waits until the picture has already been transparent for a frame. Removing it
+// while an opacity animation is still settling paints one frame at full opacity — the flash.
+const TABS_OVERLAY_LIST_ENTRY_HANDOFF_DELAY_MS: number = 80;
+const TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS: number = 0.58;
+const TABS_OVERLAY_LIST_ENTRY_DISSOLVE_CURVE: string = 'cubic-bezier(0.22, 0.0, 0.18, 1)';
+const TABS_OVERLAY_LIST_ENTRY_IMAGE_BLUR: number = 0;
 const TABS_OVERLAY_SHARED_SNAPSHOT_EXIT_HANDOFF_DELAY_MS: number = 120;
 const TABS_OVERLAY_WEB_CHROME_SELECTION_REVEAL_DURATION_MS: number = 160;
 const TABS_OVERLAY_WEB_CHROME_SELECTION_REVEAL_CURVE: Curve = Curve.FastOutSlowIn;
@@ -143,6 +153,30 @@ export class BrowserTabsOverlayAnimationViewModel {
 
   getSharedSnapshotEnterHandoffDelayMs(): number {
     return TABS_OVERLAY_SHARED_SNAPSHOT_ENTER_HANDOFF_DELAY_MS;
+  }
+
+  getListEntryDurationMs(): number {
+    return TABS_OVERLAY_LIST_ENTRY_DURATION_MS;
+  }
+
+  getListEntryCurve(): string {
+    return TABS_OVERLAY_LIST_ENTRY_CURVE;
+  }
+
+  getListEntryHandoffDelayMs(): number {
+    return TABS_OVERLAY_LIST_ENTRY_HANDOFF_DELAY_MS;
+  }
+
+  getListEntryCrossfadeStartProgress(): number {
+    return TABS_OVERLAY_LIST_ENTRY_CROSSFADE_START_PROGRESS;
+  }
+
+  getListEntryDissolveCurve(): string {
+    return TABS_OVERLAY_LIST_ENTRY_DISSOLVE_CURVE;
+  }
+
+  getListEntryImageBlur(): number {
+    return TABS_OVERLAY_LIST_ENTRY_IMAGE_BLUR;
   }
 
   getSharedSnapshotExitHandoffDelayMs(): number {

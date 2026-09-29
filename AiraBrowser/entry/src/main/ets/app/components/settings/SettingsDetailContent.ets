@@ -55,7 +55,12 @@ import {
 } from './SettingsTargetReveal';
 import { applyDesktopDialogSheetChrome } from '../common/DesktopDialogSheetChrome';
 
-const TAB_OVERVIEW_LAYOUT_SHEET_HEIGHT: Length = '68%';
+/**
+ * Two preview rows plus the switch, with the stacked 应用/取消 footer left clear below them.
+ * A percentage left the switch in that footer. The system caps this if the window is shorter,
+ * and the sheet's own bottom inset still lets the switch scroll out from under the buttons.
+ */
+const TAB_OVERVIEW_LAYOUT_SHEET_HEIGHT: Length = 720;
 
 @Component
 export struct SettingsDetailContent {

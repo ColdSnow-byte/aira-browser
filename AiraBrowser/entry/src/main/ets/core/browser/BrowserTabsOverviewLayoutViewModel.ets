@@ -65,6 +65,7 @@ interface BrowserTabsOverviewLayoutBaseState {
   previewHeight: number;
   identityHeaderHeight: number;
   horizontalContentInset: number;
+  itemHeight?: number;
 }
 
 /**
@@ -116,6 +117,13 @@ const TAB_OVERVIEW_HORIZONTAL_CARDS_PHONE_WIDTH_RATIO: number = 0.82;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_LANDSCAPE_WIDTH_RATIO: number = 0.56;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_MAX_WIDTH: number = 520;
 const TAB_OVERVIEW_HORIZONTAL_CARDS_VIEWPORT_HEIGHT_RATIO: number = 0.66;
+/**
+ * One list row. Taller than the caption above a card, because the row is the whole tab: icon,
+ * title and the close button share it. The extra padding keeps a scaled title inside the chip.
+ */
+const TAB_OVERVIEW_LIST_GAP: number = 10;
+const TAB_OVERVIEW_LIST_ROW_MIN_HEIGHT: number = 52;
+const TAB_OVERVIEW_LIST_ROW_EXTRA_PADDING: number = 24;
 
 export class BrowserTabsOverviewLayoutViewModel {
   private readonly responsiveLayoutService: AppWindowResponsiveLayoutService =
@@ -129,6 +137,9 @@ export class BrowserTabsOverviewLayoutViewModel {
     }
     if (layoutStyle === 'stack') {
       return this.buildStackState(input, usableWidth);
+    }
+    if (layoutStyle === 'list') {
+      return this.buildListState(input, usableWidth);
     }
     const responsiveFacts = this.resolveResponsiveFacts(input);
     const columnCount = this.resolveFittingColumnCount(responsiveFacts, usableWidth);
@@ -198,7 +209,37 @@ export class BrowserTabsOverviewLayoutViewModel {
     });
   }
 
+  /**
+   * The icon-and-title list.
+   *
+   * One full-width row per tab. There is no page preview, so the row height is the item height and
+   * the identity header is not stacked above a second block.
+   */
+  private buildListState(
+    input: BrowserTabsOverviewLayoutInput,
+    usableWidth: number
+  ): BrowserTabsOverviewLayoutState {
+    const headerHeight = this.resolveIdentityHeaderHeight(input.uiFontScale);
+    const rowHeight = Math.max(
+      TAB_OVERVIEW_LIST_ROW_MIN_HEIGHT,
+      headerHeight + TAB_OVERVIEW_LIST_ROW_EXTRA_PADDING
+    );
+    return this.buildLayoutState({
+      layoutStyle: 'list',
+      columnCount: 1,
+      columnsTemplate: '1fr',
+      gridGap: TAB_OVERVIEW_LIST_GAP,
+      cardWidth: Math.max(1, usableWidth),
+      previewHeight: rowHeight,
+      identityHeaderHeight: 0,
+      horizontalContentInset: 0,
+      itemHeight: rowHeight
+    });
+  }
+
   private buildLayoutState(base: BrowserTabsOverviewLayoutBaseState): BrowserTabsOverviewLayoutState {
+    const fallbackItemHeight = base.previewHeight + base.identityHeaderHeight +
+      BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP;
     return {
       layoutStyle: base.layoutStyle,
       columnCount: base.columnCount,
@@ -208,8 +249,7 @@ export class BrowserTabsOverviewLayoutViewModel {
       previewHeight: base.previewHeight,
       identityHeaderHeight: base.identityHeaderHeight,
       identityPreviewGap: BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
-      itemHeight: base.previewHeight + base.identityHeaderHeight +
-        BROWSER_TABS_OVERVIEW_IDENTITY_PREVIEW_GAP,
+      itemHeight: base.itemHeight !== undefined && base.itemHeight > 0 ? base.itemHeight : fallbackItemHeight,
       horizontalContentInset: base.horizontalContentInset
     };
   }
@@ -364,8 +404,8 @@ export class BrowserTabsOverviewLayoutViewModel {
   private normalizeLayoutStyle(
     style: BrowserTabsOverviewLayoutStyle | string | undefined
   ): BrowserTabsOverviewLayoutStyle {
-    // Each of the three styles is its own value; anything else is the default, 卡片平铺.
-    return style === 'horizontal_cards' || style === 'stack' ? style : 'grid';
+    // Each of the four styles is its own value; anything else is the default, 卡片平铺.
+    return style === 'horizontal_cards' || style === 'stack' || style === 'list' ? style : 'grid';
   }
 
   private buildColumnsTemplate(columnCount: number): string {

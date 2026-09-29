@@ -684,7 +684,10 @@ import {
   BrowserHostedWebOwnershipCoordinator
 } from '../../core/browser/BrowserHostedWebOwnershipCoordinator';
 import { BROWSER_CONTENT_FONT_SIZE_SCALE_STORAGE_KEY } from '../../core/browser/BrowserSystemFontScaleCoordinator';
-import { BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY } from '../../core/theme/BrowserThemeStorageKeys';
+import {
+  BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY,
+  BROWSER_THEME_STORAGE_RESOLVED_MODE_KEY
+} from '../../core/theme/BrowserThemeStorageKeys';
 import {
   BrowserWebTextZoomAction,
   BrowserWebTextZoomState,
@@ -2432,6 +2435,7 @@ struct BrowserShellPage {
         rootBottomPanelDetent: this.resolveRootBottomPanelDetent(),
         rootBottomPanelEffectiveHomeMode: this.isRootBottomPanelEffectiveHomeMode(),
         backdropOpenStartProgress: this.resolveTabsOverviewBackdropOpenStartProgress(),
+        tabOverviewLayoutStyle: AppStorage.get<string>(BROWSER_APPEARANCE_STORAGE_TABS_OVERVIEW_LAYOUT_STYLE_KEY) ?? 'grid',
         sharedSnapshotWindow: {
           rootViewportLeft: this.rootViewportLeft,
           rootViewportTop: this.rootViewportTop,

@@ -197,6 +197,11 @@ export class TabOverviewLayoutSettingsCoordinator {
         style: 'stack',
         title: '堆叠式',
         isSelected: state.draftStyle === 'stack'
+      },
+      {
+        style: 'list',
+        title: '列表式',
+        isSelected: state.draftStyle === 'list'
       }
     ];
   }
@@ -204,8 +209,8 @@ export class TabOverviewLayoutSettingsCoordinator {
   private normalizeStyle(
     style: BrowserTabsOverviewLayoutStyle | string | undefined
   ): BrowserTabsOverviewLayoutStyle {
-    // Each of the three styles is its own value; anything else is the default, 卡片平铺.
-    return style === 'horizontal_cards' || style === 'stack' ? style : 'grid';
+    // Each of the four styles is its own value; anything else is the default, 卡片平铺.
+    return style === 'horizontal_cards' || style === 'stack' || style === 'list' ? style : 'grid';
   }
 
   private buildState(
