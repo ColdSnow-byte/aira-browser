@@ -127,6 +127,24 @@ export struct BookmarkRecordList {
     this.clearDragState();
   }
 
+  // A vertical List wins the pan contest against a parent Swiper. Reject a clearly
+  // horizontal pan so the bookmark root pages can swipe; vertical scrolling stays here.
+  private judgeBookmarkListPan(
+    event: BaseGestureEvent,
+    current: GestureRecognizer,
+    recognizers: Array<GestureRecognizer>
+  ): GestureJudgeResult {
+    if (recognizers.length < 0 || !current.isBuiltIn() ||
+      current.getType() !== GestureControl.GestureType.PAN_GESTURE || this.draggingNodeId.length > 0) {
+      return GestureJudgeResult.CONTINUE;
+    }
+    const panEvent = event as PanGestureEvent;
+    if (Math.abs(panEvent.offsetX) > Math.abs(panEvent.offsetY)) {
+      return GestureJudgeResult.REJECT;
+    }
+    return GestureJudgeResult.CONTINUE;
+  }
+
   build() {
     List({ space: 0, scroller: this.scroller }) {
       LazyForEach(this.dataSource, (node: BookmarkNode, index: number) => {
@@ -191,6 +209,10 @@ export struct BookmarkRecordList {
     .onAreaChange((_oldArea: Area, newArea: Area) => {
       this.listGlobalTop = Number(newArea.globalPosition.y);
       this.listHeight = Number(newArea.height);
+    })
+    .onGestureRecognizerJudgeBegin((event: BaseGestureEvent, current: GestureRecognizer,
+      recognizers: Array<GestureRecognizer>): GestureJudgeResult => {
+      return this.judgeBookmarkListPan(event, current, recognizers);
     })
     .expandSafeArea(
       [SafeAreaType.SYSTEM, SafeAreaType.CUTOUT],

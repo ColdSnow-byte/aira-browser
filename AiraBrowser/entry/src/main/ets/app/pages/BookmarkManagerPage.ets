@@ -81,7 +81,8 @@ import {
   BrowserBookmarkScopeRouteParams,
   BrowserBookmarkScopeService
 } from '../../core/browser/BrowserBookmarkScopeService';
-import { BookmarkRecordList } from '../components/bookmarks/BookmarkRecordList';
+import { BookmarkManagerPages, BookmarkSelectionToolbarOverlay } from '../components/bookmarks/BookmarkManagerPages';
+import { BookmarkRootPageStore } from '../../features/bookmarks/BookmarkRootPageStore';
 import {
   BookmarkManagerCreateFolderDialog,
   BookmarkManagerEditNodeDialog
@@ -98,14 +99,11 @@ import {
   ManagementHdsMenuAction,
   ManagementHdsScaffold
 } from '../components/common/ManagementHdsScaffold';
-import { AppEmptyState } from '../components/common/AppEmptyState';
-import { FloatingSelectionToolbar } from '../components/common/FloatingSelectionToolbar';
 import { SyncOperationProgressDialog } from '../components/sync/SyncOperationProgressDialog';
 import {
   BookmarkMoveFolderSelectionResult,
   BookmarkMoveFolderSelectionSheet
 } from '../components/bookmarks/BookmarkMoveFolderSelectionSheet';
-import { BookmarkRootTabs } from '../components/bookmarks/BookmarkRootTabs';
 import { BookmarkManagerImmersiveHost, BookmarkManagerImmersiveLayoutContext } from '../components/bookmarks/BookmarkManagerImmersiveHost';
 import { BOOKMARK_MANAGER_ROUTE, BROWSER_SHELL_ROUTE } from '../router/AppRoutes';
 import { BROWSER_WINDOW_SAFE_TOP_INSET_STORAGE_KEY } from '../../core/browser/BrowserWindowAvoidAreaCoordinator';
@@ -116,7 +114,6 @@ const BOOKMARK_CONTEXT_MENU_DISMISS_DELAY_MS: number = 240;
 const BOOKMARK_IMPORT_PROGRESS_FRAME_DELAY_MS: number = 80;
 const BOOKMARK_FOLDER_COUNT_REFRESH_DELAY_MS: number = 80;
 const BOOKMARK_VISIBLE_AUX_REFRESH_DELAY_MS: number = 96;
-const BOOKMARK_SELECTION_TOOLBAR_FLOAT_BOTTOM: number = 36;
 const BOOKMARK_MOVE_TO_FOLDER_END_INDEX: number = 2147483647;
 const BOOKMARK_MOVE_FOLDER_TARGET_PREPARE_DELAY_MS: number = 16;
 
@@ -157,8 +154,11 @@ struct BookmarkManagerPage {
   private bookmarkOpenActionViewModel: BookmarkOpenActionViewModel = new BookmarkOpenActionViewModel();
   private bookmarkRecordActionViewModel: BookmarkRecordActionViewModel = new BookmarkRecordActionViewModel();
   private bookmarkListScroller: Scroller = new Scroller();
+  private rootPages: BookmarkRootPageStore = new BookmarkRootPageStore();
   private bookmarkNodes: BookmarkNode[] = [];
   @State bookmarkNodeCount: number = 0;
+  @State private toolbarRootNodeCount: number = 0;
+  @State private otherRootNodeCount: number = 0;
   @State currentFolderId: string = '';
   @State currentFolderTitle: string = '书签管理';
   @State private selectedRootId: string = BOOKMARK_TOOLBAR_ROOT_ID;
@@ -343,7 +343,7 @@ struct BookmarkManagerPage {
         menuActions: this.buildHeaderMenuActions(),
         titleBarMenuMaxCount: 2,
         elevateTitleActions: this.titleActionsElevated,
-        scrollers: [this.bookmarkListScroller],
+        scrollers: this.resolveBookmarkHeaderScrollers(),
         onBack: () => {
           this.handleLeadingClick();
         }
@@ -366,7 +366,18 @@ struct BookmarkManagerPage {
         })
       }
 
-      this.buildSelectionToolbarOverlay()
+      BookmarkSelectionToolbarOverlay({
+        visible: this.isSelectionMode,
+        onSelectAll: (): void => {
+          this.selectAllVisibleNodes();
+        },
+        onDelete: (): void => {
+          this.confirmDeleteSelectedNodes();
+        },
+        onMove: (): void => {
+          this.openBookmarkMoveFolderSelectionForSelectedNodes();
+        }
+      })
     }
     .width('100%')
     .height('100%')
@@ -384,123 +395,69 @@ struct BookmarkManagerPage {
   }
   @Builder
   private buildList(layout: BookmarkManagerImmersiveLayoutContext) {
-    if (this.shouldShowRootTabs()) {
-      BookmarkRootTabs({
-          scope: this.bookmarkScope,
-          selectedId: this.selectedRootId,
-          tabsTopInset: layout.tabsTopInset,
-          onSelect: (id: string): void => {
-            this.switchBookmarkRoot(id);
-          }
-        }) {
-          this.buildBookmarkListContent(layout.contentTopInset)
-        }
-    } else {
-      this.buildBookmarkListContent(layout.contentTopInset)
-    }
-  }
-
-  @Builder
-  private buildBookmarkListContent(contentTopInset: number) {
-    if (this.bookmarkNodeCount === 0) {
-      Column() {
-        if (this.isInitialBookmarkLoadPending) {
-          Column({ space: 12 }) {
-            LoadingProgress()
-              .width(32)
-              .height(32)
-              .color(this.storedSecondaryTextColor)
-
-            Text('正在加载书签')
-              .fontSize(14)
-              .fontColor(this.storedSecondaryTextColor)
-          }
-          .width('100%')
-          .height('100%')
-          .justifyContent(FlexAlign.Center)
-          .alignItems(HorizontalAlign.Center)
-        } else {
-          AppEmptyState({
-            airaIconId: this.bookmarkSearchState.isSearchMode
-              ? 'settings.search'
-              : 'browser.shortcut.bookmarks',
-            title: this.bookmarkSearchState.emptyTitle,
-            message: this.bookmarkSearchState.emptyMessage,
-            fillHeight: true
-          })
-        }
+    BookmarkManagerPages({
+      showRootTabs: this.shouldShowRootTabs(),
+      scope: this.bookmarkScope,
+      selectedRootId: this.selectedRootId,
+      contentTopInset: layout.contentTopInset,
+      tabsTopInset: layout.tabsTopInset,
+      isSelectionMode: this.isSelectionMode,
+      isInitialLoadPending: this.isInitialBookmarkLoadPending,
+      isSearchMode: this.bookmarkSearchState.isSearchMode,
+      secondaryTextColor: this.storedSecondaryTextColor,
+      emptyTitle: this.bookmarkSearchState.emptyTitle,
+      emptyMessage: this.bookmarkSearchState.emptyMessage,
+      icons: this.iconStates,
+      selectedNodeIds: this.selectedNodeIds,
+      pressedNodeId: this.pressedNodeId,
+      contextMenuNodeId: this.contextMenuNodeId,
+      nodeCount: this.bookmarkNodeCount,
+      toolbarNodeCount: this.toolbarRootNodeCount,
+      otherNodeCount: this.otherRootNodeCount,
+      dataSource: this.bookmarkListDataSource,
+      scroller: this.bookmarkListScroller,
+      rootPages: this.rootPages,
+      onRootSelected: (rootId: string): void => this.switchBookmarkRoot(rootId),
+      resolveSubtitle: (node: BookmarkNode): string => this.resolveRowSubtitle(node),
+      resolveFolderHasContent: (node: BookmarkNode): boolean =>
+        this.bookmarkFolderCountViewModel.hasFolderContent(this.folderBookmarkCountState, node.id),
+      resolveFolderBookmarkCount: (node: BookmarkNode): number =>
+        this.bookmarkFolderCountViewModel.resolveCount(this.folderBookmarkCountState, node.id),
+      resolveContextActions: (node: BookmarkNode): BookmarkRecordActionView[] => this.resolveContextActions(node),
+      onOpenNode: (node: BookmarkNode): void => this.handleNodeClick(node),
+      onToggleNodeSelection: (nodeId: string): void => this.toggleNodeSelection(nodeId),
+      onSetNodeSelected: (nodeId: string, selected: boolean): void => {
+        this.setNodeSelected(nodeId, selected);
+      },
+      onReorderNodes: (parentId: string, orderedNodeIds: string[]): Promise<BookmarkNode[]> => {
+        return this.bookmarkManagementFeature.reorderChildren({
+          parentId: parentId.length > 0 ? parentId : this.resolveActiveFolderId(),
+          childIds: orderedNodeIds
+        });
+      },
+      onReorderApplied: (nodes: BookmarkNode[]): void => this.setCurrentFolderNodes(nodes),
+      onReorderError: (error: Error): void => {
+        this.showDialog('排序失败', `书签顺序保存失败：${this.stringifyError(error)}`);
+      },
+      onUpdatePressedNode: (nodeId: string, type: TouchType): void => this.updatePressedNode(nodeId, type),
+      onOpenContextMenu: (nodeId: string): void => this.openContextMenu(nodeId),
+      onContextAction: (node: BookmarkNode, actionId: BookmarkRecordActionId): void => {
+        this.handleContextAction(node, actionId);
+      },
+      onContextAppear: (): void => this.performLongPressFeedback(),
+      onContextDisappear: (): void => {
+        this.contextMenuNodeId = '';
+      },
+      onIconLoadError: (target: SiteIconListTarget, currentUri: string, sourceRevision: number): void => {
+        this.resolveBookmarkPixelMapAfterUriFailure(target, currentUri, sourceRevision);
+      },
+      onScrollVisibleRange: (pageRootId: string, dataSource: BookmarkListDataSource, start: number, end: number): void => {
+        this.handleBookmarkPageVisibleRange(pageRootId, dataSource, start, end);
+      },
+      onScrollOffsetChange: (pageRootId: string, offset: number): void => {
+        this.handleBookmarkPageScrollOffset(pageRootId, offset);
       }
-      .width('100%')
-      .height('100%')
-      .padding({ top: contentTopInset })
-    } else {
-      BookmarkRecordList({
-        dataSource: this.bookmarkListDataSource,
-        icons: this.iconStates,
-        selectedNodeIds: this.selectedNodeIds,
-        pressedNodeId: this.pressedNodeId,
-        contextMenuNodeId: this.contextMenuNodeId,
-        isSelectionMode: this.isSelectionMode,
-        clipToViewport: this.bookmarkSearchState.isSearchMode,
-        contentStartOffset: contentTopInset,
-        scroller: this.bookmarkListScroller,
-        resolveSubtitle: (node: BookmarkNode) => this.resolveRowSubtitle(node),
-        resolveFolderHasContent: (node: BookmarkNode) =>
-          this.bookmarkFolderCountViewModel.hasFolderContent(this.folderBookmarkCountState, node.id),
-        resolveFolderBookmarkCount: (node: BookmarkNode) =>
-          this.bookmarkFolderCountViewModel.resolveCount(this.folderBookmarkCountState, node.id),
-        resolveContextActions: (node: BookmarkNode) => this.resolveContextActions(node),
-        onOpenNode: (node: BookmarkNode) => {
-          this.handleNodeClick(node);
-        },
-        onToggleNodeSelection: (nodeId: string) => {
-          this.toggleNodeSelection(nodeId);
-        },
-        onSetNodeSelected: (nodeId: string, selected: boolean) => {
-          this.setNodeSelected(nodeId, selected);
-        },
-        onReorderNodes: (orderedNodeIds: string[]) => {
-          return this.bookmarkManagementFeature.reorderChildren({
-            parentId: this.resolveActiveFolderId(),
-            childIds: orderedNodeIds
-          });
-        },
-        onReorderApplied: (nodes: BookmarkNode[]) => {
-          this.setCurrentFolderNodes(nodes);
-        },
-        onReorderError: (error: Error) => {
-          this.showDialog('排序失败', `书签顺序保存失败：${this.stringifyError(error)}`);
-        },
-        onUpdatePressedNode: (nodeId: string, type: TouchType) => {
-          this.updatePressedNode(nodeId, type);
-        },
-        onOpenContextMenu: (nodeId: string) => {
-          this.openContextMenu(nodeId);
-        },
-        onContextAction: (node: BookmarkNode, actionId: BookmarkRecordActionId) => {
-          this.handleContextAction(node, actionId);
-        },
-        onContextAppear: () => {
-          this.performLongPressFeedback();
-        },
-        onContextDisappear: () => {
-          this.contextMenuNodeId = '';
-        },
-        onIconLoadError: (
-          target: SiteIconListTarget,
-          currentUri: string,
-          sourceRevision: number
-        ) => {
-          this.resolveBookmarkPixelMapAfterUriFailure(target, currentUri, sourceRevision);
-        },
-        onScrollVisibleRange: (start: number, end: number) => {
-          this.updateBookmarkVisibleRange(start, end);
-        },
-        onScrollOffsetChange: (offset: number) => {
-          this.titleActionsElevated = Number.isFinite(offset) && offset > 8;
-        }
-      })
-    }
+    })
   }
 
   private openBookmarkMoveFolderSelectionForSelectedNodes(): void {
@@ -632,50 +589,6 @@ struct BookmarkManagerPage {
     })
   }
 
-  @Builder
-  private buildSelectionToolbar() {
-    FloatingSelectionToolbar({
-      actions: [
-        {
-          airaIconId: 'bookmarks.edit.selectAll',
-          title: '全选',
-          action: () => {
-            this.selectAllVisibleNodes();
-          }
-        },
-        {
-          airaIconId: 'browser.tabs.delete',
-          title: '删除',
-          action: () => {
-            this.confirmDeleteSelectedNodes();
-          }
-        },
-        {
-          airaIconId: 'bookmarks.edit.move',
-          title: '移动',
-          action: () => {
-            this.openBookmarkMoveFolderSelectionForSelectedNodes();
-          }
-        }
-      ]
-    })
-  }
-
-  @Builder
-  private buildSelectionToolbarOverlay() {
-    if (this.isSelectionMode) {
-      Stack({ alignContent: Alignment.Bottom }) {
-        this.buildSelectionToolbar()
-      }
-      .width('100%')
-      .height('100%')
-      .padding({ bottom: BOOKMARK_SELECTION_TOOLBAR_FLOAT_BOTTOM })
-      .hitTestBehavior(HitTestMode.Transparent)
-      .zIndex(60)
-      .expandSafeArea([SafeAreaType.SYSTEM], [SafeAreaEdge.BOTTOM])
-    }
-  }
-
   private applyBookmarkRouteContext(): void {
     const params = router.getParams() as BookmarkManagerRouteParams | undefined;
     const boundaryParams: BrowserPrivateBoundaryRouteParams = {
@@ -704,6 +617,7 @@ struct BookmarkManagerPage {
     this.bookmarkManagementFeature.refresh()
       .then(() => {
         this.setCurrentFolderNodes(this.resolveCurrentChildren());
+        this.refreshRootPageSnapshots();
         this.pruneSelectedNodes();
         this.scheduleFolderBookmarkCountsRefresh();
         this.scheduleVisibleAuxRefresh(0);
@@ -728,6 +642,7 @@ struct BookmarkManagerPage {
       this.loadBookmarkPreviewNodes();
       return;
     }
+    this.refreshRootPageSnapshots();
     this.setCurrentFolderNodes(this.resolveCurrentChildren());
     this.scheduleFolderBookmarkCountsRefresh();
     if (this.bookmarkNodeCount === 0) {
@@ -794,9 +709,42 @@ struct BookmarkManagerPage {
     this.selectedRootId = rootId;
     this.exitSelectionMode();
     this.message = '';
-    this.titleActionsElevated = false;
+    this.syncTitleElevationForRoot(rootId);
     this.prefillBookmarkNodesFromCache();
     this.reloadNodes();
+  }
+
+  private resolveBookmarkHeaderScrollers(): Scroller[] {
+    return this.rootPages.headerScrollers(
+      this.shouldShowRootTabs(),
+      this.selectedRootId,
+      this.bookmarkScope,
+      this.bookmarkListScroller
+    );
+  }
+
+  private syncTitleElevationForRoot(rootId: string): void {
+    this.titleActionsElevated = this.rootPages.titleElevated(rootId, this.bookmarkScope);
+  }
+
+  private handleBookmarkPageVisibleRange(
+    pageRootId: string,
+    dataSource: BookmarkListDataSource,
+    start: number,
+    end: number
+  ): void {
+    if (pageRootId.length === 0 || pageRootId === this.selectedRootId) {
+      this.updateBookmarkVisibleRange(start, end);
+      return;
+    }
+    this.resolveIconsForDataSource(dataSource, start, end);
+  }
+
+  private handleBookmarkPageScrollOffset(pageRootId: string, offset: number): void {
+    if (pageRootId.length > 0 && pageRootId !== this.selectedRootId) {
+      return;
+    }
+    this.titleActionsElevated = Number.isFinite(offset) && offset > 8;
   }
 
   private handleNodeClick(node: BookmarkNode): void {
@@ -1126,6 +1074,7 @@ struct BookmarkManagerPage {
             importStage = '刷新书签';
             this.updateBookmarkTransferProgress('正在导入书签', '正在刷新书签列表', 88);
             this.setCurrentFolderNodes(this.resolveCurrentChildren());
+            this.refreshRootPageSnapshots();
             this.scheduleVisibleAuxRefresh(0);
             this.applyBookmarkImportResult(result);
             this.finishBookmarkTransferProgress('导入成功', result.summary);
@@ -1395,8 +1344,16 @@ struct BookmarkManagerPage {
   }
 
   private resolveVisibleIcons(): void {
+    this.resolveIconsForDataSource(
+      this.bookmarkListDataSource,
+      this.bookmarkVisibleStartIndex,
+      this.bookmarkVisibleEndIndex
+    );
+  }
+
+  private resolveIconsForDataSource(dataSource: BookmarkListDataSource, start: number, end: number): void {
     this.siteIconListPresenter.resolveTargets(
-      this.buildVisibleBookmarkIconTargets(),
+      dataSource.getIconTargetsAround(start, end, 8),
       (result: SiteIconListResolvedIcon): void => {
         if (result.uri.length > 0) {
           this.applyResolvedSiteIcon(result);
@@ -1407,6 +1364,13 @@ struct BookmarkManagerPage {
           this.siteIconListPresenter.hasResolvedIcon(this.iconStates, target)
       }
     );
+  }
+
+  private prefetchRootPageIcons(dataSource: BookmarkListDataSource): void {
+    if (dataSource.totalCount() <= 0) {
+      return;
+    }
+    this.resolveIconsForDataSource(dataSource, 0, Math.min(19, dataSource.totalCount() - 1));
   }
 
   private buildVisibleBookmarkIconTargets(): BookmarkListIconTarget[] {
@@ -1478,8 +1442,43 @@ struct BookmarkManagerPage {
     this.bookmarkVisibleEndIndex = Math.min(20, Math.max(0, result.nodes.length - 1));
     this.contextMenuNodeId = '';
     this.pressedNodeId = '';
+    this.syncVisibleRootPage(result.nodes);
     this.scheduleVisibleAuxRefresh(0);
   }
+
+  private syncVisibleRootPage(nodes: BookmarkNode[]): void {
+    if (!this.shouldShowRootTabs()) {
+      return;
+    }
+    if (this.rootPages.replace(this.selectedRootId, this.bookmarkScope, nodes)) {
+      this.prefetchRootPageIcons(this.rootPages.dataSourceFor(this.selectedRootId, this.bookmarkScope));
+    }
+    this.publishRootPageCounts();
+  }
+
+  private refreshRootPageSnapshots(): void {
+    const result = this.rootPages.refresh(this.bookmarkScope, this.currentFolderId,
+      (rootId: string): BookmarkNode[] => this.bookmarkManagementFeature.listDisplayChildren(rootId));
+    this.publishRootPageCounts();
+    if (result.toolbarChanged) {
+      this.prefetchRootPageIcons(this.rootPages.toolbarDataSource);
+    }
+    if (result.otherChanged) {
+      this.prefetchRootPageIcons(this.rootPages.otherDataSource);
+    }
+  }
+
+  private publishRootPageCounts(): void {
+    const toolbarCount = this.rootPages.toolbarNodeCount();
+    const otherCount = this.rootPages.otherNodeCount();
+    if (this.toolbarRootNodeCount !== toolbarCount) {
+      this.toolbarRootNodeCount = toolbarCount;
+    }
+    if (this.otherRootNodeCount !== otherCount) {
+      this.otherRootNodeCount = otherCount;
+    }
+  }
+
   private clearBookmarkNodes(): void {
     this.setCurrentFolderNodes([]);
   }
