@@ -14,6 +14,14 @@ describe('chrome history skin', () => {
   test('registers Chrome and Edge skins separately', () => {
     expect(resolveHistorySkin('chrome')).not.toBeNull();
     expect(resolveHistorySkin('edge')).not.toBeNull();
-    expect(resolveHistorySkin('brave')).toBeNull();
+    expect(resolveHistorySkin('brave')).not.toBeNull();
+    expect(resolveHistorySkin('firefox')).not.toBeNull();
+    expect(resolveHistorySkin('zen')).not.toBeNull();
+    expect(resolveHistorySkin('opera')).toBe(resolveHistorySkin('chrome'));
+    expect(resolveHistorySkin('vivaldi')).toBe(resolveHistorySkin('chrome'));
+    expect(resolveHistorySkin('chromium')).toBe(resolveHistorySkin('chrome'));
+    expect(resolveHistorySkin('floorp')).toBe(resolveHistorySkin('firefox'));
+    expect(resolveHistorySkin('librewolf')).toBe(resolveHistorySkin('firefox'));
+    expect(resolveHistorySkin('waterfox')).toBe(resolveHistorySkin('firefox'));
   });
 });

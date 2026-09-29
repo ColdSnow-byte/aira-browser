@@ -32,14 +32,6 @@ export const popupI18nReady = popupI18n
             back: 'Back',
             save: 'Save',
           },
-          historyTakeover: {
-            toggle: 'Replace the browser history page',
-            pageTitle: 'History',
-            offTitle: 'History takeover is off',
-            offBody: 'This browser has already given its history page to Aira-sync, so the original page cannot come back while the extension is installed. Turn takeover on and history shortcuts or the History menu will open Aira history.',
-            enableAction: 'Turn on takeover',
-            currentBrowser: 'Current browser: {{browser}}',
-          },
           popup: {
             profile: {
               defaultNickname: 'Sign in',
@@ -138,42 +130,6 @@ export const popupI18nReady = popupI18n
               showPassword: 'Show password',
             },
           },
-          history: {
-            title: 'Aira History',
-            actions: {
-              clear: 'Clear history',
-              delete: 'Delete visit',
-              more: 'Load more',
-              sync: 'Sync now',
-            },
-            clear: {
-              confirm: 'Clear the synchronized history for all devices?',
-            },
-            devices: {
-              all: 'All devices',
-              label: 'Device',
-            },
-            errors: {
-              clear: 'Unable to clear history.',
-              delete: 'Unable to delete this visit.',
-            },
-            search: {
-              placeholder: 'Search history',
-            },
-            states: {
-              empty: 'No history found',
-              loading: 'Loading history',
-              login: 'Connect this desktop to Aira',
-              pro: 'Aira Pro is required for History Sync',
-            },
-            status: {
-              login: 'Not connected',
-              pending: 'Waiting for first sync',
-              pro: 'Pro required',
-              synced: 'Synced {{time}}',
-              unavailable: 'Temporarily unavailable',
-            },
-          },
           deviceTabs: {
             title: 'Phone tabs',
             toggle: 'Cross-device tabs',
@@ -233,14 +189,6 @@ export const popupI18nReady = popupI18n
           common: {
             back: '返回',
             save: '保存',
-          },
-          historyTakeover: {
-            toggle: '接管浏览器历史页',
-            pageTitle: '历史记录',
-            offTitle: '历史页接管未开启',
-            offBody: '这个浏览器已经把历史记录页交给了 Aira-sync，关闭开关也无法恢复原来的历史页。打开接管后，历史快捷键和历史菜单都会进入 Aira 历史记录。',
-            enableAction: '开启接管',
-            currentBrowser: '当前浏览器：{{browser}}',
           },
           popup: {
             profile: {
@@ -338,42 +286,6 @@ export const popupI18nReady = popupI18n
             webdav: {
               hidePassword: '隐藏密码',
               showPassword: '显示密码',
-            },
-          },
-          history: {
-            title: 'Aira 历史记录',
-            actions: {
-              clear: '清空历史记录',
-              delete: '删除这条访问记录',
-              more: '加载更多',
-              sync: '立即同步',
-            },
-            clear: {
-              confirm: '清空所有设备的同步历史记录？',
-            },
-            devices: {
-              all: '全部设备',
-              label: '设备',
-            },
-            errors: {
-              clear: '无法清空历史记录。',
-              delete: '无法删除这条访问记录。',
-            },
-            search: {
-              placeholder: '搜索历史记录',
-            },
-            states: {
-              empty: '没有找到历史记录',
-              loading: '正在读取历史记录',
-              login: '请先连接 Aira 桌面设备',
-              pro: '历史记录同步需要 Aira Pro',
-            },
-            status: {
-              login: '未连接',
-              pending: '等待首次同步',
-              pro: '需要 Pro',
-              synced: '已同步 {{time}}',
-              unavailable: '暂时不可用',
             },
           },
           deviceTabs: {

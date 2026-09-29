@@ -1,5 +1,4 @@
 import { useEffect, useState } from 'react';
-import { HistoryApp } from '@/features/sync/history/HistoryApp';
 import {
   detectHistoryBrowserKind,
   readInstalledHistoryBrowser,
@@ -22,13 +21,13 @@ export function HistorySurface() {
 
   if (!kind) return null;
   const Skin = resolveHistorySkin(kind);
-  if (!Skin) return <HistoryApp />;
   return <Skin />;
 }
 
 function initialHistoryBrowserKind(): HistoryBrowserKind | null {
   const userAgent = globalThis.navigator?.userAgent || '';
   const detected = detectHistoryBrowserKind(userAgent);
-  // A Chrome-like user agent can still be Brave until its own signal is read.
-  return detected === 'chromium' ? null : detected;
+  // Chrome-like and Firefox-like user agents can still be Brave or Zen until
+  // their own browser signal is read.
+  return detected === 'chromium' || detected === 'firefox' ? null : detected;
 }

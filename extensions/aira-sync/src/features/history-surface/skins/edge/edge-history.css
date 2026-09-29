@@ -171,6 +171,7 @@ body.edge-history-body #root {
 
 .edge-history-row,
 .edge-history-closed {
+  position: relative;
   display: grid;
   grid-template-columns: 20px minmax(0, 1fr) auto;
   align-items: center;
@@ -202,6 +203,31 @@ body.edge-history-body #root {
   color: var(--eh-secondary);
   font-size: 12px;
   font-variant-numeric: tabular-nums;
+}
+
+.edge-history-remove {
+  display: none;
+  position: absolute;
+  right: 12px;
+  align-items: center;
+  justify-content: center;
+  width: 24px;
+  height: 24px;
+  border: 0;
+  border-radius: 4px;
+  background: transparent;
+  color: var(--eh-text);
+  cursor: pointer;
+}
+
+.edge-history-row:hover .edge-history-time,
+.edge-history-row:focus-within .edge-history-time {
+  display: none;
+}
+
+.edge-history-row:hover .edge-history-remove,
+.edge-history-row:focus-within .edge-history-remove {
+  display: flex;
 }
 
 .edge-history-favicon {

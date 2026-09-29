@@ -12,7 +12,6 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { toast } from '@/components/ui/sonner';
 import { SyncToggleField } from '@/components/sync/SyncSettingsFields';
-import { HistoryTakeoverSetting } from '@/features/history-takeover/HistoryTakeoverSetting';
 import { useBookmarkSyncRuntimeController } from '@/features/sync/bookmarks/useBookmarkSyncRuntimeController';
 import type { LeafTabSyncFacade } from '@/features/sync/app/LeafTabSyncContracts';
 import QRCodeStyling from 'qr-code-styling';
@@ -998,8 +997,6 @@ function ConfiguredHome({
           </div>
         </div>
 
-        <HistoryTakeoverSetting />
-
         <div className="space-y-2">
           <SectionLabel>{t('popup.dashboard.bookmarkSync', { defaultValue: '书签同步' })}</SectionLabel>
           <BookmarkSyncControls
@@ -1153,8 +1150,6 @@ function LoggedOutHome({
             : '连接私有化部署'}
         </Button>
 
-        <HistoryTakeoverSetting />
-
         <div className="space-y-2">
           <SectionLabel>{t('popup.dashboard.bookmarkSync', { defaultValue: '书签同步' })}</SectionLabel>
           <BookmarkSyncControls
@@ -1216,8 +1211,6 @@ function PersonalServerHome({
             />
           </div>
         </div>
-
-        <HistoryTakeoverSetting />
 
         <div className="space-y-2">
           <SectionLabel>私有化部署</SectionLabel>

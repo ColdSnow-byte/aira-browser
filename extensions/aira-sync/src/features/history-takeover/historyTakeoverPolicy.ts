@@ -1,7 +1,6 @@
-export const HISTORY_TAKEOVER_ENABLED_KEY = 'aira_history_takeover_enabled_v1';
 export const HISTORY_TAKEOVER_OPEN_MESSAGE = 'AIRA_HISTORY_TAKEOVER_OPEN';
 
-export type HistoryBrowserKind = 'firefox' | 'opera' | 'vivaldi' | 'edge' | 'brave' | 'chrome' | 'chromium';
+export type HistoryBrowserKind = 'zen' | 'floorp' | 'librewolf' | 'waterfox' | 'firefox' | 'opera' | 'vivaldi' | 'edge' | 'brave' | 'chrome' | 'chromium';
 export type HistoryPlatform = 'mac' | 'other';
 
 export type HistoryBrowserSignals = {
@@ -29,6 +28,11 @@ export function resolveHistoryBrowserKind(signals: HistoryBrowserSignals = {}): 
   const hasBrand = (name: string) => brands.some((brand) => brand.includes(name));
 
   if (signals.isBrave === true || hasBrand('brave')) return 'brave';
+  // These Gecko forks still contain Firefox/ in the user agent.
+  if (/Zen\//i.test(ua)) return 'zen';
+  if (/Waterfox\//i.test(ua)) return 'waterfox';
+  if (/LibreWolf\//i.test(ua)) return 'librewolf';
+  if (/Floorp\//i.test(ua)) return 'floorp';
   if (/Firefox\//i.test(ua)) return 'firefox';
   if (/OPR\/|Opera\//i.test(ua) || hasBrand('opera')) return 'opera';
   if (/Vivaldi\//i.test(ua) || hasBrand('vivaldi')) return 'vivaldi';
@@ -40,6 +44,10 @@ export function resolveHistoryBrowserKind(signals: HistoryBrowserSignals = {}): 
 
 export function historyBrowserLabel(kind: HistoryBrowserKind): string {
   switch (kind) {
+    case 'zen': return 'Zen';
+    case 'floorp': return 'Floorp';
+    case 'librewolf': return 'LibreWolf';
+    case 'waterfox': return 'Waterfox';
     case 'firefox': return 'Firefox';
     case 'opera': return 'Opera';
     case 'vivaldi': return 'Vivaldi';
@@ -56,6 +64,15 @@ type HistoryBrowserNavigator = {
   userAgentData?: { brands?: Array<{ brand?: string }> };
 };
 
+type GeckoBrowserInfo = {
+  name?: string;
+  vendor?: string;
+};
+
+type GeckoBrowserRuntime = {
+  getBrowserInfo?: () => Promise<GeckoBrowserInfo>;
+};
+
 export async function readInstalledHistoryBrowser(
   navigatorObject: HistoryBrowserNavigator | null = globalThis.navigator ?? null,
 ): Promise<HistoryBrowserKind> {
@@ -70,11 +87,39 @@ export async function readInstalledHistoryBrowser(
   const brands = navigatorObject?.userAgentData?.brands
     ?.map((item) => String(item?.brand || '').trim())
     .filter(Boolean) || [];
-  return resolveHistoryBrowserKind({
+  const detected = resolveHistoryBrowserKind({
     userAgent: navigatorObject?.userAgent || '',
     brands,
     isBrave,
   });
+  const browserName = await readGeckoBrowserName();
+  return kindFromGeckoBrowserName(browserName) ?? detected;
+}
+
+function kindFromGeckoBrowserName(name: string): HistoryBrowserKind | null {
+  if (/zen/i.test(name)) return 'zen';
+  if (/floorp/i.test(name)) return 'floorp';
+  if (/librewolf/i.test(name)) return 'librewolf';
+  if (/waterfox/i.test(name)) return 'waterfox';
+  return null;
+}
+
+async function readGeckoBrowserName(): Promise<string> {
+  const runtimeScopes = globalThis as typeof globalThis & {
+    browser?: { runtime?: GeckoBrowserRuntime };
+    chrome?: { runtime?: GeckoBrowserRuntime };
+  };
+  const scopes = [runtimeScopes.browser, runtimeScopes.chrome];
+  for (const scope of scopes) {
+    if (typeof scope?.runtime?.getBrowserInfo !== 'function') continue;
+    try {
+      const info = await scope.runtime.getBrowserInfo();
+      return `${info?.name || ''} ${info?.vendor || ''}`.trim();
+    } catch {
+      return '';
+    }
+  }
+  return '';
 }
 
 export function detectHistoryPlatform(platform: string, userAgent = ''): HistoryPlatform {
@@ -117,7 +162,7 @@ export function isHistoryTakeoverShortcut(
     return platform === 'mac' ? event.shiftKey : !event.shiftKey;
   }
 
-  if (browser === 'firefox') {
+  if (browser === 'firefox' || browser === 'zen' || browser === 'floorp' || browser === 'librewolf' || browser === 'waterfox') {
     if (!matchesLetter(event, 'h')) return false;
     return platform === 'mac' ? event.shiftKey : true;
   }

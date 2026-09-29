@@ -131,9 +131,8 @@ export function EdgeHistoryPage() {
                   <section key={group.label}>
                     <h2 className="edge-history-day">{group.label}</h2>
                     {group.visits.map((visit) => (
-                      <button
+                      <div
                         key={visit.visitId}
-                        type="button"
                         className="edge-history-row"
                         onClick={() => openUrl(visit.url)}
                         onContextMenu={(event) => openMenu(event, visit.url, visit.visitId)}
@@ -141,7 +140,18 @@ export function EdgeHistoryPage() {
                         <Favicon url={visit.url} />
                         <span className="title">{visit.title || historyHostname(visit.url) || visit.url}</span>
                         <span className="edge-history-time">{formatChromeHistoryTime(visit.visitedAt, i18n.language)}</span>
-                      </button>
+                        <button
+                          type="button"
+                          className="edge-history-remove"
+                          aria-label={copy.remove}
+                          onClick={(event) => {
+                            event.stopPropagation();
+                            void data.deleteVisit(visit.visitId);
+                          }}
+                        >
+                          <DismissIcon />
+                        </button>
+                      </div>
                     ))}
                   </section>
                 ))
@@ -336,25 +346,32 @@ function SearchIcon() {
 
 function TrashIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M5 7.5h14M9.5 7.2V5.8h5v1.4M8 7.5 8.8 18h6.4l.8-10.5" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M8.5 4H11.5C11.5 3.17157 10.8284 2.5 10 2.5C9.17157 2.5 8.5 3.17157 8.5 4ZM7.5 4C7.5 2.61929 8.61929 1.5 10 1.5C11.3807 1.5 12.5 2.61929 12.5 4H17.5C17.7761 4 18 4.22386 18 4.5C18 4.77614 17.7761 5 17.5 5H16.4456L15.2521 15.3439C15.0774 16.8576 13.7957 18 12.2719 18H7.72813C6.20431 18 4.92256 16.8576 4.7479 15.3439L3.55437 5H2.5C2.22386 5 2 4.77614 2 4.5C2 4.22386 2.22386 4 2.5 4H7.5ZM5.74131 15.2292C5.85775 16.2384 6.71225 17 7.72813 17H12.2719C13.2878 17 14.1422 16.2384 14.2587 15.2292L15.439 5H4.56101L5.74131 15.2292ZM8.5 7.5C8.77614 7.5 9 7.72386 9 8V14C9 14.2761 8.77614 14.5 8.5 14.5C8.22386 14.5 8 14.2761 8 14V8C8 7.72386 8.22386 7.5 8.5 7.5ZM12 8C12 7.72386 11.7761 7.5 11.5 7.5C11.2239 7.5 11 7.72386 11 8V14C11 14.2761 11.2239 14.5 11.5 14.5C11.7761 14.5 12 14.2761 12 14V8Z" />
     </svg>
   );
 }
 
 function MoreIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
-      <circle cx="6" cy="12" r="1.5" /><circle cx="12" cy="12" r="1.5" /><circle cx="18" cy="12" r="1.5" />
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M6.25 10C6.25 10.6904 5.69036 11.25 5 11.25C4.30964 11.25 3.75 10.6904 3.75 10C3.75 9.30964 4.30964 8.75 5 8.75C5.69036 8.75 6.25 9.30964 6.25 10ZM11.25 10C11.25 10.6904 10.6904 11.25 10 11.25C9.30964 11.25 8.75 10.6904 8.75 10C8.75 9.30964 9.30964 8.75 10 8.75C10.6904 8.75 11.25 9.30964 11.25 10ZM15 11.25C15.6904 11.25 16.25 10.6904 16.25 10C16.25 9.30964 15.6904 8.75 15 8.75C14.3096 8.75 13.75 9.30964 13.75 10C13.75 10.6904 14.3096 11.25 15 11.25Z" />
     </svg>
   );
 }
 
 function PinIcon() {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 10.5 14.5 4l5.5 5.5-6.5 6.5" stroke="currentColor" strokeWidth="1.6" strokeLinejoin="round" />
-      <path d="M10 14.5 4.5 20" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    <svg width="20" height="20" viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M10.1221 3.13715C10.7326 1.91616 12.3599 1.65208 13.3251 2.61737L17.382 6.67419C18.3472 7.63947 18.0832 9.26676 16.8622 9.87726L13.4037 11.6065C13.0751 11.7708 12.8183 12.0499 12.6818 12.391L11.2459 15.981C10.9792 16.6476 10.1179 16.8244 9.61027 16.3167L7 13.7064L3.70711 16.9993H3V16.2922L6.29289 12.9993L3.68262 10.3891C3.17498 9.88142 3.35177 9.02011 4.01834 8.75348L7.60829 7.3175C7.94939 7.18106 8.22855 6.92419 8.39285 6.5956L10.1221 3.13715ZM12.618 3.32447C12.1354 2.84183 11.3217 2.97387 11.0165 3.58437L9.28727 7.04282C9.01345 7.59046 8.54818 8.01858 7.97968 8.24598L4.38973 9.68196L10.3174 15.6096L11.7534 12.0197C11.9808 11.4512 12.4089 10.9859 12.9565 10.7121L16.415 8.98283C17.0255 8.67758 17.1575 7.86394 16.6749 7.3813L12.618 3.32447Z" />
+    </svg>
+  );
+}
+
+function DismissIcon() {
+  return (
+    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
+      <path fill="currentColor" d="M4.08859 4.21569L4.14645 4.14645C4.32001 3.97288 4.58944 3.9536 4.78431 4.08859L4.85355 4.14645L10 9.293L15.1464 4.14645C15.32 3.97288 15.5894 3.9536 15.7843 4.08859L15.8536 4.14645C16.0271 4.32001 16.0464 4.58944 15.9114 4.78431L15.8536 4.85355L10.707 10L15.8536 15.1464C16.0271 15.32 16.0464 15.5894 15.9114 15.7843L15.8536 15.8536C15.68 16.0271 15.4106 16.0464 15.2157 15.9114L15.1464 15.8536L10 10.707L4.85355 15.8536C4.67999 16.0271 4.41056 16.0464 4.21569 15.9114L4.14645 15.8536C3.97288 15.68 3.9536 15.4106 4.08859 15.2157L4.14645 15.1464L9.293 10L4.14645 4.85355C3.97288 4.67999 3.9536 4.41056 4.08859 4.21569L4.14645 4.14645L4.08859 4.21569Z" />
     </svg>
   );
 }

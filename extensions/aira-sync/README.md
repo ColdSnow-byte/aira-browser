@@ -110,9 +110,10 @@ but preserves local browser data and inactive Provider baselines. See [docs/pers
   only.
 - Aira-sync captures only locally originated regular HTTP(S) history visits. Remote visits are shown in Aira-sync's History
   projection and are never written into the browser's native history database.
-- The merged Aira history page opens from the extension's History entry, or from the optional `open-aira-history` shortcut,
-  which is unassigned by default. An opt-in switch can hand the browser history page and its shortcut to that page on
+- The history page opens from the extension's History entry, or from the optional `open-aira-history` shortcut,
+  which is unassigned by default. Installing the extension hands the browser history page and its shortcut to that page on
   browsers that allow a history-page override; Firefox omits the override because Gecko does not support it.
+  Recognized browsers use their own history surface. Floorp, LibreWolf, and Waterfox keep Firefox's history surface. An unrecognized browser uses the Chrome history surface.
 - First sync and ordinary differences merge automatically. A real two-sided Bookmark conflict asks which side to keep.
 - Personal Server tokens and WebDAV credentials stay in extension storage and are sent only to the selected endpoint.
 - Do not commit credentials, tokens, production environment files, generated builds, browser profiles, databases, or

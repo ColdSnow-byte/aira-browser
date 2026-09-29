@@ -1,0 +1,231 @@
+.firefox-history {
+  --fx-toolbar: #f9f9fb;
+  --fx-sidebar: #f0f0f4;
+  --fx-content: #ffffff;
+  --fx-text: #15141a;
+  --fx-secondary: #5b5b66;
+  --fx-border: #cfcfd8;
+  --fx-selected: #0060df;
+  --fx-selected-text: #ffffff;
+  --fx-row: transparent;
+  --fx-header: #f0f0f4;
+  display: flex;
+  flex-direction: column;
+  width: 100vw;
+  min-height: 100vh;
+  background: var(--fx-content);
+  color: var(--fx-text);
+  font-family: system-ui, "Segoe UI", sans-serif;
+  font-size: 13px;
+}
+
+.firefox-history[data-firefox-theme="dark"] {
+  --fx-toolbar: #2b2a33;
+  --fx-sidebar: #1c1b22;
+  --fx-content: #2b2a33;
+  --fx-text: #fbfbfe;
+  --fx-secondary: #cfcfd8;
+  --fx-border: #5b5b66;
+  --fx-selected: #00ddff;
+  --fx-selected-text: #15141a;
+  --fx-header: #1c1b22;
+}
+
+body.firefox-history-body,
+body.firefox-history-body #root {
+  width: 100vw;
+  margin: 0;
+  background: var(--fx-content, #ffffff);
+  color: var(--fx-text, #15141a);
+}
+
+.firefox-history-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  height: 40px;
+  padding: 0 8px;
+  background: var(--fx-toolbar);
+  border-bottom: 1px solid var(--fx-border);
+}
+
+.firefox-history-toolbar button,
+.firefox-history-menu button {
+  border: 0;
+  background: transparent;
+  color: var(--fx-text);
+  font: inherit;
+  cursor: pointer;
+}
+
+.firefox-history-nav-buttons button {
+  width: 28px;
+  height: 28px;
+  border-radius: 4px;
+}
+
+.firefox-history-nav-buttons button:disabled {
+  opacity: 0.4;
+  cursor: default;
+}
+
+.firefox-history-organize {
+  position: relative;
+  height: 28px;
+  padding: 0 8px;
+  border-radius: 4px;
+}
+
+.firefox-history-organize:hover,
+.firefox-history-nav-buttons button:hover:not(:disabled),
+.firefox-history-menu button:hover {
+  background: color-mix(in srgb, var(--fx-text) 8%, transparent);
+}
+
+.firefox-history-search {
+  margin-left: auto;
+  width: min(23em, 40vw);
+  height: 28px;
+  padding: 0 8px;
+  border: 1px solid var(--fx-border);
+  border-radius: 4px;
+  background: var(--fx-content);
+  color: var(--fx-text);
+  font: inherit;
+}
+
+.firefox-history-body {
+  display: grid;
+  grid-template-columns: 200px minmax(0, 1fr);
+  width: 100vw;
+  min-height: calc(100vh - 41px);
+}
+
+.firefox-history-tree {
+  background: var(--fx-sidebar);
+  border-right: 1px solid var(--fx-border);
+  padding: 6px 0;
+}
+
+.firefox-history-tree button {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  padding: 2px 8px;
+  border: 0;
+  background: transparent;
+  color: var(--fx-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.firefox-history-tree button.is-child {
+  padding-left: 28px;
+}
+
+.firefox-history-tree button.is-selected {
+  background: var(--fx-selected);
+  color: var(--fx-selected-text);
+}
+
+.firefox-history-table {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  background: var(--fx-content);
+}
+
+.firefox-history-columns,
+.firefox-history-row {
+  display: grid;
+  grid-template-columns: minmax(180px, 2fr) minmax(180px, 2fr) minmax(140px, 1fr);
+  align-items: center;
+  gap: 8px;
+}
+
+.firefox-history-columns {
+  height: 28px;
+  padding: 0 8px;
+  background: var(--fx-header);
+  border-bottom: 1px solid var(--fx-border);
+  color: var(--fx-secondary);
+  font-weight: 600;
+}
+
+.firefox-history-columns button {
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  text-align: left;
+  cursor: pointer;
+}
+
+.firefox-history-rows {
+  min-width: 0;
+}
+
+.firefox-history-row {
+  width: 100%;
+  min-height: 24px;
+  padding: 0 8px;
+  border: 0;
+  background: transparent;
+  color: inherit;
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.firefox-history-row.is-selected {
+  background: var(--fx-selected);
+  color: var(--fx-selected-text);
+}
+
+.firefox-history-name {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  min-width: 0;
+}
+
+.firefox-history-name span,
+.firefox-history-url,
+.firefox-history-date {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.firefox-history-favicon {
+  width: 16px;
+  height: 16px;
+  flex: none;
+}
+
+.firefox-history-status {
+  margin: 0;
+  padding: 24px 12px;
+  color: var(--fx-secondary);
+}
+
+.firefox-history-menu {
+  position: absolute;
+  z-index: 2;
+  min-width: 180px;
+  padding: 4px 0;
+  border: 1px solid var(--fx-border);
+  border-radius: 4px;
+  background: var(--fx-content);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
+}
+
+.firefox-history-menu button {
+  display: block;
+  width: 100%;
+  min-height: 24px;
+  padding: 2px 12px;
+  text-align: left;
+}

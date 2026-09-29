@@ -17,6 +17,10 @@ const down = {
 
 describe('history takeover browser detection', () => {
   test('keeps Chromium forks distinct from generic Chrome', () => {
+    expect(detectHistoryBrowserKind('Mozilla/5.0 Firefox/135.0 Zen/1.12.1')).toBe('zen');
+    expect(detectHistoryBrowserKind('Mozilla/5.0 Firefox/145.0 Waterfox/6.6.5')).toBe('waterfox');
+    expect(detectHistoryBrowserKind('Mozilla/5.0 Firefox/128.0 LibreWolf/128.0')).toBe('librewolf');
+    expect(detectHistoryBrowserKind('Mozilla/5.0 Firefox/128.0 Floorp/11.0')).toBe('floorp');
     expect(detectHistoryBrowserKind('Mozilla/5.0 Firefox/128.0')).toBe('firefox');
     expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 OPR/114.0')).toBe('opera');
     expect(detectHistoryBrowserKind('Mozilla/5.0 Chrome/128.0 Vivaldi/6.8')).toBe('vivaldi');
@@ -61,6 +65,36 @@ describe('history takeover browser detection', () => {
     });
     expect(detected).toBe('brave');
   });
+
+  test('reads Zen from the Gecko browser name when the user agent still says Firefox', async () => {
+    const runtime = {
+      getBrowserInfo: async () => ({ name: 'Zen', vendor: 'Zen Team' }),
+    };
+    Object.assign(globalThis, { browser: { runtime } });
+    try {
+      const detected = await readInstalledHistoryBrowser({
+        userAgent: 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10.15; rv:135.0) Gecko/20100101 Firefox/135.0',
+      });
+      expect(detected).toBe('zen');
+    } finally {
+      delete (globalThis as { browser?: unknown }).browser;
+    }
+  });
+
+  test('reads Floorp from the Gecko browser name when the user agent is plain Firefox', async () => {
+    const runtime = {
+      getBrowserInfo: async () => ({ name: 'Floorp', vendor: 'Ablaze' }),
+    };
+    Object.assign(globalThis, { browser: { runtime } });
+    try {
+      const detected = await readInstalledHistoryBrowser({
+        userAgent: 'Mozilla/5.0 (X11; Linux x86_64; rv:128.0) Gecko/20100101 Firefox/128.0',
+      });
+      expect(detected).toBe('floorp');
+    } finally {
+      delete (globalThis as { browser?: unknown }).browser;
+    }
+  });
 });
 
 describe('history takeover shortcuts', () => {
@@ -77,6 +111,8 @@ describe('history takeover shortcuts', () => {
     expect(isHistoryTakeoverShortcut('opera', 'other', { ...down, ctrlKey: true, code: 'KeyH' })).toBe(true);
     expect(isHistoryTakeoverShortcut('opera', 'mac', { ...down, metaKey: true, shiftKey: true, code: 'KeyH' })).toBe(true);
     expect(isHistoryTakeoverShortcut('opera', 'mac', { ...down, metaKey: true, code: 'KeyH' })).toBe(false);
+    expect(isHistoryTakeoverShortcut('zen', 'other', { ...down, ctrlKey: true, code: 'KeyH' })).toBe(true);
+    expect(isHistoryTakeoverShortcut('zen', 'mac', { ...down, metaKey: true, shiftKey: true, code: 'KeyH' })).toBe(true);
     expect(isHistoryTakeoverShortcut('firefox', 'other', { ...down, ctrlKey: true, code: 'KeyH' })).toBe(true);
     expect(isHistoryTakeoverShortcut('firefox', 'other', { ...down, ctrlKey: true, shiftKey: true, code: 'KeyH' })).toBe(true);
     expect(isHistoryTakeoverShortcut('firefox', 'mac', { ...down, metaKey: true, shiftKey: true, code: 'KeyH' })).toBe(true);
