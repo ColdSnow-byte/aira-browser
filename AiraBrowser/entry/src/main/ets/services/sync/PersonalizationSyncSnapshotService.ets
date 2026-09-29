@@ -13,7 +13,7 @@ import {
   ShortcutRecord,
   ShortcutScenarioRecord
 } from '../../common/models/BrowserModels';
-import { WallpaperMode } from '../../common/models/WallpaperModels';
+import { readPortableWallpaperMode, WallpaperMode } from '../../common/models/WallpaperModels';
 import {
   BrowserHomePageStyle,
   readBrowserHomePageStyle
@@ -674,8 +674,7 @@ export class PersonalizationSyncSnapshotService {
 
   private sanitizeWallpaperMode(value: WallpaperMode | undefined): WallpaperMode | undefined {
     // The mode travels; which flat color was picked stays on the device that picked it.
-    return value === 'auto' || value === 'theme' || value === 'solid' ||
-      value === 'bing' || value === 'custom' ? value : undefined;
+    return readPortableWallpaperMode(value);
   }
 
   private sanitizeFiniteNumber(value: number | undefined): number | undefined {

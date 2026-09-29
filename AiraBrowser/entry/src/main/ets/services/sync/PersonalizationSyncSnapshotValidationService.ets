@@ -1,3 +1,4 @@
+import { PORTABLE_WALLPAPER_MODES } from '../../common/models/WallpaperModels';
 import {
   PERSONALIZATION_SYNC_ITEM_IDS,
   PERSONALIZATION_SYNC_SCHEMA_VERSION,
@@ -164,7 +165,7 @@ export class PersonalizationSyncSnapshotValidationService {
         'default', 'aira_classic', 'aira_origin', 'aurora', 'sage', 'cedar', 'lagoon', 'glacier',
         'indigo', 'wisteria', 'rosewood', 'terracotta', 'amber', 'moss', 'cyan', 'steel', 'plum', 'coral'
       ]) || !this.isAllowedString(appearance.tabsOverviewLayoutStyle, ['grid', 'horizontal_cards', 'stack', 'list']) ||
-      !this.isOptionalAllowedString(appearance.homeWallpaperMode, ['theme', 'bing', 'custom'])) {
+      !this.isOptionalAllowedString(appearance.homeWallpaperMode, PORTABLE_WALLPAPER_MODES)) {
       return false;
     }
     const general = payload.general as Record<string, Object>;

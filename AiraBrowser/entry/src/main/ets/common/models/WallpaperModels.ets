@@ -2,6 +2,17 @@ import { BrowserHomepageBackdropAppearanceState } from './BackdropAppearanceMode
 
 export type WallpaperMode = 'auto' | 'theme' | 'solid' | 'bing' | 'custom';
 
+// One list for both the sync writer and the snapshot validator. A second handwritten copy
+// rejected `auto` and failed the whole personalization upload.
+export const PORTABLE_WALLPAPER_MODES: string[] = ['auto', 'theme', 'solid', 'bing', 'custom'];
+
+export function readPortableWallpaperMode(value: string | undefined): WallpaperMode | undefined {
+  if (value === 'auto' || value === 'theme' || value === 'solid' || value === 'bing' || value === 'custom') {
+    return value;
+  }
+  return undefined;
+}
+
 export type WallpaperAssetSource = 'bing' | 'custom' | 'builtin';
 
 export type WallpaperAssetMediaType = 'image' | 'video';
