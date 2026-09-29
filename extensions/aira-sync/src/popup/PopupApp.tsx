@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import type { ReactNode } from 'react';
 import { useTranslation } from 'react-i18next';
 import { Button } from '@/components/ui/button';
@@ -72,7 +72,7 @@ import {
 } from '@/features/personal-server/PersonalServerConnection';
 import { AIRATAB_CAPABILITIES } from '@/config/AiratabDistribution';
 import { resolveCrossDeviceTransportKind } from '@/features/device-tabs/crossDeviceTransport';
-import { resolveCloudFeatureEntryView } from './featureEntryRouting';
+import { resolveCloudFeatureEntryView, shouldAutoSelectAiraCloud } from './featureEntryRouting';
 
 type PopupView =
   | 'home'
@@ -1975,6 +1975,7 @@ export function PopupApp() {
   const [view, setView] = useState<PopupView>('home');
   const [localVersion, setLocalVersion] = useState(0);
   const [pendingCloudSelectionAfterLogin, setPendingCloudSelectionAfterLogin] = useState(false);
+  const autoCloudAttemptKey = useRef('');
   const [personalServerConnection, setPersonalServerConnection] =
     useState<PersonalServerConnection | null>(null);
   const { t } = useTranslation();
@@ -2041,13 +2042,26 @@ export function PopupApp() {
   }, [desktopConnectionProfile?.uid]);
 
   useEffect(() => {
-    if (!pendingCloudSelectionAfterLogin || !syncRuntime.state.leafTabCloudLoggedIn) return;
+    const loginJustCompleted = pendingCloudSelectionAfterLogin;
+    if (!shouldAutoSelectAiraCloud({
+      airaCloudAvailable: AIRATAB_CAPABILITIES.airaCloud,
+      loggedIn: syncRuntime.state.leafTabCloudLoggedIn,
+      selectedSource: syncRuntime.state.leafTabSelectedSyncSource,
+      loginJustCompleted,
+    })) return;
+    const attemptKey = loginJustCompleted
+      ? `login:${desktopConnectionProfile?.uid || 'pending'}`
+      : `empty:${desktopConnectionProfile?.uid || ''}`;
+    if (autoCloudAttemptKey.current === attemptKey) return;
+    autoCloudAttemptKey.current = attemptKey;
     setPendingCloudSelectionAfterLogin(false);
     void syncRuntime.actions.handleSelectSyncSource('aira-cloud');
   }, [
+    desktopConnectionProfile?.uid,
     pendingCloudSelectionAfterLogin,
     syncRuntime.actions,
     syncRuntime.state.leafTabCloudLoggedIn,
+    syncRuntime.state.leafTabSelectedSyncSource,
   ]);
 
   const selectCloudOrLogin = () => {
@@ -2222,6 +2236,7 @@ export function PopupApp() {
             setView('webdav');
           }}
           onLoggedIn={() => {
+            setPendingCloudSelectionAfterLogin(true);
             setLocalVersion((value) => value + 1);
             setView('home');
           }}
