@@ -66,6 +66,7 @@ body.edge-history-body #root {
 }
 
 .edge-history-tools {
+  position: relative;
   display: flex;
   align-items: center;
   gap: 2px;
@@ -85,9 +86,45 @@ body.edge-history-body #root {
 }
 
 .edge-history-icon:hover,
+.edge-history-icon.is-open,
 .edge-history-row:hover,
-.edge-history-menu button:hover {
+.edge-history-menu button:hover,
+.edge-history-hub-menu button:hover {
   background: var(--eh-hover);
+}
+
+.edge-history-hub-menu {
+  position: absolute;
+  top: 36px;
+  right: 0;
+  z-index: 6;
+  width: 280px;
+  padding: 4px 0;
+  border: 1px solid var(--eh-menu-border);
+  border-radius: 8px;
+  background: var(--eh-menu);
+  box-shadow: 0 8px 28px rgba(0, 0, 0, 0.18);
+}
+
+.edge-history-hub-menu button {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  width: 100%;
+  min-height: 36px;
+  padding: 0 12px;
+  border: 0;
+  background: transparent;
+  color: var(--eh-text);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.edge-history-hub-separator {
+  height: 1px;
+  margin: 4px 0;
+  background: var(--eh-line);
 }
 
 .edge-history-search {

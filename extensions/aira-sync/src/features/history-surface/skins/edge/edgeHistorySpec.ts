@@ -14,6 +14,13 @@ export type EdgeHistoryCopy = {
   openPrivate: string;
   copyLink: string;
   remove: string;
+  clearData: string;
+  more: string;
+  pin: string;
+  unpin: string;
+  openHistoryPage: string;
+  exportData: string;
+  showDuplicates: string;
   moreFromSite: string;
   empty: string;
   emptyClosed: string;
@@ -37,6 +44,13 @@ const ZH: EdgeHistoryCopy = {
   openPrivate: '在新建 InPrivate 窗口中打开',
   copyLink: '复制链接',
   remove: '删除',
+  clearData: '删除浏览数据',
+  more: '更多选项',
+  pin: '固定历史记录',
+  unpin: '取消固定',
+  openHistoryPage: '打开历史记录页面',
+  exportData: '导出浏览数据',
+  showDuplicates: '显示重复页',
   moreFromSite: '来自相同站点的更多内容',
   empty: '没有历史记录',
   emptyClosed: '没有最近关闭的标签页',
@@ -60,6 +74,13 @@ const EN: EdgeHistoryCopy = {
   openPrivate: 'Open in new InPrivate window',
   copyLink: 'Copy link',
   remove: 'Delete',
+  clearData: 'Delete browsing data',
+  more: 'More options',
+  pin: 'Pin history',
+  unpin: 'Unpin',
+  openHistoryPage: 'Open history page',
+  exportData: 'Export browsing data',
+  showDuplicates: 'Show duplicate pages',
   moreFromSite: 'More from this site',
   empty: 'No history',
   emptyClosed: 'No recently closed tabs',

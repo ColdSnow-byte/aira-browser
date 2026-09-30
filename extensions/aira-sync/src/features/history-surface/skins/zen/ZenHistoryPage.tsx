@@ -236,36 +236,31 @@ function Favicon({ url }: { url: string }) {
   return <img className="zen-history-favicon" src={src} alt="" onError={() => setFailed(true)} />;
 }
 
+function ZenIcon({ className, path }: { className?: string; path: string }) {
+  return (
+    <svg className={className} width="16" height="16" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="currentColor" d={path} />
+    </svg>
+  );
+}
+
 function HistoryIcon() {
   return (
-    <svg className="zen-history-tab-icon" viewBox="0 0 24 24" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" fill="none" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M12 8v5l3 2" fill="none" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <svg className="zen-history-tab-icon" viewBox="0 0 18 18" aria-hidden="true">
+      <path fill="currentColor" d="M9 1a8 8 0 1 1-8 8 .75.75 0 0 1 1.5 0 6.5 6.5 0 1 0 1.152-3.697L5.13 5.1a.75.75 0 0 1 .206 1.486l-2.944.406-.084.006H2.28q-.041-.001-.082-.007-.046-.004-.094-.015l-.017-.004-.082-.028-.044-.02-.006-.003a1 1 0 0 1-.102-.063l-.06-.048-.047-.044a1 1 0 0 1-.058-.073q-.016-.018-.028-.037a1 1 0 0 1-.047-.087l-.02-.043a.8.8 0 0 1-.048-.173l-.408-2.946a.751.751 0 0 1 1.486-.205l.113.822A7.99 7.99 0 0 1 9 1" />
+      <path fill="currentColor" d="M9 4a.75.75 0 0 1 .75.75v3.857l2.927 2.027a.75.75 0 1 1-.854 1.232l-3.25-2.25A.75.75 0 0 1 8.25 9V4.75A.75.75 0 0 1 9 4" />
     </svg>
   );
 }
 
 function SearchIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
-      <circle cx="7" cy="7" r="4.5" fill="none" stroke="currentColor" strokeWidth="1.4" opacity="0.5" />
-      <path d="M10.5 10.5 13 13" stroke="currentColor" strokeWidth="1.4" strokeLinecap="round" opacity="0.5" />
-    </svg>
-  );
+  return <ZenIcon path="M7.75 1.5A6.25 6.25 0 0 1 14 7.75a6.22 6.22 0 0 1-1.334 3.855l3.614 3.615a.75.75 0 0 1-1.06 1.06l-3.615-3.614A6.22 6.22 0 0 1 7.75 14a6.25 6.25 0 0 1 0-12.5m0 1.5a4.75 4.75 0 1 0 0 9.5 4.75 4.75 0 0 0 0-9.5" />;
 }
 
 function TrashIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M6 2.5h4l.5 1.5h3v1.2H2.5V4h3L6 2.5Zm.4 3.2h1.1v6H6.4v-6Zm2.1 0h1.1v6H8.5v-6ZM4.8 5.7h1.1l.3 6.4H5.1L4.8 5.7Zm5.3 0h1.1l-.3 6.4H10.4l-.3-6.4Z" />
-    </svg>
-  );
+  return <ZenIcon path="M4.488 6.501a.75.75 0 0 1 .788.71l.374 7.104A1.25 1.25 0 0 0 6.898 15.5h4.206a1.25 1.25 0 0 0 1.248-1.185l.374-7.104a.75.75 0 0 1 1.498.078l-.374 7.106A2.75 2.75 0 0 1 11.104 17H6.898a2.75 2.75 0 0 1-2.746-2.605l-.374-7.106a.75.75 0 0 1 .71-.788M10.25 1c.966 0 1.75.784 1.75 1.75V4h3.25a.75.75 0 0 1 0 1.5H2.75a.75.75 0 0 1 0-1.5H6V2.75C6 1.784 6.784 1 7.75 1zm-2.5 1.5a.25.25 0 0 0-.25.25V4h3V2.75a.25.25 0 0 0-.25-.25z" />;
 }
 
 function ReopenIcon() {
-  return (
-    <svg viewBox="0 0 16 16" aria-hidden="true">
-      <path d="M7.2 3.2a4.8 4.8 0 1 0 1.4 7.8l-.8-1a3.6 3.6 0 1 1-1-5.8H8.2v1.6L11.4 3.6 8.2 1.4v1.8H7.2Z" />
-    </svg>
-  );
+  return <ZenIcon path="M5.22 2.22a.75.75 0 1 1 1.06 1.06L4.06 5.5H12a4.5 4.5 0 0 1 0 9H8.25a.75.75 0 0 1 0-1.5H12a3 3 0 0 0 0-6H4.06l2.22 2.22a.75.75 0 0 1-1.06 1.06l-3.5-3.5a.75.75 0 0 1-.165-.812l.004-.01a1 1 0 0 1 .056-.105 1 1 0 0 1 .105-.133z" />;
 }

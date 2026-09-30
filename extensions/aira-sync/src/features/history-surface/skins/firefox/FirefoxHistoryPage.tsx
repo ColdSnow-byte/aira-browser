@@ -87,8 +87,8 @@ export function FirefoxHistoryPage() {
     <div className="firefox-history" data-firefox-theme={theme} onClick={() => setMenu(null)}>
       <header className="firefox-history-toolbar">
         <div className="firefox-history-nav-buttons">
-          <button type="button" aria-label={copy.back} disabled={historyIndex <= 0} onClick={() => go(-1)}>←</button>
-          <button type="button" aria-label={copy.forward} disabled={historyIndex >= historyStack.length - 1} onClick={() => go(1)}>→</button>
+          <button type="button" aria-label={copy.back} disabled={historyIndex <= 0} onClick={() => go(-1)}><BackIcon /></button>
+          <button type="button" aria-label={copy.forward} disabled={historyIndex >= historyStack.length - 1} onClick={() => go(1)}><ForwardIcon /></button>
         </div>
         <div className="firefox-history-organize">
           <button type="button" onClick={(event) => event.stopPropagation()}>{copy.organize}</button>
@@ -194,6 +194,25 @@ function formatVisitDate(timestamp: number, language: string): string {
     minute: '2-digit',
     hourCycle: 'h23',
   }).format(new Date(timestamp));
+}
+
+function PlacesArrow({ direction }: { direction: 'back' | 'forward' }) {
+  const path = direction === 'back'
+    ? 'M6.69 2.25 1.22 7.72a.75.75 0 0 0 0 1.06l5.47 5.47 1.06-1.061L3.56 9H15V7.5H3.56l4.19-4.19-1.06-1.06z'
+    : 'M12.44 9H1V7.5h11.44L8.25 3.31l1.06-1.06 5.47 5.47a.75.75 0 0 1 0 1.06l-5.47 5.47-1.06-1.061L12.44 9z';
+  return (
+    <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true">
+      <path fill="currentColor" d={path} />
+    </svg>
+  );
+}
+
+function BackIcon() {
+  return <PlacesArrow direction="back" />;
+}
+
+function ForwardIcon() {
+  return <PlacesArrow direction="forward" />;
 }
 
 function Favicon({ url }: { url: string }) {

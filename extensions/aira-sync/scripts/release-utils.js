@@ -16,7 +16,7 @@ const LOCAL_OFFICIAL_EXTENSION_ID = 'plnjjlkaaonbccmjpfljbbbbaahfklem';
 // browser_specific_settings.gecko.id differs from the published add-on.
 const FIREFOX_EXTENSION_ID = 'airatab@cc';
 // Firefox has no counterpart for these Chromium-only manifest permissions.
-const FIREFOX_UNSUPPORTED_PERMISSIONS = new Set(['permissions', 'favicon']);
+const FIREFOX_UNSUPPORTED_PERMISSIONS = new Set(['permissions', 'favicon', 'sidePanel']);
 
 // Firefox runs Manifest V3 through a non-persistent background page instead of a service worker,
 // so the built background entry is declared as an ES module script.
@@ -25,6 +25,8 @@ function prepareFirefoxStoreManifest(dirPath) {
   const manifest = JSON.parse(fs.readFileSync(manifestPath, 'utf-8'));
   delete manifest.key;
   delete manifest.chrome_url_overrides;
+  delete manifest.sidebar_action;
+  delete manifest.side_panel;
   manifest.permissions = Array.isArray(manifest.permissions)
     ? manifest.permissions.filter((permission) => !FIREFOX_UNSUPPORTED_PERMISSIONS.has(permission))
     : manifest.permissions;

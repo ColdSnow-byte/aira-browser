@@ -18,6 +18,7 @@ import {
   type EdgeClosedEntry,
 } from './useEdgeRecentlyClosed';
 import { formatChromeHistoryDay, formatChromeHistoryTime } from '../chrome/chromeHistorySpec';
+import { rememberEdgeHistoryWindow, requestEdgeHistoryDock } from './edgeHistoryDock';
 import './edge-history.css';
 
 type EdgeMenuState = {
@@ -35,9 +36,16 @@ export function EdgeHistoryPage() {
   const [query, setQuery] = useState('');
   const [theme, setTheme] = useState<'light' | 'dark'>(readEdgeTheme);
   const [menu, setMenu] = useState<EdgeMenuState | null>(null);
+  const [hubMenu, setHubMenu] = useState(false);
+  const [showDuplicates, setShowDuplicates] = useState(false);
+  const docked = new URLSearchParams(window.location.search).get('dock') === '1';
   const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const closed = useEdgeRecentlyClosed(section === 'closed');
   const devices = useChromeOtherDeviceTabs(section === 'devices');
+
+  useEffect(() => {
+    rememberEdgeHistoryWindow();
+  }, []);
 
   useEffect(() => {
     document.title = copy.title;
@@ -56,7 +64,10 @@ export function EdgeHistoryPage() {
     return () => media.removeEventListener('change', apply);
   }, []);
 
-  const filteredVisits = useMemo(() => filterByQuery(data.visits, query), [data.visits, query]);
+  const filteredVisits = useMemo(() => {
+    const matched = filterByQuery(data.visits, query);
+    return showDuplicates ? matched : uniqueByUrl(matched);
+  }, [data.visits, query, showDuplicates]);
   const groups = useMemo(
     () => groupVisits(filteredVisits, i18n.language),
     [filteredVisits, i18n.language],
@@ -87,15 +98,54 @@ export function EdgeHistoryPage() {
   };
 
   return (
-    <div className="edge-history" data-edge-theme={theme} onClick={() => setMenu(null)}>
+    <div className="edge-history" data-edge-theme={theme} onClick={() => { setMenu(null); setHubMenu(false); }}>
       <header className="edge-history-header">
         <h1>{copy.title}</h1>
         <div className="edge-history-tools">
-          <button type="button" className="edge-history-icon" aria-label={copy.remove} onClick={openClearData}>
+          <button type="button" className="edge-history-icon" aria-label={copy.clearData} onClick={(event) => { event.stopPropagation(); openClearData(); }}>
             <TrashIcon />
           </button>
-          <span className="edge-history-icon" aria-hidden="true"><MoreIcon /></span>
-          <span className="edge-history-icon" aria-hidden="true"><PinIcon /></span>
+          <button
+            type="button"
+            className={`edge-history-icon${hubMenu ? ' is-open' : ''}`}
+            aria-label={copy.more}
+            aria-expanded={hubMenu}
+            onClick={(event) => {
+              event.stopPropagation();
+              setMenu(null);
+              setHubMenu((open) => !open);
+            }}
+          >
+            <MoreIcon />
+          </button>
+          <button
+            type="button"
+            className={`edge-history-icon${docked ? ' is-open' : ''}`}
+            aria-label={docked ? copy.unpin : copy.pin}
+            aria-pressed={docked}
+            onClick={(event) => {
+              event.stopPropagation();
+              requestEdgeHistoryDock(docked);
+            }}
+          >
+            <PinIcon />
+          </button>
+          {hubMenu ? (
+            <div className="edge-history-hub-menu" onClick={(event) => event.stopPropagation()}>
+              <button type="button" onClick={() => { setHubMenu(false); openHistoryPage(); }}>
+                <OpenIcon />
+                <span>{copy.openHistoryPage}</span>
+              </button>
+              <button type="button" onClick={() => { setHubMenu(false); void exportBrowsingData(); }}>
+                <ExportIcon />
+                <span>{copy.exportData}</span>
+              </button>
+              <div className="edge-history-hub-separator" />
+              <button type="button" onClick={() => { setShowDuplicates((current) => !current); setHubMenu(false); }}>
+                <span>{copy.showDuplicates}</span>
+              </button>
+            </div>
+          ) : null}
         </div>
       </header>
       <form className="edge-history-search" role="search" onSubmit={(event) => event.preventDefault()}>
@@ -302,7 +352,52 @@ function readEdgeTheme(): 'light' | 'dark' {
 
 function openClearData(): void {
   const url = 'edge://settings/clearBrowserData';
-  if (globalThis.chrome?.tabs?.create) void globalThis.chrome.tabs.create({ url });
+  const tabs = globalThis.chrome?.tabs;
+  if (!tabs?.create) {
+    window.location.assign(url);
+    return;
+  }
+  tabs.create({ url }, () => {
+    if (globalThis.chrome?.runtime?.lastError) window.location.assign(url);
+  });
+}
+
+function openHistoryPage(): void {
+  const url = globalThis.chrome?.runtime?.getURL?.('history-override.html') || 'history-override.html';
+  if (globalThis.chrome?.tabs?.create) void globalThis.chrome.tabs.create({ url, active: true });
+  else window.open(url, '_blank', 'noopener,noreferrer');
+}
+
+async function exportBrowsingData(): Promise<void> {
+  const historyApi = globalThis.chrome?.history;
+  const items = historyApi?.search
+    ? await new Promise<chrome.history.HistoryItem[]>((resolve) => {
+      historyApi.search({ text: '', startTime: 0, maxResults: 10000 }, (result) => resolve(result || []));
+    })
+    : [];
+  const rows = ['Date,Title,URL', ...items.map((item) => {
+    const when = item.lastVisitTime ? new Date(item.lastVisitTime).toISOString() : '';
+    return [when, item.title || '', item.url || ''].map(csvCell).join(',');
+  })];
+  const blob = new Blob([rows.join('\n')], { type: 'text/csv;charset=utf-8' });
+  const link = document.createElement('a');
+  link.href = URL.createObjectURL(blob);
+  link.download = 'edge-history.csv';
+  link.click();
+  URL.revokeObjectURL(link.href);
+}
+
+function csvCell(value: string): string {
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function uniqueByUrl(visits: HistorySyncVisit[]): HistorySyncVisit[] {
+  const seen = new Set<string>();
+  return visits.filter((visit) => {
+    if (seen.has(visit.url)) return false;
+    seen.add(visit.url);
+    return true;
+  });
 }
 
 function filterByQuery(visits: HistorySyncVisit[], query: string): HistorySyncVisit[] {
@@ -335,13 +430,16 @@ function Favicon({ url }: { url: string }) {
   return <img className="edge-history-favicon" src={src} alt="" onError={() => setFailed(true)} />;
 }
 
-function SearchIcon() {
+function FluentIcon({ size, className, path }: { size: number; className?: string; path: string }) {
   return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="11" cy="11" r="6.25" stroke="currentColor" strokeWidth="1.8" />
-      <path d="M16 16.5 20 20.5" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" />
+    <svg className={className} width={size} height={size} viewBox={`0 0 ${size} ${size}`} aria-hidden="true">
+      <path fill="currentColor" d={path} />
     </svg>
   );
+}
+
+function SearchIcon() {
+  return <FluentIcon size={16} path="M11.0195 11.7266C10.0658 12.5217 8.83875 13 7.5 13C4.46243 13 2 10.5376 2 7.5C2 4.46243 4.46243 2 7.5 2C10.5376 2 13 4.46243 13 7.5C13 8.83875 12.5217 10.0658 11.7266 11.0195L14.8535 14.1464C15.0488 14.3417 15.0488 14.6583 14.8535 14.8536C14.6583 15.0488 14.3417 15.0488 14.1464 14.8536L11.0195 11.7266ZM12 7.5C12 5.01472 9.98528 3 7.5 3C5.01472 3 3 5.01472 3 7.5C3 9.98528 5.01472 12 7.5 12C9.98528 12 12 9.98528 12 7.5Z" />;
 }
 
 function TrashIcon() {
@@ -368,62 +466,42 @@ function PinIcon() {
   );
 }
 
+function OpenIcon() {
+  return <FluentIcon size={16} path="M4.49999 3C3.67157 3 3 3.67157 3 4.5V11.5C3 12.3284 3.67157 13 4.49999 13H11.5C12.3284 13 12.9999 12.3284 12.9999 11.5V9.26923C12.9999 8.99309 13.2238 8.76923 13.4999 8.76923C13.7761 8.76923 13.9999 8.99309 13.9999 9.26923V11.5C13.9999 12.8807 12.8807 14 11.5 14H4.49999C3.11928 14 2 12.8807 2 11.5V4.5C2 3.11929 3.11928 2 4.49999 2H6.73075C7.00689 2 7.23074 2.22386 7.23074 2.5C7.23074 2.77614 7.00689 3 6.73075 3H4.49999ZM8.76926 2.5C8.76926 2.22386 8.99311 2 9.26925 2H13.5C13.7761 2 14 2.22386 14 2.5V6.73077C14 7.00691 13.7761 7.23077 13.5 7.23077C13.2239 7.23077 13 7.00691 13 6.73077V3.70711L9.6228 7.08433C9.42754 7.27959 9.11096 7.27959 8.9157 7.08433C8.72044 6.88906 8.72044 6.57248 8.9157 6.37722L12.2929 3H9.26925C8.99311 3 8.76926 2.77614 8.76926 2.5Z" />;
+}
+
+function ExportIcon() {
+  return <FluentIcon size={16} path="M1.5 3C1.77614 3 2 3.22386 2 3.5V12C2 12.2761 1.77614 12.5 1.5 12.5C1.22386 12.5 1 12.2761 1 12V3.5C1 3.22386 1.22386 3 1.5 3ZM10.6464 3.64645C10.8417 3.45118 11.1583 3.45118 11.3536 3.64645L14.8536 7.14645C15.0488 7.34171 15.0488 7.65829 14.8536 7.85355L11.3536 11.3536C11.1583 11.5488 10.8417 11.5488 10.6464 11.3536C10.4512 11.1583 10.4512 10.8417 10.6464 10.6464L13.2929 8H4.5C4.22386 8 4 7.77614 4 7.5C4 7.22386 4.22386 7 4.5 7H13.2929L10.6464 4.35355C10.4512 4.15829 10.4512 3.84171 10.6464 3.64645Z" />;
+}
+
 function DismissIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 20 20" aria-hidden="true">
-      <path fill="currentColor" d="M4.08859 4.21569L4.14645 4.14645C4.32001 3.97288 4.58944 3.9536 4.78431 4.08859L4.85355 4.14645L10 9.293L15.1464 4.14645C15.32 3.97288 15.5894 3.9536 15.7843 4.08859L15.8536 4.14645C16.0271 4.32001 16.0464 4.58944 15.9114 4.78431L15.8536 4.85355L10.707 10L15.8536 15.1464C16.0271 15.32 16.0464 15.5894 15.9114 15.7843L15.8536 15.8536C15.68 16.0271 15.4106 16.0464 15.2157 15.9114L15.1464 15.8536L10 10.707L4.85355 15.8536C4.67999 16.0271 4.41056 16.0464 4.21569 15.9114L4.14645 15.8536C3.97288 15.68 3.9536 15.4106 4.08859 15.2157L4.14645 15.1464L9.293 10L4.14645 4.85355C3.97288 4.67999 3.9536 4.41056 4.08859 4.21569L4.14645 4.14645L4.08859 4.21569Z" />
-    </svg>
-  );
+  return <FluentIcon size={16} path="M2.58859 2.71569L2.64645 2.64645C2.82001 2.47288 3.08944 2.4536 3.28431 2.58859L3.35355 2.64645L8 7.293L12.6464 2.64645C12.8417 2.45118 13.1583 2.45118 13.3536 2.64645C13.5488 2.84171 13.5488 3.15829 13.3536 3.35355L8.707 8L13.3536 12.6464C13.5271 12.82 13.5464 13.0894 13.4114 13.2843L13.3536 13.3536C13.18 13.5271 12.9106 13.5464 12.7157 13.4114L12.6464 13.3536L8 8.707L3.35355 13.3536C3.15829 13.5488 2.84171 13.5488 2.64645 13.3536C2.45118 13.1583 2.45118 12.8417 2.64645 12.6464L7.293 8L2.64645 3.35355C2.47288 3.17999 2.4536 2.91056 2.58859 2.71569L2.64645 2.64645L2.58859 2.71569Z" />;
 }
 
 function GlobeIcon() {
-  return (
-    <svg className="edge-history-favicon" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <circle cx="12" cy="12" r="8" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M4 12h16M12 4c2.2 2.4 2.2 13.6 0 16M12 4c-2.2 2.4-2.2 13.6 0 16" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <FluentIcon className="edge-history-favicon" size={16} path="M8 14C11.3137 14 14 11.3137 14 8C14 4.68629 11.3137 2 8 2C4.68629 2 2 4.68629 2 8C2 11.3137 4.68629 14 8 14ZM8 3C8.37372 3 8.87543 3.35608 9.31258 4.31781C9.4073 4.52619 9.49448 4.75446 9.57265 5H6.42735C6.50552 4.75446 6.5927 4.52619 6.68742 4.31781C7.12457 3.35608 7.62628 3 8 3ZM5.77705 3.90401C5.62614 4.23601 5.49428 4.6038 5.38411 5H3.99963C4.52341 4.30269 5.22525 3.74677 6.03766 3.39978C5.94287 3.56117 5.85596 3.7304 5.77705 3.90401ZM5.16299 6C5.05694 6.6275 5 7.30146 5 8C5 8.69854 5.05694 9.3725 5.16299 10H3.41604C3.14845 9.38754 3 8.7111 3 8C3 7.2889 3.14845 6.61246 3.41604 6H5.16299ZM5.38411 11C5.49428 11.3962 5.62614 11.764 5.77705 12.096C5.85596 12.2696 5.94287 12.4388 6.03766 12.6002C5.22525 12.2532 4.52341 11.6973 3.99963 11H5.38411ZM6.42735 11H9.57265C9.49448 11.2455 9.4073 11.4738 9.31258 11.6822C8.87543 12.6439 8.37372 13 8 13C7.62628 13 7.12457 12.6439 6.68742 11.6822C6.5927 11.4738 6.50552 11.2455 6.42735 11ZM9.82134 10H6.17866C6.06438 9.3892 6 8.71396 6 8C6 7.28604 6.06438 6.6108 6.17866 6H9.82134C9.93562 6.6108 10 7.28604 10 8C10 8.71396 9.93562 9.3892 9.82134 10ZM10.6159 11H12.0004C11.4766 11.6973 10.7747 12.2532 9.96234 12.6002C10.0571 12.4388 10.144 12.2696 10.2229 12.096C10.3739 11.764 10.5057 11.3962 10.6159 11ZM12.584 10H10.837C10.9431 9.3725 11 8.69854 11 8C11 7.30146 10.9431 6.6275 10.837 6H12.584C12.8516 6.61246 13 7.2889 13 8C13 8.7111 12.8516 9.38754 12.584 10ZM9.96234 3.39978C10.7747 3.74677 11.4766 4.30269 12.0004 5H10.6159C10.5057 4.6038 10.3739 4.23601 10.2229 3.90401C10.144 3.7304 10.0571 3.56117 9.96234 3.39978Z" />;
 }
 
 function ChevronIcon({ open }: { open: boolean }) {
   return (
-    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }}>
-      <path d="M9 6l8 6-8 6" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" strokeLinejoin="round" />
+    <svg width={12} height={12} viewBox="0 0 12 12" aria-hidden="true" style={{ transform: open ? 'rotate(90deg)' : undefined }}>
+      <path fill="currentColor" d="M4.64645 2.14645C4.45118 2.34171 4.45118 2.65829 4.64645 2.85355L7.79289 6L4.64645 9.14645C4.45118 9.34171 4.45118 9.65829 4.64645 9.85355C4.84171 10.0488 5.15829 10.0488 5.35355 9.85355L8.85355 6.35355C9.04882 6.15829 9.04882 5.84171 8.85355 5.64645L5.35355 2.14645C5.15829 1.95118 4.84171 1.95118 4.64645 2.14645Z" />
     </svg>
   );
 }
 
 function TabIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="4" y="5" width="16" height="14" rx="2" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <FluentIcon size={16} path="M1.99994 4C1.99994 2.89543 2.89537 2 3.99994 2H11.9999C13.1045 2 13.9999 2.89543 13.9999 4V12C13.9999 13.1046 13.1045 14 11.9999 14H3.99994C2.89537 14 1.99994 13.1046 1.99994 12V4ZM3.99994 3C3.44765 3 2.99994 3.44772 2.99994 4V12C2.99994 12.5523 3.44765 13 3.99994 13H11.9999C12.5522 13 12.9999 12.5523 12.9999 12V4C12.9999 3.44772 12.5522 3 11.9999 3H3.99994Z" />;
 }
 
 function WindowIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <rect x="3" y="4" width="18" height="16" rx="2" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M3 8h18" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <FluentIcon size={16} path="M4.5 2C3.11929 2 2 3.11929 2 4.5V11.5C2 12.8807 3.11929 14 4.5 14H11.5C12.8807 14 14 12.8807 14 11.5V4.5C14 3.11929 12.8807 2 11.5 2H4.5ZM13 5H3V4.5C3 3.67157 3.67157 3 4.5 3H11.5C12.3284 3 13 3.67157 13 4.5V5ZM3 6H13V11.5C13 12.3284 12.3284 13 11.5 13H4.5C3.67157 13 3 12.3284 3 11.5V6Z" />;
 }
 
 function PrivateIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M7 11V8a5 5 0 0 1 10 0v3" stroke="currentColor" strokeWidth="1.6" />
-      <rect x="5" y="11" width="14" height="9" rx="2" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <FluentIcon size={16} path="M8 1C9.65685 1 11 2.34315 11 4V6C12.1046 6 13 6.89543 13 8V13C13 14.1046 12.1046 15 11 15H5C3.89543 15 3 14.1046 3 13V8C3 6.89543 3.89543 6 5 6V4C5 2.34315 6.34315 1 8 1ZM5 7C4.44772 7 4 7.44772 4 8V13C4 13.5523 4.44772 14 5 14H11C11.5523 14 12 13.5523 12 13V8C12 7.44772 11.5523 7 11 7H5ZM8 9.5C8.55228 9.5 9 9.94772 9 10.5C9 11.0523 8.55228 11.5 8 11.5C7.44772 11.5 7 11.0523 7 10.5C7 9.94772 7.44772 9.5 8 9.5ZM8 2C6.89543 2 6 2.89543 6 4V6H10V4C10 2.89543 9.10457 2 8 2Z" />;
 }
 
 function CopyIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-      <path d="M8 8h10v12H8z" stroke="currentColor" strokeWidth="1.6" />
-      <path d="M6 16H5a1 1 0 0 1-1-1V5a1 1 0 0 1 1-1h10a1 1 0 0 1 1 1v1" stroke="currentColor" strokeWidth="1.6" />
-    </svg>
-  );
+  return <FluentIcon size={16} path="M5 6H4C3.44772 6 3 6.44772 3 7V12C3 12.5523 3.44772 13 4 13H8C8.55228 13 9 12.5523 9 12H10C10 13.1046 9.10457 14 8 14H4C2.89543 14 2 13.1046 2 12V7C2 5.89543 2.89543 5 4 5H5V6ZM12 2C13.1046 2 14 2.89543 14 4V9C14 10.1046 13.1046 11 12 11H8C6.89543 11 6 10.1046 6 9V4C6 2.89543 6.89543 2 8 2H12ZM8 3C7.44772 3 7 3.44772 7 4V9C7 9.55228 7.44772 10 8 10H12C12.5523 10 13 9.55228 13 9V4C13 3.44772 12.5523 3 12 3H8Z" />;
 }

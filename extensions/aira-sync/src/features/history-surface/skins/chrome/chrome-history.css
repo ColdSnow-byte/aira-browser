@@ -254,7 +254,7 @@ body.chrome-history-body {
   max-width: 960px;
   min-width: 0;
   min-height: calc(100vh - 76px);
-  justify-self: start;
+  justify-self: center;
   overflow: visible;
   border: 1px solid var(--ch-card-border);
   border-radius: 16px;
